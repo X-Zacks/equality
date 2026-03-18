@@ -32,13 +32,57 @@ equality/
 
 ## 🚀 快速开始
 
-### 环境要求
+### 环境要求（Windows）
 
-| 工具 | 版本要求 |
-|------|---------|
-| Node.js | ≥ 18 |
-| pnpm | ≥ 8 |
-| Rust + Cargo | stable（用于 Tauri） |
+> ⚠️ Tauri 需要 **完整的 Rust 工具链 + MSVC 编译器**，缺少任意一项均会导致编译失败。请按顺序完成以下安装。
+
+#### 第一步：安装 Visual Studio C++ 编译工具
+
+Tauri 依赖 MSVC linker，**VS Code ≠ Visual Studio**，必须单独安装编译工具。
+
+**方式 A（推荐，体积小）：仅安装 Build Tools**
+
+1. 下载 [Visual Studio Build Tools 2022](https://aka.ms/vs/17/release/vs_BuildTools.exe)
+2. 安装时勾选 **"使用 C++ 的桌面开发"** 工作负载
+3. 确保以下组件被选中（默认已勾选）：
+   - MSVC v143 - VS 2022 C++ x64/x86 生成工具
+   - Windows 11 SDK（或 Windows 10 SDK）
+
+**方式 B：安装完整 Visual Studio 2022 Community**
+
+安装时同样勾选 **"使用 C++ 的桌面开发"** 工作负载即可。
+
+#### 第二步：安装 Rust
+
+```powershell
+# 下载并运行 rustup 安装器（会自动检测到 MSVC 工具链）
+winget install Rustlang.Rustup
+# 或手动下载：https://rustup.rs/
+
+# 安装完成后重新打开终端，验证：
+rustc --version   # 应显示 rustc 1.xx.x
+cargo --version   # 应显示 cargo 1.xx.x
+```
+
+> 若 `rustup` 安装时提示找不到 MSVC 工具链，请先完成第一步再重试。
+
+#### 第三步：安装 Node.js 和 pnpm
+
+```powershell
+winget install OpenJS.NodeJS.LTS   # Node.js ≥ 18
+npm install -g pnpm                 # pnpm ≥ 8
+```
+
+#### 环境验证
+
+```powershell
+node --version    # v18.x 或更高
+pnpm --version    # 8.x 或更高
+rustc --version   # rustc 1.xx.x
+cargo --version   # cargo 1.xx.x
+```
+
+---
 
 ### 安装依赖
 
