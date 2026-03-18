@@ -2,7 +2,7 @@
 
 ## Phase 1：CORS 白名单（立即实施）
 
-- [ ] **1.1** `packages/core/src/index.ts`  
+- [x] **1.1** `packages/core/src/index.ts`  
   将 `origin: true` 替换为 Origin 白名单函数  
   允许：`null`、`https://tauri.localhost`、`tauri://localhost`、开发模式 `localhost:*`  
   拒绝：其他所有 origin
@@ -13,17 +13,17 @@
 
 ## Phase 2：Secrets 存储加固（后续实施）
 
-- [ ] **2.1** `packages/core/src/config/secrets.ts`  
-  在 `setSecret` 和 `getSecret` 增加 `storageMode` 检测占位注释  
-  加入 `getStorageMode(): 'plaintext' | 'dpapi'` 函数（当前始终返回 `'plaintext'`）
+- [x] **2.1** `packages/core/src/config/secrets.ts`  
+  加入 `getStorageMode(): 'plaintext' | 'dpapi'` 函数（当前始终返回 `'plaintext'`）  
+  文件头补充安全说明和 Phase 2 接入点注释
 
-- [ ] **2.2** `packages/core/src/index.ts`  
+- [x] **2.2** `packages/core/src/index.ts`  
   `/settings` 接口响应加入 `storageMode` 字段
 
-- [ ] **2.3** `packages/desktop/src/useGateway.ts`  
+- [x] **2.3** `packages/desktop/src/useGateway.ts`  
   `SettingsState` 接口加入 `storageMode?: 'plaintext' | 'dpapi'`
 
-- [ ] **2.4** `packages/desktop/src/Settings.tsx`  
+- [x] **2.4** `packages/desktop/src/Settings.tsx`  
   「关于」Tab 展示存储模式：`🔒 加密存储（DPAPI）` 或 `⚠️ 明文存储`
 
 - [ ] **2.5** 引入 `node-dpapi`，验证在 Node.js SEA 构建下的兼容性  

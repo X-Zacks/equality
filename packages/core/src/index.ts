@@ -20,6 +20,7 @@ import { fetchGallery, installSkill, uninstallSkill, scanSkillContent, TRUSTED_R
 import { buildSkillStatus } from './skills/status.js'
 import { scanSkillDirNoCache } from './skills/scanner.js'
 import { listProviders, getDefaultProvider, getProviderById } from './providers/index.js'
+import { getStorageMode } from './config/secrets.js'
 import { generateTitle } from './session/title-gen.js'
 import { CronScheduler } from './cron/index.js'
 import { setCronScheduler } from './tools/builtins/cron.js'
@@ -85,7 +86,20 @@ await cronScheduler.start()
 
 const app = Fastify({ logger: { level: 'info' } })
 await app.register(cors, {
-  origin: true,          // 镜像请求来源，兼容所有 origin（含 Tauri / 浏览器 / null）
+  origin: (origin, cb) => {
+    // 无 Origin 头：本机 curl / Tauri IPC 直接调用
+    if (!origin || origin === 'null') return cb(null, true)
+    // Tauri WebView（Windows: https://tauri.localhost，macOS: tauri://localhost）
+    if (origin === 'https://tauri.localhost' || origin === 'tauri://localhost') return cb(null, true)
+    // 开发模式：Vite dev server（localhost 任意端口）
+    if (process.env.NODE_ENV === 'development') {
+      if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
+        return cb(null, true)
+      }
+    }
+    // 其余一律拒绝
+    cb(Object.assign(new Error('CORS: origin not allowed'), { statusCode: 403 }), false)
+  },
   methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   exposedHeaders: ['Content-Type'],
@@ -488,7 +502,7 @@ app.get('/settings', async (_req, reply) => {
   }
   const modelRouting = hasSecret('MODEL_ROUTING') ? getSecret('MODEL_ROUTING') : 'auto'
   const selectedModel = hasSecret('SELECTED_MODEL') ? getSecret('SELECTED_MODEL') : ''
-  return reply.send({ configured, activeProvider, modelRouting, selectedModel })
+  return reply.send({ configured, activeProvider, modelRouting, selectedModel, storageMode: getStorageMode() })
 })
 
 // ─── Settings: delete a key ───────────────────────────────────────────────────

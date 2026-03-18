@@ -21,6 +21,7 @@ export interface SettingsState {
   activeProvider: 'copilot' | 'custom' | 'deepseek' | 'qwen' | 'volc' | 'minimax' | null
   modelRouting?: 'auto' | 'manual'
   selectedModel?: string
+  storageMode?: 'plaintext' | 'dpapi'
 }
 
 interface DeltaEvent {

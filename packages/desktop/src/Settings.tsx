@@ -941,6 +941,12 @@ export default function Settings({ onClose }: { onClose?: () => void }) {
             <div className="about-row"><span>运行环境</span><span>Tauri + React + Fastify</span></div>
             <div className="about-row"><span>工具数量</span><span>{toolsList.length || '—'}</span></div>
             <div className="about-row"><span>Skills 数量</span><span>{skillsList.length || '—'}</span></div>
+            <div className="about-row">
+              <span>Key 存储</span>
+              <span style={{ color: settings.storageMode === 'dpapi' ? '#30d158' : '#ff9f0a' }}>
+                {settings.storageMode === 'dpapi' ? '🔒 加密存储（DPAPI）' : '⚠️ 明文存储'}
+              </span>
+            </div>
           </div>
           {globalCost && (
             <>

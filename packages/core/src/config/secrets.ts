@@ -3,8 +3,13 @@
  *
  * Phase 1.5：持久化到 %APPDATA%\Equality\settings.json（明文 JSON）
  * Phase 2：改用 Windows DPAPI 加密
+ *   接入点：setSecret / getSecret 内部切换，外部接口不变
+ *   依赖：node-dpapi（原生 .node 模块，需验证 SEA 兼容性）
  *
- * 外部接口保持不变，只需替换实现。
+ * 安全说明（cors-and-secrets-hardening）：
+ *   - settings.json 目前为明文存储，路径 %APPDATA%\Equality\settings.json
+ *   - 当前防线：文件系统权限（Windows 默认当前用户专属）
+ *   - Phase 2 将加入 DPAPI 加密，实现后 getStorageMode() 返回 'dpapi'
  */
 
 import fs from 'node:fs'
@@ -117,4 +122,13 @@ export function listSecrets(): Array<{ key: SecretKey; masked: string }> {
       : val.length > 6 ? val.slice(0, 4) + '****' + val.slice(-2) : '******'
     return { key: k, masked }
   })
+}
+
+/**
+ * 返回当前 Secrets 存储模式。
+ * Phase 2 实现 DPAPI 后返回 'dpapi'；当前始终返回 'plaintext'。
+ */
+export function getStorageMode(): 'plaintext' | 'dpapi' {
+  // Phase 2 接入点：检测 DPAPI 可用性并返回 'dpapi'
+  return 'plaintext'
 }
