@@ -1,0 +1,530 @@
+/* Chat 页面样式 */
+
+.chat-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* ─── 消息列表 ──────────────────────────────────────────────── */
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.15) transparent;
+}
+
+.chat-messages::-webkit-scrollbar { width: 5px; }
+.chat-messages::-webkit-scrollbar-track { background: transparent; }
+.chat-messages::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
+
+.chat-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255,255,255,0.25);
+  gap: 8px;
+  user-select: none;
+}
+
+.chat-empty-icon {
+  font-size: 48px;
+  opacity: 0.4;
+}
+
+.chat-empty p {
+  font-size: 14px;
+  margin: 0;
+}
+
+/* ─── 消息气泡 ──────────────────────────────────────────────── */
+.chat-bubble {
+  max-width: 75%;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1.6;
+  word-break: break-word;
+}
+
+.chat-user {
+  align-self: flex-end;
+  background: #0a84ff;
+  color: #fff;
+  border-bottom-right-radius: 4px;
+  white-space: pre-wrap;
+}
+
+.chat-assistant {
+  align-self: flex-start;
+  background: rgba(255,255,255,0.08);
+  color: rgba(240,240,240,0.92);
+  border-bottom-left-radius: 4px;
+}
+
+.cursor-blink {
+  animation: blink 0.8s step-start infinite;
+  color: #0a84ff;
+  margin-left: 1px;
+}
+
+@keyframes blink {
+  50% { opacity: 0; }
+}
+
+/* ─── 输入区 ──────────────────────────────────────────────── */
+.chat-input-area {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 12px 24px 16px;
+  border-top: 1px solid rgba(255,255,255,0.08);
+  background: rgba(28,28,30,0.6);
+  position: relative;
+  transition: border-color 0.2s;
+}
+
+.chat-input-area.drag-over {
+  border-top-color: #0a84ff;
+  background: rgba(10,132,255,0.06);
+}
+
+.chat-input-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+/* ─── 附件标签栏 ──────────────────────────────────────────── */
+.chat-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 0 8px;
+}
+
+.attachment-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 200px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.15);
+  font-size: 12px;
+  color: #d0d0d0;
+  cursor: default;
+}
+
+.attachment-icon {
+  flex-shrink: 0;
+  font-size: 13px;
+}
+
+.attachment-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachment-remove {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: rgba(255,255,255,0.4);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 0 2px;
+  line-height: 1;
+}
+
+.attachment-remove:hover {
+  color: #ff453a;
+}
+
+/* ─── 📎 按钮 ──────────────────────────────────────────── */
+.attach-btn {
+  background: rgba(255,255,255,0.1);
+  color: #aaa;
+  font-size: 16px;
+}
+
+.attach-btn:hover:not(:disabled) {
+  background: rgba(255,255,255,0.18);
+  color: #f0f0f0;
+}
+
+/* ─── 拖拽遮罩 ────────────────────────────────────────────── */
+.drag-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10,132,255,0.12);
+  border: 2px dashed #0a84ff;
+  border-radius: 10px;
+  color: #0a84ff;
+  font-size: 14px;
+  font-weight: 600;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.chat-input {
+  flex: 1;
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 10px;
+  padding: 10px 14px;
+  color: #f0f0f0;
+  font-size: 14px;
+  line-height: 1.5;
+  resize: none;
+  max-height: 120px;
+  overflow-y: auto;
+  outline: none;
+  font-family: inherit;
+  scrollbar-width: none;
+}
+
+.chat-input::placeholder {
+  color: rgba(255,255,255,0.3);
+}
+
+.chat-input:focus {
+  border-color: rgba(10,132,255,0.5);
+}
+
+.chat-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: opacity 0.15s;
+}
+
+.chat-btn:hover:not(:disabled) {
+  opacity: 0.8;
+}
+
+.chat-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.chat-btn-send {
+  background: #0a84ff;
+  color: white;
+}
+
+.chat-btn-stop {
+  background: rgba(255,255,255,0.18);
+  color: #ff453a;
+}
+
+/* ─── Tool Calls ────────────────────────────────────────────── */
+.tool-calls {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.tool-call {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.tool-call-running {
+  border-color: rgba(10, 132, 255, 0.4);
+  background: rgba(10, 132, 255, 0.08);
+}
+
+.tool-call-done {
+  border-color: rgba(48, 209, 88, 0.3);
+  background: rgba(48, 209, 88, 0.06);
+}
+
+.tool-call-error {
+  border-color: rgba(255, 69, 58, 0.3);
+  background: rgba(255, 69, 58, 0.06);
+}
+
+.tool-call-icon {
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.tool-call-name {
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.85);
+  flex-shrink: 0;
+}
+
+.tool-call-args {
+  color: rgba(255, 255, 255, 0.45);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 320px;
+  flex-shrink: 1;
+  min-width: 0;
+}
+
+.tool-call-args::before {
+  content: '─ ';
+  opacity: 0.4;
+}
+
+.tool-call-result {
+  color: rgba(255, 255, 255, 0.5);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 300px;
+}
+
+.tool-call-spinner {
+  width: 10px;
+  height: 10px;
+  border: 2px solid rgba(10, 132, 255, 0.3);
+  border-top-color: #0a84ff;
+  border-radius: 50%;
+  animation: tool-spin 0.8s linear infinite;
+}
+
+.tool-call-output {
+  width: 100%;
+  margin-top: 4px;
+  padding: 4px 6px;
+  font-size: 11px;
+  font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
+  color: rgba(255, 255, 255, 0.4);
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+  max-height: 3.6em;
+  overflow: hidden;
+  white-space: pre-wrap;
+  word-break: break-all;
+  line-height: 1.2;
+}
+
+@keyframes tool-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ─── Markdown 内容样式 ─────────────────────────────────────── */
+.chat-assistant .bubble-content {
+  display: block;
+}
+
+.chat-assistant .bubble-content p {
+  margin: 0 0 0.5em;
+}
+.chat-assistant .bubble-content p:last-child {
+  margin-bottom: 0;
+}
+
+.chat-assistant .bubble-content h1,
+.chat-assistant .bubble-content h2,
+.chat-assistant .bubble-content h3,
+.chat-assistant .bubble-content h4 {
+  margin: 0.8em 0 0.4em;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.chat-assistant .bubble-content h1 { font-size: 1.3em; }
+.chat-assistant .bubble-content h2 { font-size: 1.15em; }
+.chat-assistant .bubble-content h3 { font-size: 1.05em; }
+
+.chat-assistant .bubble-content ul,
+.chat-assistant .bubble-content ol {
+  margin: 0.4em 0;
+  padding-left: 1.5em;
+}
+
+.chat-assistant .bubble-content li {
+  margin: 0.15em 0;
+}
+
+.chat-assistant .bubble-content blockquote {
+  margin: 0.5em 0;
+  padding: 4px 12px;
+  border-left: 3px solid rgba(255,255,255,0.25);
+  color: rgba(255,255,255,0.65);
+}
+
+.chat-assistant .bubble-content hr {
+  border: none;
+  border-top: 1px solid rgba(255,255,255,0.12);
+  margin: 0.8em 0;
+}
+
+/* 行内代码 */
+.chat-assistant .bubble-content code:not([class*="hljs"]) {
+  background: rgba(255,255,255,0.1);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 0.9em;
+  font-family: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', monospace;
+}
+
+/* 代码块 */
+.md-code-block {
+  margin: 0.5em 0;
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(0,0,0,0.4);
+}
+
+.md-code-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 12px;
+  background: rgba(255,255,255,0.06);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  min-height: 28px;
+}
+
+.md-code-lang {
+  font-size: 11px;
+  color: rgba(255,255,255,0.4);
+  font-family: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', monospace;
+  text-transform: lowercase;
+}
+
+.md-code-copy {
+  background: none;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 4px;
+  color: rgba(255,255,255,0.5);
+  font-size: 11px;
+  padding: 2px 8px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.md-code-copy:hover {
+  color: rgba(255,255,255,0.8);
+  border-color: rgba(255,255,255,0.25);
+  background: rgba(255,255,255,0.06);
+}
+.md-code-copy.copied {
+  color: #30d158;
+  border-color: rgba(48,209,88,0.3);
+}
+
+.md-code-block pre {
+  margin: 0;
+  padding: 12px 14px;
+  background: transparent !important;
+  border-radius: 0;
+  overflow-x: auto;
+  font-size: 13px;
+  line-height: 1.5;
+  font-family: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', monospace;
+}
+
+.md-code-block pre code {
+  background: none !important;
+  padding: 0;
+  font-size: inherit;
+}
+
+/* 表格 */
+.chat-assistant .bubble-content table {
+  border-collapse: collapse;
+  margin: 0.5em 0;
+  font-size: 13px;
+  width: 100%;
+}
+
+.chat-assistant .bubble-content th,
+.chat-assistant .bubble-content td {
+  border: 1px solid rgba(255,255,255,0.15);
+  padding: 6px 10px;
+  text-align: left;
+}
+
+.chat-assistant .bubble-content th {
+  background: rgba(255,255,255,0.06);
+  font-weight: 600;
+}
+
+/* 链接 */
+.chat-assistant .bubble-content a {
+  color: #4da6ff;
+  text-decoration: none;
+}
+.chat-assistant .bubble-content a:hover {
+  text-decoration: underline;
+}
+
+/* 加粗、斜体 */
+.chat-assistant .bubble-content strong {
+  font-weight: 600;
+  color: rgba(255,255,255,0.95);
+}
+.chat-assistant .bubble-content em {
+  font-style: italic;
+  color: rgba(255,255,255,0.8);
+}
+
+/* ━━━ Message Actions ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+.chat-bubble {
+  position: relative;
+}
+
+.msg-actions {
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.15s;
+  margin-top: 4px;
+}
+
+.chat-bubble:hover .msg-actions {
+  opacity: 1;
+}
+
+.msg-action-btn {
+  background: none;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 4px;
+  color: rgba(255,255,255,0.45);
+  font-size: 12px;
+  padding: 2px 6px;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s, border-color 0.15s;
+  line-height: 1;
+}
+.msg-action-btn:hover {
+  color: rgba(255,255,255,0.8);
+  background: rgba(255,255,255,0.06);
+  border-color: rgba(255,255,255,0.2);
+}

@@ -1,0 +1,17 @@
+{
+  "name": "equality",
+  "version": "0.1.0",
+  "private": true,
+  "pnpm": {
+    "onlyBuiltDependencies": ["esbuild", "better-sqlite3", "node-dpapi"]
+  },
+  "scripts": {
+    "dev:core": "pnpm --filter @equality/core dev",
+    "dev:desktop": "pnpm --filter @equality/desktop dev",
+    "build:core": "pnpm --filter @equality/core build",
+    "build:desktop": "pnpm --filter @equality/desktop build",
+    "build:installer": "node scripts/build-all.mjs",
+    "build:portable": "node scripts/build-portable.mjs",
+    "typecheck": "pnpm -r typecheck"
+  }
+}

@@ -1,0 +1,3 @@
+# 此目录由 `node scripts/build-all.mjs` 在构建时自动填充
+# 包含：equality-core.exe, better-sqlite3.node
+# 这些文件被 .gitignore 忽略，不提交到仓库

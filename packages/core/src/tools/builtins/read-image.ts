@@ -1,0 +1,120 @@
+/**
+ * tools/builtins/read-image.ts — 图片读取与视觉分析工具
+ *
+ * 读取本地图片文件，用视觉模型（如 gpt-4o）分析内容。
+ * 支持 OCR、截图理解、图表解读等场景。
+ */
+
+import fs from 'node:fs'
+import path from 'node:path'
+import type { ToolDefinition, ToolResult, ToolContext } from '../types.js'
+
+const MAX_IMAGE_SIZE = 10 * 1024 * 1024  // 10MB
+
+const SUPPORTED_FORMATS = new Set([
+  '.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp',
+])
+
+const MIME_MAP: Record<string, string> = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+  '.bmp': 'image/bmp',
+}
+
+export const readImageTool: ToolDefinition = {
+  name: 'read_image',
+  description: '读取本地图片文件并用视觉模型分析。可用于 OCR 识别文字、理解截图、解读图表等。支持 png/jpg/gif/webp/bmp 格式，最大 10MB。',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      path: {
+        type: 'string',
+        description: '图片文件的路径（绝对路径或相对于工作目录的相对路径）',
+      },
+      prompt: {
+        type: 'string',
+        description: '分析提示词，如"描述这张图片"、"提取图中的文字"、"这个图表说了什么"。默认：描述这张图片的内容',
+      },
+    },
+    required: ['path'],
+  },
+
+  async execute(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult> {
+    const filePath = String(input.path ?? '')
+    const prompt = String(input.prompt ?? '描述这张图片的内容。如果包含文字请提取出来。')
+
+    if (!filePath.trim()) {
+      return { content: 'Error: path is required', isError: true }
+    }
+
+    // 解析绝对路径
+    const absPath = path.isAbsolute(filePath) ? filePath : path.resolve(ctx.workspaceDir, filePath)
+
+    // 安全检查：禁止目录遍历
+    if (absPath.includes('..')) {
+      return { content: 'Error: path must not contain ".."', isError: true }
+    }
+
+    // 文件存在性
+    if (!fs.existsSync(absPath)) {
+      return { content: `Error: file not found: ${absPath}`, isError: true }
+    }
+
+    // 格式检查
+    const ext = path.extname(absPath).toLowerCase()
+    if (!SUPPORTED_FORMATS.has(ext)) {
+      return { content: `Error: unsupported format "${ext}". Supported: ${[...SUPPORTED_FORMATS].join(', ')}`, isError: true }
+    }
+
+    // 大小检查
+    const stat = fs.statSync(absPath)
+    if (stat.size > MAX_IMAGE_SIZE) {
+      return { content: `Error: file too large (${(stat.size / 1024 / 1024).toFixed(1)}MB). Maximum: 10MB`, isError: true }
+    }
+
+    // Provider 检查
+    if (!ctx.provider) {
+      return { content: 'Error: no LLM provider available for vision analysis', isError: true }
+    }
+
+    // 读取为 base64
+    const buffer = fs.readFileSync(absPath)
+    const base64 = buffer.toString('base64')
+    const mime = MIME_MAP[ext] ?? 'image/png'
+    const dataUrl = `data:${mime};base64,${base64}`
+
+    // 调用视觉模型
+    try {
+      const result = await ctx.provider.chat({
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'image_url',
+                image_url: { url: dataUrl, detail: 'auto' },
+              },
+              {
+                type: 'text',
+                text: prompt,
+              },
+            ],
+          },
+        ],
+      })
+
+      const header = `[Image: ${path.basename(absPath)} (${(stat.size / 1024).toFixed(0)}KB)]\n\n`
+      return { content: header + result.content }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      // 如果当前模型不支持 vision，给出有用的提示
+      if (msg.includes('image') || msg.includes('vision') || msg.includes('multimodal')) {
+        return { content: `Error: current model may not support vision. ${msg}`, isError: true }
+      }
+      return { content: `Error analyzing image: ${msg}`, isError: true }
+    }
+  },
+}

@@ -1,0 +1,20 @@
+node_modules/
+dist/
+.turbo/
+*.log
+
+# 本地环境变量（含 API Key，不提交）
+.env.local
+
+# 构建产物
+packages/desktop/src-tauri/target/
+packages/desktop/dist/
+packages/core/dist/
+scripts/dist/
+*.exe
+*.msi
+*.dmg
+*.AppImage
+*.deb
+release/
+out/

@@ -1,0 +1,5 @@
+{
+  "main": "dist/index.js",
+  "output": "equality-core.blob",
+  "disableExperimentalSEAWarning": true
+}
