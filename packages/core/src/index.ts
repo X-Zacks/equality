@@ -387,6 +387,12 @@ app.get('/models', async (_req, reply) => {
     models.push({ value: 'volc/doubao-seed-1-6-250615', label: '豆包 Seed', provider: 'volc' })
   }
 
+  // MiniMax
+  if (hasSecret('MINIMAX_API_KEY')) {
+    models.push({ value: 'minimax/MiniMax-M2.5', label: 'MiniMax M2.5', provider: 'minimax', multiplier: 1 })
+    models.push({ value: 'minimax/MiniMax-M2.7', label: 'MiniMax M2.7', provider: 'minimax', multiplier: 1 })
+  }
+
   // Custom
   if (hasSecret('CUSTOM_API_KEY') && hasSecret('CUSTOM_BASE_URL')) {
     const model = hasSecret('CUSTOM_MODEL') ? getSecret('CUSTOM_MODEL') : 'custom-model'
@@ -469,6 +475,8 @@ app.get('/settings', async (_req, reply) => {
     activeProvider = 'qwen'
   } else if (hasSecret('VOLC_API_KEY')) {
     activeProvider = 'volc'
+  } else if (hasSecret('MINIMAX_API_KEY')) {
+    activeProvider = 'minimax'
   } else if (hasSecret('CUSTOM_API_KEY') && hasSecret('CUSTOM_BASE_URL')) {
     activeProvider = 'custom'
   }
