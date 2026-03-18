@@ -57,6 +57,21 @@ export function createCopilotProvider(): LLMProvider {
   return new CopilotProvider(model)
 }
 
+export function createMiniMaxProvider(model = 'MiniMax-M2.5'): LLMProvider {
+  const apiKey = getSecret('MINIMAX_API_KEY')
+  return new OpenAICompatProvider({
+    providerId: 'minimax',
+    modelId: model,
+    apiKey,
+    baseURL: 'https://api.minimaxi.com/v1',
+    capabilities: {
+      contextWindow: 1_000_000,
+      supportsToolCalling: true,
+      supportsVision: model.includes('VL') || model.includes('M2.7'),
+    },
+  })
+}
+
 /** 自定义 OpenAI 兼容端点 */
 export function createCustomProvider(): LLMProvider {
   const apiKey = getSecret('CUSTOM_API_KEY')
@@ -116,6 +131,13 @@ const PROVIDER_ORDER: Array<{
     models: ['doubao-seed-1-6-250615'],
   },
   {
+    id: 'minimax',
+    name: 'MiniMax',
+    factory: createMiniMaxProvider,
+    isConfigured: () => hasSecret('MINIMAX_API_KEY'),
+    models: ['MiniMax-M2.5', 'MiniMax-M2.7'],
+  },
+  {
     id: 'custom',
     name: '自定义 OpenAI 兼容',
     factory: createCustomProvider,
@@ -157,6 +179,7 @@ export function getProviderById(id: string, model?: string): LLMProvider {
       case 'deepseek': return createDeepSeekProvider(model)
       case 'qwen': return createQwenProvider(model)
       case 'volc': return createVolcProvider(model)
+      case 'minimax': return createMiniMaxProvider(model)
       case 'copilot': return new CopilotProvider(model)
       case 'custom': return createCustomProvider()
       default: return entry.factory()

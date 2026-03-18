@@ -111,10 +111,10 @@ function ModelRoutingCard({ settings, saveApiKey, refresh }: {
     ;(acc[m.provider] ??= []).push(m)
     return acc
   }, {})
-  const providerOrder = ['copilot', 'custom', 'deepseek', 'qwen', 'volc']
+  const providerOrder = ['copilot', 'custom', 'deepseek', 'qwen', 'volc', 'minimax']
   const providerLabel: Record<string, string> = {
     copilot: 'GitHub Copilot', custom: '自定义端点',
-    deepseek: 'DeepSeek', qwen: 'Qwen', volc: 'Volc',
+    deepseek: 'DeepSeek', qwen: 'Qwen', volc: 'Volc', minimax: 'MiniMax',
   }
 
   return (
@@ -232,6 +232,12 @@ const PROVIDER_GROUPS = [
     fields: [{ key: 'VOLC_API_KEY' as SecretKey, label: 'API Key', type: 'password', placeholder: '...' }],
     saveKeys: ['VOLC_API_KEY'] as SecretKey[],
   },
+  {
+    id: 'minimax' as const,
+    label: 'MiniMax（MiniMax-M2.5 / M2.7）',
+    fields: [{ key: 'MINIMAX_API_KEY' as SecretKey, label: 'API Key', type: 'password', placeholder: 'eyJ...' }],
+    saveKeys: ['MINIMAX_API_KEY'] as SecretKey[],
+  },
 ]
 
 const PROVIDER_LABEL: Record<string, string> = {
@@ -240,6 +246,7 @@ const PROVIDER_LABEL: Record<string, string> = {
   deepseek: 'DeepSeek',
   qwen: 'Qwen',
   volc: 'Volc',
+  minimax: 'MiniMax',
 }
 
 // ─── Copilot 登录状态 ─────────────────────────────────────────────────────────

@@ -28,6 +28,7 @@ const KEY_NAMES = [
   'BASH_MAX_TIMEOUT_MS',
   'BRAVE_SEARCH_API_KEY',
   'CHROME_PATH',
+  'MINIMAX_API_KEY',
 ] as const
 export type SecretKey = (typeof KEY_NAMES)[number]
 

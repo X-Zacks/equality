@@ -9,6 +9,7 @@ export type SecretKey =
   | 'HTTPS_PROXY'
   | 'BRAVE_SEARCH_API_KEY'
   | 'CHROME_PATH'
+  | 'MINIMAX_API_KEY'
 
 export interface ConfiguredSecret {
   key: SecretKey
@@ -17,7 +18,7 @@ export interface ConfiguredSecret {
 
 export interface SettingsState {
   configured: ConfiguredSecret[]
-  activeProvider: 'copilot' | 'custom' | 'deepseek' | 'qwen' | 'volc' | null
+  activeProvider: 'copilot' | 'custom' | 'deepseek' | 'qwen' | 'volc' | 'minimax' | null
   modelRouting?: 'auto' | 'manual'
   selectedModel?: string
 }
