@@ -81,7 +81,19 @@ Gateway MUST 提供以下 HTTP 端点：
 | `GET` | `/sessions/:sessionKey/history` | 获取 Session 对话历史 |
 | `GET` | `/health` | 健康检查（返回 200 OK + 版本号）|
 
-所有接口 MUST 要求本地认证 Token（启动时生成，写入 `%APPDATA%\Equality\gateway.token`）。
+所有接口 MUST 通过 CORS Origin 白名单过滤非受信来源（见变更 `cors-and-secrets-hardening`）。
+
+允许的 Origin：
+- `null` / 无 Origin 头（本机直接请求）
+- `https://tauri.localhost`（Tauri WebView，Windows）
+- `tauri://localhost`（Tauri WebView，macOS/Linux）
+- `http://localhost:*`（仅开发模式）
+
+本机 Token 鉴权（Bearer Token）列为 Phase 2 实现。
+
+> **安全调研背景**：对照 OpenClaw CVE 调研（2026-03-18），以下漏洞对 Equality 不适用：
+> WebSocket 劫持（无 WS 服务）、命令注入 RCE（无公网入口）、沙箱逃逸（无多租户沙箱）。
+> 当前最高优先级风险为 CORS 过宽（`origin: true`），已通过本变更修复。
 
 #### Scenario: Tauri GUI 发送消息
 - GIVEN 用户在悬浮窗输入框输入消息并按回车
