@@ -206,6 +206,12 @@ app.post<{ Body: ChatBody }>('/chat/stream', async (req, reply) => {
     const msg = err instanceof Error ? err.message : String(err)
     if (msg.includes('Secret not configured')) {
       send({ type: 'error', message: '请先在设置中配置 API Key' })
+    } else if (msg.includes('insufficient balance') || msg.includes('1008')) {
+      send({ type: 'error', message: '❌ API 余额不足（错误码 1008）。请前往 platform.minimaxi.com 充值，或更换其他模型。' })
+    } else if (msg.includes('invalid api key') || msg.includes('401') || msg.includes('Unauthorized')) {
+      send({ type: 'error', message: '❌ API Key 无效或已过期，请在设置中重新填入正确的 Key。' })
+    } else if (msg.includes('rate limit') || msg.includes('429')) {
+      send({ type: 'error', message: '❌ 请求过于频繁（限速），请稍等片刻后重试。' })
     } else {
       send({ type: 'error', message: msg })
     }
