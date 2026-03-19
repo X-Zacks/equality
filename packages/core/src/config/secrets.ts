@@ -2,100 +2,19 @@
  * secrets.ts — API Key 存储
  *
  * Phase 1.5：持久化到 %APPDATA%\Equality\settings.json（明文 JSON）
- * Phase 2：改用 Windows DPAPI 加密（当前实现）
- *   接入点：setSecret / getSecret 内部透明切换，外部接口不变
- *   依赖：@primno/dpapi（预编译原生 .node 模块，SEA 环境用 process.dlopen 加载）
+ * Phase 2：改用 Windows DPAPI 加密
+ *   接入点：setSecret / getSecret 内部切换，外部接口不变
+ *   依赖：node-dpapi（原生 .node 模块，需验证 SEA 兼容性）
  *
  * 安全说明（cors-and-secrets-hardening）：
- *   - 加密后 settings.json 存 Base64 密文（"dpapi:<base64>" 格式）
- *   - DPAPI 绑定当前用户，即使拷贝文件到其他账户也无法解密
- *   - 非 Windows 或加载失败时自动降级到明文，不影响功能
+ *   - settings.json 目前为明文存储，路径 %APPDATA%\Equality\settings.json
+ *   - 当前防线：文件系统权限（Windows 默认当前用户专属）
+ *   - Phase 2 将加入 DPAPI 加密，实现后 getStorageMode() 返回 'dpapi'
  */
 
 import fs from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
-import { fileURLToPath } from 'node:url'
-
-const _fileDir = typeof __dirname !== 'undefined'
-  ? __dirname
-  : path.dirname(fileURLToPath(import.meta.url))
-
-// ─── DPAPI 加载（使用 process.dlopen，兼容 Node SEA + 便携版） ──────────────
-
-interface DpapiBindings {
-  protectData(data: Uint8Array, entropy: Uint8Array | null, scope: string): Uint8Array
-  unprotectData(data: Uint8Array, entropy: Uint8Array | null, scope: string): Uint8Array
-}
-
-let _dpapi: DpapiBindings | null = null
-let _dpapiTried = false
-
-function getDpapi(): DpapiBindings | null {
-  if (_dpapiTried) return _dpapi
-  _dpapiTried = true
-
-  if (process.platform !== 'win32') return null
-
-  // 候选路径：与 exe 同级或 resources 子目录（兼容便携版 + 安装版）
-  const exeDir = path.dirname(process.execPath)
-  const candidates = [
-    path.join(exeDir, '@primno+dpapi.node'),
-    path.join(exeDir, 'resources', '@primno+dpapi.node'),
-    // 开发环境：从 node_modules 加载
-    path.resolve(_fileDir, '../../node_modules/@primno/dpapi/prebuilds/win32-x64/@primno+dpapi.node'),
-    path.resolve(_fileDir, '../../../node_modules/@primno/dpapi/prebuilds/win32-x64/@primno+dpapi.node'),
-  ]
-
-  for (const nodePath of candidates) {
-    if (!fs.existsSync(nodePath)) continue
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const mod = { exports: {} } as any
-      process.dlopen(mod, nodePath)
-      _dpapi = mod.exports as DpapiBindings
-      console.log('[secrets] DPAPI 已加载:', nodePath)
-      return _dpapi
-    } catch (e) {
-      console.warn('[secrets] DPAPI dlopen 失败:', nodePath, e)
-    }
-  }
-
-  console.warn('[secrets] DPAPI 不可用，降级到明文存储')
-  return null
-}
-
-/** DPAPI 加密：返回 "dpapi:<base64>" 格式字符串 */
-function encryptValue(plaintext: string): string {
-  const dpapi = getDpapi()
-  if (!dpapi) return plaintext
-  try {
-    const buf = Buffer.from(plaintext, 'utf-8')
-    const encrypted = dpapi.protectData(buf, null, 'CurrentUser')
-    return 'dpapi:' + Buffer.from(encrypted).toString('base64')
-  } catch (e) {
-    console.warn('[secrets] 加密失败，存明文:', e)
-    return plaintext
-  }
-}
-
-/** DPAPI 解密：识别 "dpapi:<base64>" 前缀 */
-function decryptValue(stored: string): string {
-  if (!stored.startsWith('dpapi:')) return stored
-  const dpapi = getDpapi()
-  if (!dpapi) {
-    console.warn('[secrets] 读取到加密值但 DPAPI 不可用，跳过')
-    return ''
-  }
-  try {
-    const encBuf = Buffer.from(stored.slice(6), 'base64')
-    const decrypted = dpapi.unprotectData(encBuf, null, 'CurrentUser')
-    return Buffer.from(decrypted).toString('utf-8')
-  } catch (e) {
-    console.warn('[secrets] 解密失败:', e)
-    return ''
-  }
-}
 
 const KEY_NAMES = [
   'DEEPSEEK_API_KEY',
@@ -129,14 +48,7 @@ function settingsPath(): string {
 function loadFile(): Partial<Record<SecretKey, string>> {
   try {
     const raw = fs.readFileSync(settingsPath(), 'utf-8')
-    const stored = JSON.parse(raw) as Partial<Record<SecretKey, string>>
-    // 解密所有值（透明降级：非 dpapi: 前缀的直接返回原文）
-    const result: Partial<Record<SecretKey, string>> = {}
-    for (const key of KEY_NAMES) {
-      const val = stored[key]
-      if (val) result[key] = decryptValue(val)
-    }
-    return result
+    return JSON.parse(raw) as Partial<Record<SecretKey, string>>
   } catch {
     return {}
   }
@@ -144,13 +56,7 @@ function loadFile(): Partial<Record<SecretKey, string>> {
 
 function saveFile(data: Partial<Record<SecretKey, string>>): void {
   try {
-    // 加密所有值后写入
-    const toWrite: Partial<Record<SecretKey, string>> = {}
-    for (const key of KEY_NAMES) {
-      const val = data[key]
-      if (val !== undefined) toWrite[key] = encryptValue(val)
-    }
-    fs.writeFileSync(settingsPath(), JSON.stringify(toWrite, null, 2), 'utf-8')
+    fs.writeFileSync(settingsPath(), JSON.stringify(data, null, 2), 'utf-8')
   } catch (e) {
     console.warn('[secrets] 写入 settings.json 失败:', e)
   }
@@ -220,8 +126,9 @@ export function listSecrets(): Array<{ key: SecretKey; masked: string }> {
 
 /**
  * 返回当前 Secrets 存储模式。
- * DPAPI 加载成功时返回 'dpapi'，否则返回 'plaintext'。
+ * Phase 2 实现 DPAPI 后返回 'dpapi'；当前始终返回 'plaintext'。
  */
 export function getStorageMode(): 'plaintext' | 'dpapi' {
-  return getDpapi() !== null ? 'dpapi' : 'plaintext'
+  // Phase 2 接入点：检测 DPAPI 可用性并返回 'dpapi'
+  return 'plaintext'
 }

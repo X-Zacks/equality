@@ -8,12 +8,10 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.json",
     "build:sea": "node scripts/build-sea.mjs",
-    "typecheck": "tsc --noEmit",
-    "test:dpapi": "node --import tsx/esm scripts/test-dpapi.mjs"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@fastify/cors": "^10.0.2",
-    "@primno/dpapi": "^2.0.1",
     "better-sqlite3": "^11.9.1",
     "cheerio": "^1.2.0",
     "chokidar": "^5.0.0",

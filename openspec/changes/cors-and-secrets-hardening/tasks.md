@@ -26,17 +26,11 @@
 - [x] **2.4** `packages/desktop/src/Settings.tsx`  
   「关于」Tab 展示存储模式：`🔒 加密存储（DPAPI）` 或 `⚠️ 明文存储`
 
-- [x] **2.5** 引入 `@primno/dpapi`，验证在 Node.js SEA 构建下的兼容性  
-  `node-dpapi` 已从 npm 撤包，改用 `@primno/dpapi`（预编译，支持 x64 + ARM64）  
-  `secrets.ts` 用 `process.dlopen` 模式（同 better-sqlite3）加载 `.node`  
-  实现 `encryptValue()` / `decryptValue()`，`dpapi:` 前缀区分密文和明文  
-  `getStorageMode()` 在 DPAPI 可用时返回 `'dpapi'`，否则降级 `'plaintext'`  
-  非 Windows 平台无需 DPAPI，透明降级不影响功能
+- [ ] **2.5** 引入 `node-dpapi`，验证在 Node.js SEA 构建下的兼容性  
+  若兼容，实现 `secrets.ts` 的 DPAPI 加密路径
 
-- [x] **2.6** `packages/core/scripts/build-sea.mjs` / `scripts/build-all.mjs` / `scripts/build-portable.mjs`  
-  - `build-sea.mjs`：esbuild external 改 `node-dpapi` → `@primno/dpapi`，Step 7 复制 `@primno+dpapi.node` 到 `dist/`  
-  - `build-all.mjs`：Step 2 可选复制 `@primno+dpapi.node` 到 `src-tauri/resources/`，`resourcesMap` 条件注入  
-  - `build-portable.mjs`：可选复制 `@primno+dpapi.node` 到便携版目录
+- [ ] **2.6** `scripts/build-sea.mjs` / `build-all.mjs`  
+  若需要，添加 `.node` 原生模块的打包和分发步骤
 
 ## 验证标准
 
