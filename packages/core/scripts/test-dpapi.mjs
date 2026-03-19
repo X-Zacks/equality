@@ -2,7 +2,7 @@
  * test-dpapi.mjs — 手动测试 DPAPI 加密存储
  *
  * 用法（在 packages/core 目录下）：
- *   node scripts/test-dpapi.mjs
+ *   pnpm test:dpapi
  *
  * 测试内容：
  *   1. DPAPI 模块是否能加载
@@ -10,17 +10,28 @@
  *   3. setSecret → 写入 settings.json → 读取 settings.json 是否为密文
  *   4. getSecret 能否从密文正确还原
  *   5. 迁移兼容：旧明文值能否被透明读取
+ *
+ * ⚠️  安全：测试全程使用独立的临时目录，绝不碰 %APPDATA%\Equality\settings.json
  */
 
-import { createRequire } from 'node:module'
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { readFileSync, existsSync } from 'node:fs'
+import { readFileSync, existsSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const root = resolve(__dirname, '..')
+
+// ─── 使用独立临时目录，完全隔离真实 settings.json ────────────────────────────
+const tmpDir = path.join(os.tmpdir(), `equality-dpapi-test-${Date.now()}`)
+mkdirSync(tmpDir, { recursive: true })
+// 重定向 APPDATA 到临时目录，使 secrets.ts 的 settingsPath() 写到这里
+process.env.APPDATA = tmpDir
+const settingsFile = path.join(tmpDir, 'Equality', 'settings.json')
+
+console.log(`🔒 测试隔离目录: ${tmpDir}`)
+console.log(`   真实 settings.json 不受影响\n`)
 
 // ──────────────────────────────────────────────────────────────────────────────
 // 1. 直接测试 DPAPI 原生模块加载
@@ -121,15 +132,10 @@ initSecrets()
 setSecret(TEST_KEY, TEST_VALUE)
 console.log(`\n✅ setSecret(${TEST_KEY}, "${TEST_VALUE}") 完成`)
 
-// 直接读 settings.json，确认是密文
-const settingsFile = path.join(
-  process.env.APPDATA ?? path.join(os.homedir(), 'AppData', 'Roaming'),
-  'Equality',
-  'settings.json',
-)
+// 直接读临时 settings.json，确认是密文
 const raw = JSON.parse(readFileSync(settingsFile, 'utf-8'))
 const storedValue = raw[TEST_KEY]
-console.log(`\n📄 settings.json 中 ${TEST_KEY} 的值:`)
+console.log(`\n📄 临时 settings.json 中 ${TEST_KEY} 的值:`)
 console.log(`   ${storedValue?.slice(0, 80)}...`)
 
 if (!storedValue?.startsWith('dpapi:')) {
@@ -151,18 +157,16 @@ deleteSecret(TEST_KEY)
 console.log(`\n🧹 已清理测试 key (${TEST_KEY})`)
 
 // ──────────────────────────────────────────────────────────────────────────────
-// 4. 迁移兼容性测试：旧明文值能被透明读取
+// 4. 迁移兼容性测试：旧明文值能被透明读取（写到临时文件）
 // ──────────────────────────────────────────────────────────────────────────────
 console.log('\n═══════════════════════════════════════')
 console.log(' 4. 迁移兼容性（旧明文 → 透明读取）')
 console.log('═══════════════════════════════════════')
 
-import { writeFileSync } from 'node:fs'
-
-// 手动写入一个明文值（模拟旧版本的 settings.json）
+// 覆写临时目录的 settings.json（不影响真实数据）
 const plainData = { DEEPSEEK_API_KEY: 'sk-old-plaintext-value' }
 writeFileSync(settingsFile, JSON.stringify(plainData, null, 2), 'utf-8')
-console.log('📝 模拟写入旧版明文 settings.json')
+console.log('📝 模拟写入旧版明文（临时文件）')
 
 // 重新初始化并读取
 initSecrets()
@@ -182,12 +186,12 @@ if (!afterMigrate['DEEPSEEK_API_KEY']?.startsWith('dpapi:')) {
 }
 console.log('✅ 写回后自动迁移为加密格式')
 
-// 清理
-deleteSecret('DEEPSEEK_API_KEY')
+// ─── 清理临时目录 ──────────────────────────────────────────────────────────
+rmSync(tmpDir, { recursive: true, force: true })
+console.log(`\n🧹 临时目录已清理: ${tmpDir}`)
 
 // ──────────────────────────────────────────────────────────────────────────────
 console.log('\n╔═══════════════════════════════════════╗')
 console.log('║  🎉  所有测试通过！                    ║')
 console.log('╚═══════════════════════════════════════╝')
-console.log('\n💡 提示：测试过程中临时写入了 settings.json，已自动清理测试 key')
-console.log(`   settings.json 路径: ${settingsFile}`)
+console.log('\n✅ 真实 settings.json 未被修改')
