@@ -256,6 +256,197 @@ type CopilotState =
   | { phase: 'logged-in'; user: string }
   | { phase: 'error'; message: string }
 
+// ─── Provider 图标映射 ────────────────────────────────────────────────────────
+const PROVIDER_ICON: Record<string, string> = {
+  copilot: '🐙',
+  custom: '🔌',
+  deepseek: '🔮',
+  qwen: '🌟',
+  volc: '🌋',
+  minimax: '🤖',
+}
+
+// ─── ProviderRow: 固定高度48px的列表行 ──────────────────────────────────────
+interface ProviderRowProps {
+  id: string
+  label: string
+  badge?: string
+  status: 'active' | 'configured' | 'unconfigured'
+  isCopilotUnlogged?: boolean
+  onAction: () => void
+}
+
+function ProviderRow({ id, label, badge, status, isCopilotUnlogged, onAction }: ProviderRowProps) {
+  const icon = PROVIDER_ICON[id] ?? '⚡'
+
+  const statusNode = (() => {
+    if (status === 'active') return <span className="pr-status pr-status-active">● 激活中</span>
+    if (status === 'configured') return <span className="pr-status pr-status-configured">● 已配置</span>
+    return <span className="pr-status pr-status-unconfigured">○ 未配置</span>
+  })()
+
+  const actionLabel = (() => {
+    if (isCopilotUnlogged) return '登录 GitHub'
+    if (status === 'active' || status === 'configured') return '管理'
+    return '配置'
+  })()
+
+  return (
+    <div className={`provider-row ${status === 'active' ? 'provider-row-active' : ''}`}>
+      <span className="pr-icon">{icon}</span>
+      <span className="pr-name">{label}</span>
+      {badge && <span className="pr-badge">{badge}</span>}
+      <div className="pr-right">
+        {statusNode}
+        <button className="pr-action-btn" onClick={onAction}>{actionLabel}</button>
+      </div>
+    </div>
+  )
+}
+
+// ─── ProviderDrawer: 右侧滑出抽屉 ────────────────────────────────────────────
+interface ProviderDrawerProps {
+  providerId: string
+  settings: SettingsState
+  draft: Partial<Record<SecretKey, string>>
+  saving: Record<string, 'idle' | 'saving' | 'ok' | 'err'>
+  copilot: CopilotState
+  getMasked: (key: SecretKey) => string
+  onDraftChange: (key: SecretKey, value: string) => void
+  onSave: (groupId: string, keys: SecretKey[]) => Promise<void>
+  onClear: (groupId: string, keys: SecretKey[]) => Promise<void>
+  onCopilotLogin: () => Promise<void>
+  onCopilotLogout: () => Promise<void>
+  onClose: () => void
+}
+
+function saveLabel(state: string) {
+  return state === 'saving' ? '保存中…' : state === 'ok' ? '✓ 已保存' : state === 'err' ? '✕ 失败' : '保存'
+}
+
+function ProviderDrawer({
+  providerId, settings, draft, saving, copilot,
+  getMasked, onDraftChange, onSave, onClear, onCopilotLogin, onCopilotLogout, onClose,
+}: ProviderDrawerProps) {
+  const group = PROVIDER_GROUPS.find(g => g.id === providerId)
+  const isActive = settings.activeProvider === providerId
+
+  // Copilot 抽屉内容
+  if (providerId === 'copilot') {
+    return (
+      <div className="drawer-mask" onClick={onClose}>
+        <div className="drawer-panel" onClick={e => e.stopPropagation()}>
+          <div className="drawer-header">
+            <span className="drawer-title">🐙 GitHub Copilot</span>
+            <button className="drawer-close" onClick={onClose}>✕</button>
+          </div>
+          <div className="drawer-body">
+            {isActive && (
+              <div className="drawer-active-bar">✔ 当前激活</div>
+            )}
+            {copilot.phase === 'idle' && (
+              <>
+                <p className="drawer-hint">
+                  通过 GitHub Copilot 订阅免费使用 Claude / GPT / Gemini 等模型
+                </p>
+                <button className="btn-save drawer-btn-full" onClick={onCopilotLogin}>
+                  🔑 登录 GitHub
+                </button>
+              </>
+            )}
+            {copilot.phase === 'waiting' && (
+              <div className="copilot-device-flow">
+                <p style={{ margin: '0 0 4px', fontSize: 12, color: '#888' }}>
+                  请在浏览器中输入验证码：
+                </p>
+                <div className="copilot-user-code">{copilot.userCode}</div>
+                <p style={{ margin: '4px 0 0', fontSize: 11, color: '#666' }}>
+                  ⏳ 等待授权中…
+                </p>
+              </div>
+            )}
+            {copilot.phase === 'logged-in' && (
+              <>
+                <p style={{ margin: '0 0 8px', fontSize: 13, color: '#4caf50' }}>
+                  ✅ 已登录 {copilot.user ? `(${copilot.user})` : ''}
+                </p>
+                <p style={{ margin: '4px 0 12px', fontSize: 11, color: '#888' }}>
+                  费用：¥0（含在 Copilot 订阅中）。模型选择请使用上方「模型选择」卡片。
+                </p>
+                <button className="btn-clear drawer-btn-full" onClick={onCopilotLogout}>
+                  退出登录
+                </button>
+              </>
+            )}
+            {copilot.phase === 'error' && (
+              <>
+                <p style={{ margin: '0 0 8px', fontSize: 12, color: '#f44336' }}>
+                  ❌ {copilot.message}
+                </p>
+                <button className="btn-save drawer-btn-full" onClick={onCopilotLogin}>
+                  🔑 重新登录
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // 普通 provider 抽屉内容
+  if (!group) return null
+
+  const hasAny = group.fields.some(f => getMasked(f.key))
+  const hasDraft = group.saveKeys.some(k => draft[k]?.trim())
+
+  return (
+    <div className="drawer-mask" onClick={onClose}>
+      <div className="drawer-panel" onClick={e => e.stopPropagation()}>
+        <div className="drawer-header">
+          <span className="drawer-title">{PROVIDER_ICON[providerId] ?? '⚡'} {PROVIDER_LABEL[providerId]}</span>
+          <button className="drawer-close" onClick={onClose}>✕</button>
+        </div>
+        <div className="drawer-body">
+          {isActive && (
+            <div className="drawer-active-bar">✔ 当前激活</div>
+          )}
+          {'badge' in group && (
+            <div className="drawer-badge-row">
+              <span className="priority-badge">{group.badge}</span>
+            </div>
+          )}
+          {group.fields.map(f => (
+            <div key={f.key} className="key-row">
+              <label>{f.label}</label>
+              <input
+                type={f.type}
+                placeholder={getMasked(f.key) || f.placeholder}
+                value={draft[f.key] ?? ''}
+                onChange={e => onDraftChange(f.key, e.target.value)}
+              />
+            </div>
+          ))}
+          <div className="provider-actions" style={{ marginTop: 8 }}>
+            {hasAny && (
+              <button className="btn-clear" onClick={() => onClear(group.id, group.saveKeys)}>
+                清除
+              </button>
+            )}
+            <button
+              className="btn-save"
+              disabled={!hasDraft || saving[group.id] === 'saving'}
+              onClick={() => onSave(group.id, group.saveKeys)}
+            >
+              {saveLabel(saving[group.id] ?? 'idle')}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function Settings({ onClose }: { onClose?: () => void }) {
   const {
     saveApiKey, loadSettings, deleteKey,
@@ -268,8 +459,10 @@ export default function Settings({ onClose }: { onClose?: () => void }) {
   const [draft, setDraft] = useState<Partial<Record<SecretKey, string>>>({})
   // 每个 group 的保存状态
   const [saving, setSaving] = useState<Record<string, 'idle' | 'saving' | 'ok' | 'err'>>({})
-  // 展开/折叠的 group
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({ custom: true })
+  // 当前打开的 drawer（provider id，null 表示关闭）
+  const [drawerProvider, setDrawerProvider] = useState<string | null>(null)
+  // proxy 展开（保留 tools tab 的 accordion）
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({ braveSearch: false, chromePath: false, proxy: false })
 
   // ─── Copilot 状态 ─────────────────────────────────────────────────────
   const [copilot, setCopilot] = useState<CopilotState>({ phase: 'idle' })
@@ -278,14 +471,6 @@ export default function Settings({ onClose }: { onClose?: () => void }) {
   const refresh = useCallback(async () => {
     const s = await loadSettings()
     setSettings(s)
-    // 当前已配置的 group 默认展开
-    const exp: Record<string, boolean> = { custom: true }
-    for (const g of PROVIDER_GROUPS) {
-      if (g.fields.some(f => s.configured.find(c => c.key === f.key))) {
-        exp[g.id] = true
-      }
-    }
-    setExpanded(exp)
 
     // 检测 copilot 登录状态
     if (s.activeProvider === 'copilot') {
@@ -371,9 +556,6 @@ export default function Settings({ onClose }: { onClose?: () => void }) {
     await refresh()
     setSaving(p => ({ ...p, [groupId]: 'idle' }))
   }
-
-  const saveLabel = (state: string) =>
-    state === 'saving' ? '保存中…' : state === 'ok' ? '✓ 已保存' : state === 'err' ? '✕ 失败' : '保存'
 
   // ─── Tab 状态 ───────────────────────────────────────────────────────
   const [tab, setTab] = useState<SettingsTab>('model')
@@ -503,130 +685,39 @@ export default function Settings({ onClose }: { onClose?: () => void }) {
         {/* ─── 模型路由选择器 ──────────────────────────────────────────── */}
         <ModelRoutingCard settings={settings} saveApiKey={saveApiKey} refresh={refresh} />
 
-        {/* ─── Copilot 卡片 ──────────────────────────────────────────────── */}
-        <div className={`provider-card ${settings.activeProvider === 'copilot' ? 'active' : ''}`}>
-          <div className="provider-header" onClick={() => setExpanded(p => ({ ...p, copilot: !p.copilot }))}>
-            <span className="provider-name">🐙 GitHub Copilot</span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span className="priority-badge">免费</span>
-              {settings.activeProvider === 'copilot' && <span className="active-dot" title="当前激活" />}
-              {copilot.phase === 'logged-in' && settings.activeProvider !== 'copilot' && <span className="configured-dot" title="已登录" />}
-              <span className="chevron">{expanded.copilot ? '▴' : '▾'}</span>
-            </div>
-          </div>
-
-          {expanded.copilot && (
-            <div className="provider-body">
-              {copilot.phase === 'idle' && (
-                <>
-                  <p style={{ margin: '0 0 8px', fontSize: 12, color: '#888' }}>
-                    通过 GitHub Copilot 订阅免费使用 Claude / GPT / Gemini 等模型
-                  </p>
-                  <button className="btn-save" onClick={handleCopilotLogin}>
-                    🔑 登录 GitHub
-                  </button>
-                </>
-              )}
-
-              {copilot.phase === 'waiting' && (
-                <div className="copilot-device-flow">
-                  <p style={{ margin: '0 0 4px', fontSize: 12, color: '#888' }}>
-                    请在浏览器中输入验证码：
-                  </p>
-                  <div className="copilot-user-code">{copilot.userCode}</div>
-                  <p style={{ margin: '4px 0 0', fontSize: 11, color: '#666' }}>
-                    ⏳ 等待授权中…
-                  </p>
-                </div>
-              )}
-
-              {copilot.phase === 'logged-in' && (
-                <>
-                  <p style={{ margin: '0 0 8px', fontSize: 13, color: '#4caf50' }}>
-                    ✅ 已登录 {copilot.user ? `(${copilot.user})` : ''}
-                  </p>
-                  <p style={{ margin: '4px 0 8px', fontSize: 11, color: '#888' }}>
-                    费用：¥0（含在 Copilot 订阅中）。模型选择请使用上方「模型选择」卡片。
-                  </p>
-                  <button className="btn-clear" onClick={handleCopilotLogout}>
-                    退出登录
-                  </button>
-                </>
-              )}
-
-              {copilot.phase === 'error' && (
-                <>
-                  <p style={{ margin: '0 0 8px', fontSize: 12, color: '#f44336' }}>
-                    ❌ {copilot.message}
-                  </p>
-                  <button className="btn-save" onClick={handleCopilotLogin}>
-                    🔑 重新登录
-                  </button>
-                </>
-              )}
-            </div>
-          )}
+        {/* ─── Provider 列表 ───────────────────────────────────────────── */}
+        <div className="provider-list">
+          {/* Copilot 行 */}
+          <ProviderRow
+            id="copilot"
+            label="GitHub Copilot"
+            badge="免费"
+            status={
+              settings.activeProvider === 'copilot' ? 'active'
+              : copilot.phase === 'logged-in' ? 'configured'
+              : 'unconfigured'
+            }
+            isCopilotUnlogged={copilot.phase !== 'logged-in'}
+            onAction={() => setDrawerProvider('copilot')}
+          />
+          {/* 其他 Provider 行 */}
+          {PROVIDER_GROUPS.map(group => {
+            const isActive = settings.activeProvider === group.id
+            const hasAny = group.fields.some(f => getMasked(f.key))
+            return (
+              <ProviderRow
+                key={group.id}
+                id={group.id}
+                label={PROVIDER_LABEL[group.id] ?? group.label}
+                badge={'badge' in group ? (group as { badge: string }).badge : undefined}
+                status={isActive ? 'active' : hasAny ? 'configured' : 'unconfigured'}
+                onAction={() => setDrawerProvider(group.id)}
+              />
+            )
+          })}
         </div>
 
-        {/* ─── 其他 Provider 卡片 ─────────────────────────────────────────── */}
-
-        {PROVIDER_GROUPS.map(group => {
-          const isActive = settings.activeProvider === group.id
-          const isOpen = !!expanded[group.id]
-          const hasAny = group.fields.some(f => getMasked(f.key))
-          const hasDraft = group.saveKeys.some(k => draft[k]?.trim())
-
-          return (
-            <div key={group.id} className={`provider-card ${isActive ? 'active' : ''}`}>
-              {/* 卡片标题行 */}
-              <div className="provider-header" onClick={() => setExpanded(p => ({ ...p, [group.id]: !p[group.id] }))}>
-                <span className="provider-name">{group.label}</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  {'badge' in group && <span className="priority-badge">{group.badge}</span>}
-                  {isActive && <span className="active-dot" title="当前激活" />}
-                  {hasAny && !isActive && <span className="configured-dot" title="已配置" />}
-                  <span className="chevron">{isOpen ? '▴' : '▾'}</span>
-                </div>
-              </div>
-
-              {/* 展开内容 */}
-              {isOpen && (
-                <div className="provider-body">
-                  {group.fields.map(f => (
-                    <div key={f.key} className="key-row">
-                      <label>{f.label}</label>
-                      <input
-                        type={f.type}
-                        placeholder={getMasked(f.key) || f.placeholder}
-                        value={draft[f.key] ?? ''}
-                        onChange={e => setDraft(p => ({ ...p, [f.key]: e.target.value }))}
-                      />
-                    </div>
-                  ))}
-                  <div className="provider-actions">
-                    {hasAny && (
-                      <button
-                        className="btn-clear"
-                        onClick={() => handleClear(group.id, group.saveKeys)}
-                      >
-                        清除
-                      </button>
-                    )}
-                    <button
-                      className="btn-save"
-                      disabled={!hasDraft || saving[group.id] === 'saving'}
-                      onClick={() => handleSave(group.id, group.saveKeys)}
-                    >
-                      {saveLabel(saving[group.id] ?? 'idle')}
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          )
-        })}
-
-        {/* ─── 网络代理配置 ─────────────────────────────────────────── */}
+        {/* ─── 网络设置 ─────────────────────────────────────────────── */}
         <div className="settings-section-title" style={{ marginTop: 8 }}>网络设置</div>
         <div className="provider-card">
           <div className="provider-header" onClick={() => setExpanded(p => ({ ...p, proxy: !p.proxy }))}>
@@ -670,6 +761,32 @@ export default function Settings({ onClose }: { onClose?: () => void }) {
             </div>
           )}
         </div>
+
+        {/* ─── Provider Drawer ────────────────────────────────────────── */}
+        {drawerProvider && (
+          <ProviderDrawer
+            providerId={drawerProvider}
+            settings={settings}
+            draft={draft}
+            saving={saving}
+            copilot={copilot}
+            getMasked={getMasked}
+            onDraftChange={(key, value) => setDraft(p => ({ ...p, [key]: value }))}
+            onSave={async (groupId, keys) => {
+              await handleSave(groupId, keys)
+            }}
+            onClear={async (groupId, keys) => {
+              await handleClear(groupId, keys)
+              setDrawerProvider(null)
+            }}
+            onCopilotLogin={handleCopilotLogin}
+            onCopilotLogout={async () => {
+              await handleCopilotLogout()
+              setDrawerProvider(null)
+            }}
+            onClose={() => setDrawerProvider(null)}
+          />
+        )}
 
       </>)}
 
