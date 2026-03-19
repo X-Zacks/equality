@@ -190,23 +190,29 @@ export function getProviderById(id: string, model?: string): LLMProvider {
 
 /**
  * 获取支持视觉（Vision）的 Provider。
- * 优先使用已配置的视觉模型；若当前 provider 已支持则直接返回。
- * 回退顺序：Copilot gpt-4o → qwen-vl-max → MiniMax-M2.7
+ *
+ * 回退顺序：
+ * 1. 当前 provider（若已声明 supportsVision）
+ * 2. Copilot gpt-4o（已登录）
+ * 3. 通义千问 qwen-vl-max（有 QWEN_API_KEY）
+ * 4. 自定义 provider（有 CUSTOM_API_KEY + CUSTOM_BASE_URL，假定用户已配置视觉模型）
+ *
+ * 注意：MiniMax OpenAI 兼容接口官方明确不支持图像输入，不在回退列表。
  */
 export function getVisionProvider(currentProvider?: LLMProvider): LLMProvider {
-  // 如果当前 provider 已支持视觉，直接复用
+  // 1. 当前 provider 已支持视觉，直接复用
   if (currentProvider && currentProvider.getCapabilities().supportsVision) {
     return currentProvider
   }
 
-  // 尝试 Copilot (gpt-4o 支持视觉)
+  // 2. Copilot gpt-4o（免费且支持视觉）
   try {
     if (isCopilotLoggedIn()) {
       return new CopilotProvider('gpt-4o')
     }
-  } catch { /* 未配置，跳过 */ }
+  } catch { /* 未登录，跳过 */ }
 
-  // 尝试通义千问视觉模型
+  // 3. 通义千问 qwen-vl-max
   try {
     if (hasSecret('QWEN_API_KEY')) {
       return new OpenAICompatProvider({
@@ -223,16 +229,17 @@ export function getVisionProvider(currentProvider?: LLMProvider): LLMProvider {
     }
   } catch { /* 未配置，跳过 */ }
 
-  // 尝试 MiniMax M2.7（支持视觉）
+  // 4. 自定义 OpenAI 兼容端点（用户自行保证该端点支持视觉）
   try {
-    if (hasSecret('MINIMAX_API_KEY')) {
-      return createMiniMaxProvider('MiniMax-M2.7')
+    if (hasSecret('CUSTOM_API_KEY') && hasSecret('CUSTOM_BASE_URL')) {
+      return createCustomProvider()
     }
   } catch { /* 未配置，跳过 */ }
 
-  // 没有可用的视觉模型，抛出友好错误
+  // 所有选项均不可用，给出明确提示
   throw new Error(
-    '当前模型不支持图片识别。请配置支持视觉的模型（如 GitHub Copilot、通义千问 qwen-vl-max 或 MiniMax-M2.7）。'
+    '当前模型不支持图片识别（MiniMax OpenAI 兼容接口不支持图像输入）。' +
+    '请登录 GitHub Copilot，或在设置中配置通义千问（QWEN_API_KEY）以启用图片识别功能。'
   )
 }
 
