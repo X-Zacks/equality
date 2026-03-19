@@ -730,3 +730,152 @@
   color: rgba(255,255,255,0.35);
   line-height: 1.5;
 }
+
+.theme-switch {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.theme-btn {
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: 7px;
+  color: rgba(255,255,255,0.8);
+  font-size: 12px;
+  padding: 5px 12px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.theme-btn:hover {
+  background: rgba(255,255,255,0.14);
+}
+
+.theme-btn.active {
+  background: rgba(10,132,255,0.16);
+  border-color: rgba(10,132,255,0.45);
+  color: #0a84ff;
+}
+
+.theme-btn.subtle {
+  color: rgba(255,255,255,0.55);
+}
+
+.theme-light .settings-root {
+  color: #111827;
+}
+
+.theme-light .settings-header,
+.theme-light .settings-tabs,
+.theme-light .provider-body,
+.theme-light .about-row,
+.theme-light .advanced-section-title,
+.theme-light .advanced-item,
+.theme-light .advanced-section {
+  border-color: rgba(15,23,42,0.12);
+}
+
+.theme-light .provider-card,
+.theme-light .skill-item,
+.theme-light .advanced-section,
+.theme-light .gallery-item {
+  border-color: rgba(15,23,42,0.12);
+}
+
+.theme-light .provider-header,
+.theme-light .advanced-section-title,
+.theme-light .tool-item,
+.theme-light .skill-item,
+.theme-light .model-select-trigger,
+.theme-light .key-row input,
+.theme-light .advanced-input,
+.theme-light .key-row button,
+.theme-light .settings-tab:hover,
+.theme-light .theme-btn,
+.theme-light .model-preview-badge,
+.theme-light .skill-source {
+  background: rgba(15,23,42,0.05);
+}
+
+.theme-light .provider-header:hover,
+.theme-light .tool-item:hover,
+.theme-light .skill-item:hover,
+.theme-light .model-select-trigger:hover:not(:disabled),
+.theme-light .key-row button:hover,
+.theme-light .theme-btn:hover {
+  background: rgba(15,23,42,0.1);
+}
+
+.theme-light .settings-hint,
+.theme-light .chevron,
+.theme-light .model-routing-hint,
+.theme-light .model-select-group,
+.theme-light .model-preview-badge,
+.theme-light .skill-source,
+.theme-light .about-version,
+.theme-light .about-copyright,
+.theme-light .advanced-item-unit,
+.theme-light .advanced-item-desc,
+.theme-light .settings-section-title,
+.theme-light .gallery-msg,
+.theme-light .key-row label,
+.theme-light .btn-close,
+.theme-light .settings-tab {
+  color: rgba(15,23,42,0.58);
+}
+
+.theme-light .provider-name,
+.theme-light .model-routing-label,
+.theme-light .tool-name,
+.theme-light .skill-name,
+.theme-light .about-title,
+.theme-light .advanced-item-label,
+.theme-light .model-select-name,
+.theme-light .model-select-item,
+.theme-light .key-row input,
+.theme-light .advanced-input,
+.theme-light .about-row span:last-child {
+  color: #111827;
+}
+
+.theme-light .model-select-dropdown {
+  background: #ffffff;
+  border-color: rgba(15,23,42,0.16);
+  box-shadow: 0 8px 28px rgba(15,23,42,0.16);
+}
+
+.theme-light .model-select-item:hover {
+  background: rgba(15,23,42,0.08);
+}
+
+.theme-light .model-select-item.selected {
+  color: #0a84ff;
+}
+
+.theme-light .configured-dot {
+  background: rgba(15,23,42,0.35);
+}
+
+.theme-light .about-row span:first-child {
+  color: rgba(15,23,42,0.58);
+}
+
+.theme-light .theme-btn {
+  border-color: rgba(15,23,42,0.16);
+  color: rgba(15,23,42,0.8);
+}
+
+.theme-light .theme-btn.subtle {
+  color: rgba(15,23,42,0.58);
+}
+
+.theme-light .theme-btn.active {
+  color: #0a84ff;
+  border-color: rgba(10,132,255,0.42);
+}
+
+.theme-light .copilot-user-code {
+  background: rgba(10, 132, 255, 0.08);
+  border-color: rgba(10, 132, 255, 0.28);
+}

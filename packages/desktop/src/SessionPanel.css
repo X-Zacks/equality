@@ -131,3 +131,41 @@
   opacity: 1 !important;
   background: rgba(255, 69, 58, 0.2);
 }
+
+.theme-light .session-panel {
+  background: #f8f9fb;
+  border-right-color: rgba(15,23,42,0.12);
+}
+
+.theme-light .session-new-btn {
+  border-color: rgba(15,23,42,0.18);
+  background: rgba(15,23,42,0.06);
+  color: #1f2937;
+}
+
+.theme-light .session-new-btn:hover:not(:disabled) {
+  background: rgba(15,23,42,0.12);
+  border-color: rgba(15,23,42,0.26);
+}
+
+.theme-light .session-list {
+  scrollbar-color: rgba(15,23,42,0.2) transparent;
+}
+
+.theme-light .session-empty,
+.theme-light .session-group-label,
+.theme-light .session-item-time {
+  color: rgba(15,23,42,0.58);
+}
+
+.theme-light .session-item:hover {
+  background: rgba(15,23,42,0.08);
+}
+
+.theme-light .session-item.active {
+  background: rgba(10,132,255,0.12);
+}
+
+.theme-light .session-item-title {
+  color: #111827;
+}

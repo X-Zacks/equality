@@ -6,8 +6,11 @@ import Settings from './Settings'
 import './App.css'
 
 type Page = 'chat' | 'settings'
+type ThemePreference = 'system' | 'light' | 'dark'
+type EffectiveTheme = 'light' | 'dark'
 
 const ZOOM_KEY = 'equality-zoom'
+const THEME_KEY = 'equality-theme'
 const ZOOM_MIN = 50
 const ZOOM_MAX = 200
 const ZOOM_STEP = 10
@@ -33,12 +36,45 @@ function App() {
     const saved = localStorage.getItem(ZOOM_KEY)
     return saved ? Number(saved) : 100
   })
+  const [themePreference, setThemePreference] = useState<ThemePreference>(() => {
+    const saved = localStorage.getItem(THEME_KEY)
+    return saved === 'light' || saved === 'dark' ? saved : 'system'
+  })
+  const [systemTheme, setSystemTheme] = useState<EffectiveTheme>(() => {
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+  })
+
+  const effectiveTheme: EffectiveTheme = themePreference === 'system' ? systemTheme : themePreference
 
   // 应用缩放
   useEffect(() => {
     document.body.style.zoom = `${zoom}%`
     localStorage.setItem(ZOOM_KEY, String(zoom))
   }, [zoom])
+
+  useEffect(() => {
+    document.body.style.background = effectiveTheme === 'light' ? '#ffffff' : '#1c1c1e'
+  }, [effectiveTheme])
+
+  // 跟随系统主题变化
+  useEffect(() => {
+    const media = window.matchMedia('(prefers-color-scheme: dark)')
+    const onChange = (event: MediaQueryListEvent) => {
+      setSystemTheme(event.matches ? 'dark' : 'light')
+    }
+    setSystemTheme(media.matches ? 'dark' : 'light')
+    media.addEventListener('change', onChange)
+    return () => media.removeEventListener('change', onChange)
+  }, [])
+
+  // 持久化主题偏好（system 模式移除键以保持默认跟随）
+  useEffect(() => {
+    if (themePreference === 'system') {
+      localStorage.removeItem(THEME_KEY)
+      return
+    }
+    localStorage.setItem(THEME_KEY, themePreference)
+  }, [themePreference])
 
   // 持久化 sessionKey 和 panelOpen
   useEffect(() => {
@@ -119,7 +155,7 @@ function App() {
   }, [handleKeyboard, handleWheel])
 
   return (
-    <div className="app-root">
+    <div className={`app-root ${effectiveTheme === 'light' ? 'theme-light' : 'theme-dark'}`}>
       {/* 侧边栏 */}
       <nav className="sidebar">
         <button
@@ -157,7 +193,13 @@ function App() {
               <Chat sessionKey={sessionKey} />
             </div>
           </div>
-          {page === 'settings' && <Settings />}
+          {page === 'settings' && (
+            <Settings
+              themePreference={themePreference}
+              effectiveTheme={effectiveTheme}
+              onThemeChange={setThemePreference}
+            />
+          )}
         </div>
 
         {/* 底部状态栏 */}

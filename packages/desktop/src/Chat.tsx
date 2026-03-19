@@ -4,7 +4,6 @@ import { open } from '@tauri-apps/plugin-dialog'
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { invoke } from '@tauri-apps/api/core'
 import Markdown from './Markdown'
-import 'highlight.js/styles/github-dark.min.css'
 import './Chat.css'
 
 interface Message {

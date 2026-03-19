@@ -5,6 +5,8 @@ import { open } from '@tauri-apps/plugin-shell'
 import './Settings.css'
 
 type SettingsTab = 'model' | 'tools' | 'skills' | 'advanced' | 'about'
+type ThemePreference = 'system' | 'light' | 'dark'
+type EffectiveTheme = 'light' | 'dark'
 
 // ─── 模型路由选择器组件 ───────────────────────────────────────────────────────
 
@@ -41,11 +43,11 @@ function categoryColor(m: ModelOption): string {
   if (m.category === 'fast') return '#30d158'
   if (m.multiplier !== undefined) {
     if (m.multiplier <= 0.33) return '#30d158'
-    if (m.multiplier <= 1) return 'rgba(255,255,255,0.5)'
+    if (m.multiplier <= 1) return 'var(--tag-neutral)'
     if (m.multiplier <= 3) return '#ff9f0a'
     return '#ff453a'
   }
-  return 'rgba(255,255,255,0.3)'
+  return 'var(--tag-faint)'
 }
 
 function ModelRoutingCard({ settings, saveApiKey, refresh }: {
@@ -256,7 +258,17 @@ type CopilotState =
   | { phase: 'logged-in'; user: string }
   | { phase: 'error'; message: string }
 
-export default function Settings({ onClose }: { onClose?: () => void }) {
+export default function Settings({
+  onClose,
+  themePreference,
+  effectiveTheme,
+  onThemeChange,
+}: {
+  onClose?: () => void
+  themePreference: ThemePreference
+  effectiveTheme: EffectiveTheme
+  onThemeChange: (theme: ThemePreference) => void
+}) {
   const {
     saveApiKey, loadSettings, deleteKey,
     copilotLogin, copilotLoginStatus, copilotLogout,
@@ -868,6 +880,38 @@ export default function Settings({ onClose }: { onClose?: () => void }) {
       {/* ━━━ 高级 Tab ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
       {tab === 'advanced' && (
         <>
+          <div className="advanced-section" style={{ marginBottom: 10 }}>
+            <div className="advanced-section-title">🎨 界面主题</div>
+            <div className="advanced-item">
+              <div className="advanced-item-header">
+                <span className="advanced-item-label">界面风格</span>
+                <span className="advanced-item-unit">当前：{effectiveTheme === 'light' ? '白色' : '深色'}</span>
+              </div>
+              <div className="theme-switch" role="group" aria-label="主题选择">
+                <button
+                  className={`theme-btn ${themePreference === 'light' ? 'active' : ''}`}
+                  onClick={() => onThemeChange('light')}
+                >
+                  白色
+                </button>
+                <button
+                  className={`theme-btn ${themePreference === 'dark' ? 'active' : ''}`}
+                  onClick={() => onThemeChange('dark')}
+                >
+                  深色
+                </button>
+                <button
+                  className={`theme-btn subtle ${themePreference === 'system' ? 'active' : ''}`}
+                  onClick={() => onThemeChange('system')}
+                  title="清除手动选择并跟随系统"
+                >
+                  跟随系统
+                </button>
+              </div>
+              <p className="advanced-item-desc">默认会跟随系统主题。选择白色或深色后将固定，并在重启后保持。</p>
+            </div>
+          </div>
+
           {/* ─── Bash 超时配置 ────────────────────────────────────────── */}
           <div className="advanced-section">
             <div className="advanced-section-title">⚡ 性能设置</div>

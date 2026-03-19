@@ -14,6 +14,42 @@
   background-color: #1c1c1e;
 }
 
+.app-root.theme-dark {
+  --bg-app: #1c1c1e;
+  --bg-sidebar: #151516;
+  --bg-status: #151516;
+  --bg-hover: rgba(255,255,255,0.08);
+  --bg-selected: rgba(10,132,255,0.15);
+  --border-default: rgba(255,255,255,0.08);
+  --text-primary: #f0f0f0;
+  --text-secondary: rgba(255,255,255,0.55);
+  --text-muted: rgba(255,255,255,0.45);
+  --text-dim: rgba(255,255,255,0.2);
+  --status-online: #30d158;
+  --status-offline: #ff453a;
+  --accent: #0a84ff;
+  --tag-neutral: rgba(255,255,255,0.5);
+  --tag-faint: rgba(255,255,255,0.3);
+}
+
+.app-root.theme-light {
+  --bg-app: #ffffff;
+  --bg-sidebar: #f4f5f7;
+  --bg-status: #f8f9fb;
+  --bg-hover: rgba(15,23,42,0.08);
+  --bg-selected: rgba(10,132,255,0.14);
+  --border-default: rgba(15,23,42,0.12);
+  --text-primary: #111827;
+  --text-secondary: rgba(17,24,39,0.72);
+  --text-muted: rgba(17,24,39,0.6);
+  --text-dim: rgba(17,24,39,0.35);
+  --status-online: #16a34a;
+  --status-offline: #dc2626;
+  --accent: #0a84ff;
+  --tag-neutral: rgba(15,23,42,0.55);
+  --tag-faint: rgba(15,23,42,0.35);
+}
+
 body {
   background: #1c1c1e;
   overflow: hidden;
@@ -29,13 +65,15 @@ body {
   display: flex;
   height: 100vh;
   overflow: hidden;
+  background: var(--bg-app);
+  color: var(--text-primary);
 }
 
 /* ─── 侧边栏 ──────────────────────────────────────────────── */
 .sidebar {
   width: 48px;
-  background: #151516;
-  border-right: 1px solid rgba(255,255,255,0.08);
+  background: var(--bg-sidebar);
+  border-right: 1px solid var(--border-default);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -57,16 +95,16 @@ body {
   align-items: center;
   justify-content: center;
   transition: background 0.15s;
-  color: rgba(255,255,255,0.5);
+  color: var(--text-secondary);
 }
 
 .sidebar-btn:hover {
-  background: rgba(255,255,255,0.08);
+  background: var(--bg-hover);
 }
 
 .sidebar-btn.active {
-  background: rgba(10,132,255,0.15);
-  color: #0a84ff;
+  background: var(--bg-selected);
+  color: var(--accent);
 }
 
 /* ─── 主内容区 ──────────────────────────────────────────────── */
@@ -92,15 +130,15 @@ body {
 /* ─── 底部状态栏 ──────────────────────────────────────────── */
 .status-bar {
   height: 28px;
-  background: #151516;
-  border-top: 1px solid rgba(255,255,255,0.08);
+  background: var(--bg-status);
+  border-top: 1px solid var(--border-default);
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0 12px;
   flex-shrink: 0;
   font-size: 11px;
-  color: rgba(255,255,255,0.45);
+  color: var(--text-muted);
   user-select: none;
 }
 
@@ -124,12 +162,12 @@ body {
 }
 
 .status-dot.online {
-  background: #30d158;
-  box-shadow: 0 0 4px #30d158;
+  background: var(--status-online);
+  box-shadow: 0 0 4px var(--status-online);
 }
 
 .status-dot.offline {
-  background: #ff453a;
+  background: var(--status-offline);
   animation: pulse 1.5s ease-in-out infinite;
 }
 
@@ -138,11 +176,11 @@ body {
 }
 
 .status-sep {
-  color: rgba(255,255,255,0.2);
+  color: var(--text-dim);
 }
 
 .status-zoom {
-  color: rgba(255,255,255,0.55);
+  color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
 }
 
