@@ -284,3 +284,36 @@ OpenSpec 可以作为我们**复刻 OpenClaw 工程的开发方法论**来使用
 | **Schema（模式）** | 定义制品类型和依赖关系的配置 |
 | **Spec（规格）** | 描述系统行为的文档，包含需求和场景 |
 | **Source of Truth** | `openspec/specs/` 目录，当前系统行为的权威来源 |
+
+---
+
+## 十一、操作注意事项
+
+### ⚠️ Windows PowerShell 写文件必须用 .NET API，禁止用 Set-Content / Out-File
+
+**问题**：在 merge 冲突解决时，曾用 PowerShell 的 `Set-Content` 和 `Out-File` 写入 `.tsx` 文件，导致文件中所有中文字符被截断为 `?`，Vite 报 `Unterminated string constant` 错误。
+
+**根本原因**：PowerShell 5.1 的 `Set-Content` / `Out-File` 默认使用系统编码（Windows 上通常是 GBK/CP936），而源码文件是 UTF-8 无 BOM。中文字符在 GBK 下写入后再被 UTF-8 解析就变成乱码/截断。
+
+**正确做法**：
+
+```powershell
+# ✅ 用 .NET 直接写入，强制 UTF-8 无 BOM
+[System.IO.File]::WriteAllText(
+  "$PWD\path\to\file.tsx",
+  $content,
+  [System.Text.UTF8Encoding]::new($false)   # $false = 无 BOM
+)
+```
+
+**更好的做法**：如果文件内容来自 git 历史，直接用 `git checkout` 恢复，完全绕开 PowerShell 编码问题：
+
+```powershell
+# ✅ 从指定 commit 恢复文件，编码原样保留
+git checkout <commit-hash> -- path/to/file.tsx
+```
+
+**受影响的 PowerShell 命令**（禁止用于写 UTF-8 源码文件）：
+- `Set-Content`（默认 Default/ANSI 编码）
+- `Out-File`（PowerShell 5.1 默认 UTF-16 LE with BOM）
+- `> 重定向符`（同 Out-File）
