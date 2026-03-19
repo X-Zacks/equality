@@ -8,6 +8,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import type { ToolDefinition, ToolResult, ToolContext } from '../types.js'
+import { getVisionProvider } from '../../providers/index.js'
 
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024  // 10MB
 
@@ -75,9 +76,13 @@ export const readImageTool: ToolDefinition = {
       return { content: `Error: file too large (${(stat.size / 1024 / 1024).toFixed(1)}MB). Maximum: 10MB`, isError: true }
     }
 
-    // Provider 检查
-    if (!ctx.provider) {
-      return { content: 'Error: no LLM provider available for vision analysis', isError: true }
+    // Provider 检查：自动选择支持视觉的 provider
+    let visionProvider
+    try {
+      visionProvider = getVisionProvider(ctx.provider)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      return { content: `Error: ${msg}`, isError: true }
     }
 
     // 读取为 base64
@@ -88,7 +93,7 @@ export const readImageTool: ToolDefinition = {
 
     // 调用视觉模型
     try {
-      const result = await ctx.provider.chat({
+      const result = await visionProvider.chat({
         messages: [
           {
             role: 'user',

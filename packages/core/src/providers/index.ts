@@ -188,6 +188,54 @@ export function getProviderById(id: string, model?: string): LLMProvider {
   return entry.factory()
 }
 
+/**
+ * 获取支持视觉（Vision）的 Provider。
+ * 优先使用已配置的视觉模型；若当前 provider 已支持则直接返回。
+ * 回退顺序：Copilot gpt-4o → qwen-vl-max → MiniMax-M2.7
+ */
+export function getVisionProvider(currentProvider?: LLMProvider): LLMProvider {
+  // 如果当前 provider 已支持视觉，直接复用
+  if (currentProvider && currentProvider.getCapabilities().supportsVision) {
+    return currentProvider
+  }
+
+  // 尝试 Copilot (gpt-4o 支持视觉)
+  try {
+    if (isCopilotLoggedIn()) {
+      return new CopilotProvider('gpt-4o')
+    }
+  } catch { /* 未配置，跳过 */ }
+
+  // 尝试通义千问视觉模型
+  try {
+    if (hasSecret('QWEN_API_KEY')) {
+      return new OpenAICompatProvider({
+        providerId: 'qwen',
+        modelId: 'qwen-vl-max',
+        apiKey: getSecret('QWEN_API_KEY'),
+        baseURL: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+        capabilities: {
+          contextWindow: 131_072,
+          supportsToolCalling: true,
+          supportsVision: true,
+        },
+      })
+    }
+  } catch { /* 未配置，跳过 */ }
+
+  // 尝试 MiniMax M2.7（支持视觉）
+  try {
+    if (hasSecret('MINIMAX_API_KEY')) {
+      return createMiniMaxProvider('MiniMax-M2.7')
+    }
+  } catch { /* 未配置，跳过 */ }
+
+  // 没有可用的视觉模型，抛出友好错误
+  throw new Error(
+    '当前模型不支持图片识别。请配置支持视觉的模型（如 GitHub Copilot、通义千问 qwen-vl-max 或 MiniMax-M2.7）。'
+  )
+}
+
 /** 带降级的 Provider 获取：主 Provider 失败时自动切换到下一个 */
 export function getProviderWithFallback(): LLMProvider {
   const configured: LLMProvider[] = []
