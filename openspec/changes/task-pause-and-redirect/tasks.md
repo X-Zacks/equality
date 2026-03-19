@@ -1,0 +1,43 @@
+# Tasks: 任务暂停与重定向
+
+## Phase 1：前端状态与逻辑
+
+- [ ] 1.1 `Chat.tsx` — 新增 `pauseIntentRef: useRef<boolean>(false)` 和 `pauseAbortRef: useRef<boolean>(false)`
+- [ ] 1.2 `Chat.tsx` — 新增 `paused: boolean` state
+- [ ] 1.3 `Chat.tsx` — `sessionKey` 变化的 useEffect 中清零 `paused` 和 `pauseIntentRef`
+- [ ] 1.4 `Chat.tsx` — `onToolCall` 回调中：当 `status === 'done' || status === 'error'` 且 `pauseIntentRef.current === true` 时，设置 `pauseAbortRef.current = true`，调用 `abort()`，设置 `setPaused(true)`，清零 `pauseIntentRef`
+- [ ] 1.5 `Chat.tsx` — `onAbort` 回调中：读取 `pauseAbortRef.current`，若为 true 走"暂停 abort"路径（不追加「⏹ 已中止」，不清空已完成工具卡片，只清 streamingText），若为 false 走现有"停止"路径
+- [ ] 1.6 `Chat.tsx` — `handleSend` 支持 `paused` 状态：发送前 `setPaused(false)`
+
+## Phase 2：UI 按钮区
+
+- [ ] 2.1 `Chat.tsx` — 输入区按钮区新增三态逻辑：
+  - `streaming && !pauseIntentRef.current` → 显示「⏸ 暂停」+ 「■ 停止」
+  - `streaming && pauseIntentRef.current` → 显示「⏳」(disabled) + 「■ 停止」
+  - `paused` → 不显示停止，显示「↑ 发送」（输入框启用）
+  - 其他 → 现有「↑ 发送」
+- [ ] 2.2 `Chat.tsx` — 「⏸」按钮 `onClick` 设置 `pauseIntentRef.current = true`，并触发 re-render（可用一个额外的 `setPauseIntentVis(true)` state 来驱动）
+- [ ] 2.3 `Chat.tsx` — 停止按钮 `onClick` 先清零 `pauseIntentRef.current`，再调用现有 `abort()`
+
+## Phase 3：暂停横幅 + 输入框 placeholder
+
+- [ ] 3.1 `Chat.tsx` — `paused` 为 true 时在输入区上方渲染 `.pause-banner`：
+  - 文字：`⏸ 已暂停 · 已完成 {completedToolCount} 个工具调用`
+  - 「取消」按钮：`onClick={() => setPaused(false)}`
+- [ ] 3.2 `Chat.tsx` — textarea `placeholder` 根据 `paused` 切换：
+  - `paused` → `输入指令继续任务，或直接描述下一步…`
+  - 其他 → `输入消息…（Enter 发送，Shift+Enter 换行）`（现有）
+
+## Phase 4：CSS
+
+- [ ] 4.1 `Chat.css` — 新增 `.pause-banner` 样式（橙色横幅，32px 高，左侧 2px #ff9f0a border）
+- [ ] 4.2 `Chat.css` — 新增 `.chat-btn-pause`（⏸，样式参考 `.chat-btn-stop`，颜色 `#ff9f0a`）
+- [ ] 4.3 `Chat.css` — 新增 `.chat-btn-pause-pending`（⏳，disabled 状态，opacity 0.4）
+
+## Phase 5：验证
+
+- [ ] 5.1 场景验证：多步任务中点暂停 → 当前工具完成 → 进入 paused → 发送指令 → AI 按新方向继续
+- [ ] 5.2 场景验证：pauseIntent 期间任务自然完成 → 不进入 paused
+- [ ] 5.3 场景验证：pauseIntent 期间点停止 → 普通停止，不进入 paused
+- [ ] 5.4 场景验证：paused 状态切换会话 → 状态清零
+- [ ] 5.5 typecheck 通过
