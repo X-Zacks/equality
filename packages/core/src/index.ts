@@ -91,13 +91,11 @@ await app.register(cors, {
     if (!origin || origin === 'null') return cb(null, true)
     // Tauri WebView（Windows: https://tauri.localhost，macOS: tauri://localhost）
     if (origin === 'https://tauri.localhost' || origin === 'tauri://localhost') return cb(null, true)
-    // 开发模式：Vite dev server（localhost 任意端口）
-    if (process.env.NODE_ENV === 'development') {
-      if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
-        return cb(null, true)
-      }
+    // 本机 localhost / 127.0.0.1（Vite dev server、集成测试等），本机请求可信
+    if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
+      return cb(null, true)
     }
-    // 其余一律拒绝
+    // 其余（外部网页）一律拒绝
     cb(Object.assign(new Error('CORS: origin not allowed'), { statusCode: 403 }), false)
   },
   methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],

@@ -18,3 +18,19 @@ scripts/dist/
 *.deb
 release/
 out/
+
+# Equality 运行时临时文件
+tmp_*/
+*.equality-bak
+packages/core/tmp_*
+packages/desktop/src-tauri/resources/skills/**/*.equality-bak
+
+# 微信/浏览器下载的 HTML 文档（openspec 目录下）
+openspec/*.html
+openspec/*_files/
+
+# 安全调研报告（本地文档，不提交）
+OpenClaw_*.md
+
+# example/ 是独立 git 仓库（OpenClaw），不作为子模块提交
+example/
