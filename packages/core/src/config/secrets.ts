@@ -15,6 +15,11 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
+import { fileURLToPath } from 'node:url'
+
+const _fileDir = typeof __dirname !== 'undefined'
+  ? __dirname
+  : path.dirname(fileURLToPath(import.meta.url))
 
 // ─── DPAPI 加载（使用 process.dlopen，兼容 Node SEA + 便携版） ──────────────
 
@@ -38,8 +43,8 @@ function getDpapi(): DpapiBindings | null {
     path.join(exeDir, '@primno+dpapi.node'),
     path.join(exeDir, 'resources', '@primno+dpapi.node'),
     // 开发环境：从 node_modules 加载
-    path.resolve(__dirname, '../../node_modules/@primno/dpapi/prebuilds/win32-x64/@primno+dpapi.node'),
-    path.resolve(__dirname, '../../../node_modules/@primno/dpapi/prebuilds/win32-x64/@primno+dpapi.node'),
+    path.resolve(_fileDir, '../../node_modules/@primno/dpapi/prebuilds/win32-x64/@primno+dpapi.node'),
+    path.resolve(_fileDir, '../../../node_modules/@primno/dpapi/prebuilds/win32-x64/@primno+dpapi.node'),
   ]
 
   for (const nodePath of candidates) {
