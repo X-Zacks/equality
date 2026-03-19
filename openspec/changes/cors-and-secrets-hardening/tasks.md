@@ -4,8 +4,10 @@
 
 - [x] **1.1** `packages/core/src/index.ts`  
   将 `origin: true` 替换为 Origin 白名单函数  
-  允许：`null`、`https://tauri.localhost`、`tauri://localhost`、开发模式 `localhost:*`  
-  拒绝：其他所有 origin
+  允许：`null`、`https://tauri.localhost`、`tauri://localhost`、`localhost:*`（含 Vite dev server）  
+  拒绝：其他所有 origin  
+  ⚠️ 初版用 `NODE_ENV=development` 控制 localhost 白名单，导致 Tauri dev 模式全部 403，  
+  后在 `cors-dev-origin-fix` 变更中修复（去掉 NODE_ENV 判断，直接允许 localhost:*）
 
 - [ ] **1.2** 手动验证  
   - `pnpm dev` 模式下 Tauri WebView 可正常发送消息  
