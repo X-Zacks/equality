@@ -67,7 +67,9 @@ export function createMiniMaxProvider(model = 'MiniMax-M2.5'): LLMProvider {
     capabilities: {
       contextWindow: 1_000_000,
       supportsToolCalling: true,
-      supportsVision: model.includes('VL') || model.includes('M2.7'),
+      // MiniMax 的 OpenAI 兼容接口明确不支持图像输入（官方文档注意事项第3条），
+      // 所有 MiniMax 模型（包括 M2.7）通过此接口均无法处理图片。
+      supportsVision: false,
     },
   })
 }
