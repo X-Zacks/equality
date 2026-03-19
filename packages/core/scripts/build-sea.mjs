@@ -65,7 +65,7 @@ const _require = createRequire(import.meta.url || __filename);
     outfile: implOut,
     external: [
       // better-sqlite3 的 JS 层打包进来，只把 .node 原生文件排除
-      'node-dpapi',
+      '@primno/dpapi',
       'chromium-bidi',
       'chromium-bidi/*',
       // playwright 本身不打包（体积太大且有循环依赖），但 playwright-core 打包进来
@@ -161,9 +161,28 @@ const sqliteOut = resolve(root, 'dist', 'better-sqlite3.node')
 console.log(`\n> Copying better-sqlite3.node → ${sqliteOut}`)
 copyFileSync(sqliteNode, sqliteOut)
 
-// 7. Cleanup
+// 7. 复制 @primno+dpapi.node 到 dist/ 旁边（Windows DPAPI 加密 API Key 用）
+const arch = process.arch === 'arm64' ? 'win32-arm64' : 'win32-x64'
+const dpapiNode = resolve(
+  root,
+  'node_modules',
+  '@primno',
+  'dpapi',
+  'prebuilds',
+  arch,
+  '@primno+dpapi.node',
+)
+const dpapiOut = resolve(root, 'dist', '@primno+dpapi.node')
+console.log(`\n> Copying @primno+dpapi.node → ${dpapiOut}`)
+try {
+  copyFileSync(dpapiNode, dpapiOut)
+} catch (e) {
+  console.warn('  ⚠ 复制 @primno+dpapi.node 失败（非 Windows 构建或包未安装），跳过:', e.message)
+}
+
+// 8. Cleanup
 if (existsSync(blob)) rmSync(blob)
 
 console.log(`\n✅  Built: ${exeOut}`)
 console.log(`✅  Native module: ${sqliteOut}`)
-console.log(`✔  将 dist/equality-core.exe 和 dist/better-sqlite3.node 一起分发`)
+console.log(`✔  将 dist/equality-core.exe、dist/better-sqlite3.node、dist/@primno+dpapi.node 一起分发`)

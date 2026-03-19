@@ -47,6 +47,7 @@ mkdirSync(resourcesDir, { recursive: true })
 
 const coreExe = resolve(coreDir, 'dist', 'equality-core.exe')
 const sqliteNode = resolve(coreDir, 'dist', 'better-sqlite3.node')
+const dpapiNode = resolve(coreDir, 'dist', '@primno+dpapi.node')
 
 if (!existsSync(coreExe)) {
   console.error(`\n❌ 找不到 ${coreExe}`)
@@ -61,6 +62,14 @@ copyFileSync(coreExe, resolve(resourcesDir, 'equality-core.exe'))
 copyFileSync(sqliteNode, resolve(resourcesDir, 'better-sqlite3.node'))
 console.log(`✅ 已复制 equality-core.exe → src-tauri/resources/`)
 console.log(`✅ 已复制 better-sqlite3.node → src-tauri/resources/`)
+
+// 复制 @primno+dpapi.node（可选，非 Windows 构建环境可能没有此文件）
+if (existsSync(dpapiNode)) {
+  copyFileSync(dpapiNode, resolve(resourcesDir, '@primno+dpapi.node'))
+  console.log(`✅ 已复制 @primno+dpapi.node → src-tauri/resources/`)
+} else {
+  console.warn(`⚠️ 未找到 ${dpapiNode}，跳过（非 Windows 导致）`)
+}
 
 // 复制 bundled skills 目录
 const skillsSrc = resolve(coreDir, 'skills')
@@ -93,6 +102,11 @@ const tauriConf = JSON.parse(tauriConfOriginal)
 const resourcesMap = {
   'resources/equality-core.exe': 'resources/equality-core.exe',
   'resources/better-sqlite3.node': 'resources/better-sqlite3.node',
+}
+// @primno+dpapi.node 可选（Windows 专用）
+const dpapiResource = resolve(resourcesDir, '@primno+dpapi.node')
+if (existsSync(dpapiResource)) {
+  resourcesMap['resources/@primno+dpapi.node'] = 'resources/@primno+dpapi.node'
 }
 // 将 skills/ 目录整体映射
 const skillsResourceDir = resolve(resourcesDir, 'skills')

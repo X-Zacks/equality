@@ -53,6 +53,13 @@ copyFileSync(equalityExe, resolve(portableDir, 'Equality.exe'))
 copyFileSync(resolve(resourcesDir, 'equality-core.exe'), resolve(portableDir, 'equality-core.exe'))
 copyFileSync(resolve(resourcesDir, 'better-sqlite3.node'), resolve(portableDir, 'better-sqlite3.node'))
 
+// 复制 @primno+dpapi.node（Windows DPAPI 加密，可选）
+const dpapiNode = resolve(resourcesDir, '@primno+dpapi.node')
+if (existsSync(dpapiNode)) {
+  copyFileSync(dpapiNode, resolve(portableDir, '@primno+dpapi.node'))
+  console.log(`✅ 已复制 @primno+dpapi.node → 便携版`)
+}
+
 // 复制 bundled skills 目录
 const skillsDir = resolve(resourcesDir, 'skills')
 if (existsSync(skillsDir)) {
@@ -80,6 +87,7 @@ console.log(`  Equality-portable-${version}/`)
 console.log('  ├── Equality.exe          ← ⭐ 用户只需双击这一个文件')
 console.log('  ├── equality-core.exe     ← 由主程序自动在后台启动，用户无需关心')
 console.log('  ├── better-sqlite3.node   ← 原生数据库模块，用户无需关心')
+console.log('  ├── @primno+dpapi.node    ← Windows DPAPI 加密模块（API Key 保护）')
 console.log('  └── skills/               ← 内置技能库（可在设置 → Skills 查看）')
 console.log('\n💡 用户使用方式：解压 zip → 双击 Equality.exe → 完成')
 console.log('\n📋 系统要求（对方电脑需满足）：')

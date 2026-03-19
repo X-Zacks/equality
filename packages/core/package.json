@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@fastify/cors": "^10.0.2",
+    "@primno/dpapi": "^2.0.1",
     "better-sqlite3": "^11.9.1",
     "cheerio": "^1.2.0",
     "chokidar": "^5.0.0",
