@@ -8,7 +8,7 @@ type SettingsTab = 'model' | 'tools' | 'skills' | 'advanced' | 'about'
 type ThemePreference = 'system' | 'light' | 'dark'
 type EffectiveTheme = 'light' | 'dark'
 
-// ─── 模型路由选择器组�?───────────────────────────────────────────────────────
+// ─── 模型路由选择器组�?───────────────────────────────────────────────────────
 
 interface ModelOption {
   value: string
@@ -20,12 +20,12 @@ interface ModelOption {
 }
 
 function categoryLabel(m: ModelOption): string {
-  // Copilot 模型�?category，其�?provider �?multiplier
+  // Copilot 模型�?category，其�?provider �?multiplier
   if (m.category) {
     switch (m.category) {
       case 'powerful': return '🔥'
       case 'versatile': return '❤️'
-      case 'fast': return '�?
+      case 'fast': return '⚡'
       default: return m.category
     }
   }
@@ -63,7 +63,7 @@ function ModelRoutingCard({ settings, saveApiKey, refresh }: {
   const triggerRef = useRef<HTMLButtonElement | null>(null)
   const dropdownRef = useRef<HTMLDivElement | null>(null)
 
-  // 动态获取所有可用模�?
+  // 动态获取所有可用模�?
   useEffect(() => {
     fetch('http://localhost:18790/models')
       .then(r => r.json())
@@ -108,14 +108,14 @@ function ModelRoutingCard({ settings, saveApiKey, refresh }: {
 
   const selectedOption = models.find(m => m.value === currentModel)
 
-  // �?provider 分组
+  // �?provider 分组
   const grouped = models.reduce<Record<string, ModelOption[]>>((acc, m) => {
     ;(acc[m.provider] ??= []).push(m)
     return acc
   }, {})
   const providerOrder = ['copilot', 'custom', 'deepseek', 'qwen', 'volc', 'minimax']
   const providerLabel: Record<string, string> = {
-    copilot: 'GitHub Copilot', custom: '自定义端�?,
+    copilot: 'GitHub Copilot', custom: '自定义端�?,
     deepseek: 'DeepSeek', qwen: 'Qwen', volc: 'Volc', minimax: 'MiniMax',
   }
 
@@ -128,16 +128,16 @@ function ModelRoutingCard({ settings, saveApiKey, refresh }: {
         <div className="model-routing-row">
           <label className="model-routing-toggle">
             <input type="checkbox" checked={isAuto} onChange={handleToggle} />
-            <span className="model-routing-label">Auto（根据问题复杂度自动选择模型�?/span>
+            <span className="model-routing-label">Auto（根据问题复杂度自动选择模型�?/span>
           </label>
         </div>
         <p className="model-routing-hint">
           {isAuto
-            ? '简单问�?�?轻量模型，普通问�?�?标准模型，复杂问�?�?最强模�?
-            : '所有消息将使用下方选定的模�?}
+            ? '简单问�?�?轻量模型，普通问�?�?标准模型，复杂问�?�?最强模�?
+            : '所有消息将使用下方选定的模�?}
         </p>
 
-        {/* 自定义模型选择�?*/}
+        {/* 自定义模型选择�?*/}
         <div className="model-select-wrapper">
           <button
             ref={triggerRef}
@@ -158,7 +158,7 @@ function ModelRoutingCard({ settings, saveApiKey, refresh }: {
                 )}
               </>
             )}
-            <span className="model-select-chevron">{open ? '�? : '�?}</span>
+            <span className="model-select-chevron">{open ? '�? : '�?}</span>
           </button>
 
           {open && dropdownPos && (
@@ -168,7 +168,7 @@ function ModelRoutingCard({ settings, saveApiKey, refresh }: {
               style={{ position: 'fixed', top: dropdownPos.top, left: dropdownPos.left, width: dropdownPos.width }}
             >
               {models.length === 0 ? (
-                <div className="model-select-empty">加载中�?/div>
+                <div className="model-select-empty">加载中�?/div>
               ) : (
                 providerOrder
                   .filter(p => grouped[p]?.length)
@@ -207,7 +207,7 @@ function ModelRoutingCard({ settings, saveApiKey, refresh }: {
 const PROVIDER_GROUPS = [
   {
     id: 'custom' as const,
-    label: '自定�?OpenAI 兑容端点',
+    label: '自定�?OpenAI 兑容端点',
     badge: '优先',
     fields: [
       { key: 'CUSTOM_BASE_URL' as SecretKey, label: 'Endpoint URL', type: 'text',     placeholder: 'https://your-endpoint/v1' },
@@ -224,7 +224,7 @@ const PROVIDER_GROUPS = [
   },
   {
     id: 'qwen' as const,
-    label: 'Qwen （通义千问�?,
+    label: 'Qwen （通义千问�?,
     fields: [{ key: 'QWEN_API_KEY' as SecretKey, label: 'API Key', type: 'password', placeholder: 'sk-...' }],
     saveKeys: ['QWEN_API_KEY'] as SecretKey[],
   },
@@ -236,7 +236,7 @@ const PROVIDER_GROUPS = [
   },
   {
     id: 'minimax' as const,
-    label: 'MiniMax（MiniMax-M2.5 / M2.7�?,
+    label: 'MiniMax（MiniMax-M2.5 / M2.7�?,
     fields: [{ key: 'MINIMAX_API_KEY' as SecretKey, label: 'API Key', type: 'password', placeholder: 'eyJ...' }],
     saveKeys: ['MINIMAX_API_KEY'] as SecretKey[],
   },
@@ -244,14 +244,14 @@ const PROVIDER_GROUPS = [
 
 const PROVIDER_LABEL: Record<string, string> = {
   copilot: 'GitHub Copilot',
-  custom: '自定义端�?,
+  custom: '自定义端�?,
   deepseek: 'DeepSeek',
   qwen: 'Qwen',
   volc: 'Volc',
   minimax: 'MiniMax',
 }
 
-// ─── Copilot 登录状�?─────────────────────────────────────────────────────────
+// ─── Copilot 登录状�?─────────────────────────────────────────────────────────
 type CopilotState =
   | { phase: 'idle' }
   | { phase: 'waiting'; userCode: string; verificationUri: string }
@@ -280,12 +280,12 @@ interface ProviderRowProps {
 }
 
 function ProviderRow({ id, label, badge, status, isCopilotUnlogged, onAction }: ProviderRowProps) {
-  const icon = PROVIDER_ICON[id] ?? '�?
+  const icon = PROVIDER_ICON[id] ?? '�?
 
   const statusNode = (() => {
-    if (status === 'active') return <span className="pr-status pr-status-active">�?激活中</span>
-    if (status === 'configured') return <span className="pr-status pr-status-configured">�?已配�?/span>
-    return <span className="pr-status pr-status-unconfigured">�?未配�?/span>
+    if (status === 'active') return <span className="pr-status pr-status-active">�?激活中</span>
+    if (status === 'configured') return <span className="pr-status pr-status-configured">�?已配�?/span>
+    return <span className="pr-status pr-status-unconfigured">�?未配�?/span>
   })()
 
   const actionLabel = (() => {
@@ -324,7 +324,7 @@ interface ProviderDrawerProps {
 }
 
 function saveLabel(state: string) {
-  return state === 'saving' ? '保存中�? : state === 'ok' ? '�?已保�? : state === 'err' ? '�?失败' : '保存'
+  return state === 'saving' ? '保存中�? : state === 'ok' ? '�?已保�? : state === 'err' ? '�?失败' : '保存'
 }
 
 function ProviderDrawer({
@@ -341,16 +341,16 @@ function ProviderDrawer({
         <div className="drawer-panel" onClick={e => e.stopPropagation()}>
           <div className="drawer-header">
             <span className="drawer-title">🐙 GitHub Copilot</span>
-            <button className="drawer-close" onClick={onClose}>�?/button>
+            <button className="drawer-close" onClick={onClose}>�?/button>
           </div>
           <div className="drawer-body">
             {isActive && (
-              <div className="drawer-active-bar">�?当前激�?/div>
+              <div className="drawer-active-bar">�?当前激�?/div>
             )}
             {copilot.phase === 'idle' && (
               <>
                 <p className="drawer-hint">
-                  通过 GitHub Copilot 订阅免费使用 Claude / GPT / Gemini 等模�?
+                  通过 GitHub Copilot 订阅免费使用 Claude / GPT / Gemini 等模�?
                 </p>
                 <button className="btn-save drawer-btn-full" onClick={onCopilotLogin}>
                   🔑 登录 GitHub
@@ -364,27 +364,27 @@ function ProviderDrawer({
                 </p>
                 <div className="copilot-user-code">{copilot.userCode}</div>
                 <p style={{ margin: '4px 0 0', fontSize: 11, color: '#666' }}>
-                  �?等待授权中�?
+                  �?等待授权中�?
                 </p>
               </div>
             )}
             {copilot.phase === 'logged-in' && (
               <>
                 <p style={{ margin: '0 0 8px', fontSize: 13, color: '#4caf50' }}>
-                  �?已登�?{copilot.user ? `(${copilot.user})` : ''}
+                  �?已登�?{copilot.user ? `(${copilot.user})` : ''}
                 </p>
                 <p style={{ margin: '4px 0 12px', fontSize: 11, color: '#888' }}>
-                  费用：�?（含�?Copilot 订阅中）。模型选择请使用上方「模型选择」卡片�?
+                  费用：�?（含�?Copilot 订阅中）。模型选择请使用上方「模型选择」卡片�?
                 </p>
                 <button className="btn-clear drawer-btn-full" onClick={onCopilotLogout}>
-                  退出登�?
+                  退出登�?
                 </button>
               </>
             )}
             {copilot.phase === 'error' && (
               <>
                 <p style={{ margin: '0 0 8px', fontSize: 12, color: '#f44336' }}>
-                  �?{copilot.message}
+                  �?{copilot.message}
                 </p>
                 <button className="btn-save drawer-btn-full" onClick={onCopilotLogin}>
                   🔑 重新登录
@@ -397,7 +397,7 @@ function ProviderDrawer({
     )
   }
 
-  // 普�?provider 抽屉内容
+  // 普�?provider 抽屉内容
   if (!group) return null
 
   const hasAny = group.fields.some(f => getMasked(f.key))
@@ -407,12 +407,12 @@ function ProviderDrawer({
     <div className="drawer-mask" onClick={onClose}>
       <div className="drawer-panel" onClick={e => e.stopPropagation()}>
         <div className="drawer-header">
-          <span className="drawer-title">{PROVIDER_ICON[providerId] ?? '�?} {PROVIDER_LABEL[providerId]}</span>
-          <button className="drawer-close" onClick={onClose}>�?/button>
+          <span className="drawer-title">{PROVIDER_ICON[providerId] ?? '�?} {PROVIDER_LABEL[providerId]}</span>
+          <button className="drawer-close" onClick={onClose}>�?/button>
         </div>
         <div className="drawer-body">
           {isActive && (
-            <div className="drawer-active-bar">�?当前激�?/div>
+            <div className="drawer-active-bar">�?当前激�?/div>
           )}
           {'badge' in group && (
             <div className="drawer-badge-row">
@@ -468,16 +468,16 @@ export default function Settings({
 
   // 已配置状态（来自服务端）
   const [settings, setSettings] = useState<SettingsState>({ configured: [], activeProvider: null })
-  // 用户正在编辑的字�?
+  // 用户正在编辑的字�?
   const [draft, setDraft] = useState<Partial<Record<SecretKey, string>>>({})
-  // 每个 group 的保存状�?
+  // 每个 group 的保存状�?
   const [saving, setSaving] = useState<Record<string, 'idle' | 'saving' | 'ok' | 'err'>>({})
-  // 当前打开�?drawer（provider id，null 表示关闭�?
+  // 当前打开�?drawer（provider id，null 表示关闭�?
   const [drawerProvider, setDrawerProvider] = useState<string | null>(null)
-  // proxy 展开（保�?tools tab �?accordion�?
+  // proxy 展开（保�?tools tab �?accordion�?
   const [expanded, setExpanded] = useState<Record<string, boolean>>({ braveSearch: false, chromePath: false, proxy: false })
 
-  // ─── Copilot 状�?─────────────────────────────────────────────────────
+  // ─── Copilot 状�?─────────────────────────────────────────────────────
   const [copilot, setCopilot] = useState<CopilotState>({ phase: 'idle' })
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -485,12 +485,12 @@ export default function Settings({
     const s = await loadSettings()
     setSettings(s)
 
-    // 检�?copilot 登录状�?
+    // 检�?copilot 登录状�?
     if (s.activeProvider === 'copilot') {
       const ghToken = s.configured.find(c => c.key === 'GITHUB_TOKEN')
       setCopilot({ phase: 'logged-in', user: ghToken ? 'GitHub User' : '' })
     } else {
-      // 检查是否有保存�?GITHUB_TOKEN（但不是活跃 provider�?
+      // 检查是否有保存�?GITHUB_TOKEN（但不是活跃 provider�?
       const ghToken = s.configured.find(c => c.key === 'GITHUB_TOKEN')
       if (ghToken) {
         setCopilot({ phase: 'logged-in', user: 'GitHub User' })
@@ -500,7 +500,7 @@ export default function Settings({
 
   useEffect(() => { refresh() }, [refresh])
 
-  // 清理轮询定时�?
+  // 清理轮询定时�?
   useEffect(() => {
     return () => { if (pollTimerRef.current) clearTimeout(pollTimerRef.current) }
   }, [])
@@ -518,10 +518,10 @@ export default function Settings({
     }
     setCopilot({ phase: 'waiting', userCode: result.userCode, verificationUri: result.verificationUri })
 
-    // 打开浏览�?
+    // 打开浏览�?
     try { await open(result.verificationUri) } catch { /* ignore */ }
 
-    // 开始轮�?
+    // 开始轮�?
     const poll = async (interval: number) => {
       const status = await copilotLoginStatus()
       if (status.status === 'ok') {
@@ -550,7 +550,7 @@ export default function Settings({
         const val = draft[k]?.trim()
         if (val) await saveApiKey(k, val)
       }
-      // 清空�?group �?draft
+      // 清空�?group �?draft
       setDraft(p => {
         const n = { ...p }
         keys.forEach(k => delete n[k])
@@ -570,12 +570,12 @@ export default function Settings({
     setSaving(p => ({ ...p, [groupId]: 'idle' }))
   }
 
-  // ─── Tab 状�?───────────────────────────────────────────────────────
+  // ─── Tab 状�?───────────────────────────────────────────────────────
   const [tab, setTab] = useState<SettingsTab>('model')
   const [toolsList, setToolsList] = useState<Array<{ name: string }>>([])
   const [skillsList, setSkillsList] = useState<Array<{ name: string; description: string; source: string }>>([])
 
-  // Gallery 状�?
+  // Gallery 状�?
   const [galleryList, setGalleryList] = useState<Array<{ name: string; description: string; repoId: string; remotePath: string; downloadUrl: string; trust: string; installed: boolean }>>([])
   const [galleryLoading, setGalleryLoading] = useState(false)
   const [galleryError, setGalleryError] = useState('')
@@ -608,9 +608,9 @@ export default function Settings({
       const result = await r.json()
       if (result.ok) {
         setInstalling(p => ({ ...p, [skill.name]: 'ok' }))
-        setInstallMsg(p => ({ ...p, [skill.name]: '�?已安�? }))
+        setInstallMsg(p => ({ ...p, [skill.name]: '�?已安�? }))
         setGalleryList(prev => prev.map(s => s.name === skill.name ? { ...s, installed: true } : s))
-        // 刷新已加载列�?
+        // 刷新已加载列�?
         const sr = await fetch('http://localhost:18790/skills')
         setSkillsList(await sr.json())
       } else {
@@ -661,10 +661,10 @@ export default function Settings({
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {settings.activeProvider && (
             <span className="active-badge">
-              �?{PROVIDER_LABEL[settings.activeProvider]}
+              �?{PROVIDER_LABEL[settings.activeProvider]}
             </span>
           )}
-          {onClose && <button className="btn-close" onClick={onClose}>�?/button>}
+          {onClose && <button className="btn-close" onClick={onClose}>�?/button>}
         </div>
       </div>
 
@@ -689,18 +689,18 @@ export default function Settings({
 
       <div className="settings-body">
 
-      {/* ━━�?模型 Tab ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━�?*/}
+      {/* ━━�?模型 Tab ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━�?*/}
       {tab === 'model' && (<>
         {!settings.activeProvider && (
-          <p className="settings-hint">请配置任意一�?Provider，保存后即自动激�?/p>
+          <p className="settings-hint">请配置任意一�?Provider，保存后即自动激�?/p>
         )}
 
-        {/* ─── 模型路由选择�?──────────────────────────────────────────── */}
+        {/* ─── 模型路由选择�?──────────────────────────────────────────── */}
         <ModelRoutingCard settings={settings} saveApiKey={saveApiKey} refresh={refresh} />
 
         {/* ─── Provider 列表 ───────────────────────────────────────────── */}
         <div className="provider-list">
-          {/* Copilot �?*/}
+          {/* Copilot �?*/}
           <ProviderRow
             id="copilot"
             label="GitHub Copilot"
@@ -713,7 +713,7 @@ export default function Settings({
             isCopilotUnlogged={copilot.phase !== 'logged-in'}
             onAction={() => setDrawerProvider('copilot')}
           />
-          {/* 其他 Provider �?*/}
+          {/* 其他 Provider �?*/}
           {PROVIDER_GROUPS.map(group => {
             const isActive = settings.activeProvider === group.id
             const hasAny = group.fields.some(f => getMasked(f.key))
@@ -736,14 +736,14 @@ export default function Settings({
           <div className="provider-header" onClick={() => setExpanded(p => ({ ...p, proxy: !p.proxy }))}>
             <span className="provider-name">🌐 HTTP 代理</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              {getMasked('HTTPS_PROXY' as SecretKey) && <span className="configured-dot" title="已配�? />}
-              <span className="chevron">{expanded.proxy ? '�? : '�?}</span>
+              {getMasked('HTTPS_PROXY' as SecretKey) && <span className="configured-dot" title="已配�? />}
+              <span className="chevron">{expanded.proxy ? '�? : '�?}</span>
             </div>
           </div>
           {expanded.proxy && (
             <div className="provider-body">
               <p style={{ margin: '0 0 8px', fontSize: 12, color: '#888' }}>
-                在中国大陆访�?GitHub Copilot API 通常需�?HTTP 代理
+                在中国大陆访�?GitHub Copilot API 通常需�?HTTP 代理
               </p>
               <div className="key-row">
                 <label>Proxy URL</label>
@@ -803,30 +803,30 @@ export default function Settings({
 
       </>)}
 
-      {/* ━━�?工具 Tab ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━�?*/}
+      {/* ━━�?工具 Tab ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━�?*/}
       {tab === 'tools' && (
         <>
-          {/* ─── Brave Search API Key 配置�?─────────────────────────────── */}
+          {/* ─── Brave Search API Key 配置�?─────────────────────────────── */}
           <div className="provider-card">
             <div className="provider-header" onClick={() => setExpanded(p => ({ ...p, braveSearch: !p.braveSearch }))}>
-              <span className="provider-name">🔍 Web Search（Brave Search API�?/span>
+              <span className="provider-name">🔍 Web Search（Brave Search API�?/span>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                {getMasked('BRAVE_SEARCH_API_KEY') && <span className="configured-dot" title="已配�? />}
-                <span className="chevron">{expanded.braveSearch ? '�? : '�?}</span>
+                {getMasked('BRAVE_SEARCH_API_KEY') && <span className="configured-dot" title="已配�? />}
+                <span className="chevron">{expanded.braveSearch ? '�? : '�?}</span>
               </div>
             </div>
             {expanded.braveSearch && (
               <div className="provider-body">
                 <p style={{ margin: '0 0 8px', fontSize: 12, color: '#888' }}>
-                  免费申请�?a href="https://brave.com/search/api/" target="_blank" rel="noreferrer"
+                  免费申请�?a href="https://brave.com/search/api/" target="_blank" rel="noreferrer"
                     style={{ color: 'var(--accent)' }}>brave.com/search/api</a>
-                  （免费版每月 2000 次）。未配置时自动回退�?DuckDuckGo�?
+                  （免费版每月 2000 次）。未配置时自动回退�?DuckDuckGo�?
                 </p>
                 <div className="key-row">
                   <label>API Key</label>
                   <input
                     type="password"
-                    placeholder={getMasked('BRAVE_SEARCH_API_KEY') || 'BSAxxxxx�?}
+                    placeholder={getMasked('BRAVE_SEARCH_API_KEY') || 'BSAxxxxx�?}
                     value={draft['BRAVE_SEARCH_API_KEY'] ?? ''}
                     onChange={e => setDraft(p => ({ ...p, BRAVE_SEARCH_API_KEY: e.target.value }))}
                   />
@@ -847,19 +847,19 @@ export default function Settings({
             )}
           </div>
 
-          {/* ─── Chrome 路径配置�?─────────────────────────────────────────── */}
+          {/* ─── Chrome 路径配置�?─────────────────────────────────────────── */}
           <div className="provider-card">
             <div className="provider-header" onClick={() => setExpanded(p => ({ ...p, chromePath: !p.chromePath }))}>
-              <span className="provider-name">🌐 浏览器工具（Chrome 路径�?/span>
+              <span className="provider-name">🌐 浏览器工具（Chrome 路径�?/span>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                {getMasked('CHROME_PATH') && <span className="configured-dot" title="已配�? />}
-                <span className="chevron">{expanded.chromePath ? '�? : '�?}</span>
+                {getMasked('CHROME_PATH') && <span className="configured-dot" title="已配�? />}
+                <span className="chevron">{expanded.chromePath ? '�? : '�?}</span>
               </div>
             </div>
             {expanded.chromePath && (
               <div className="provider-body">
                 <p style={{ margin: '0 0 8px', fontSize: 12, color: '#888' }}>
-                  非必填。未填时自动搜索系统 Chrome / Edge。如自动搜索失败，请手动填入 chrome.exe 的完整路径�?
+                  非必填。未填时自动搜索系统 Chrome / Edge。如自动搜索失败，请手动填入 chrome.exe 的完整路径�?
                 </p>
                 <div className="key-row">
                   <label>Chrome 路径</label>
@@ -886,9 +886,9 @@ export default function Settings({
             )}
           </div>
 
-          <div className="settings-section-title" style={{ marginTop: 16 }}>已注册工�?/div>
+          <div className="settings-section-title" style={{ marginTop: 16 }}>已注册工�?/div>
           {toolsList.length === 0 ? (
-            <p className="settings-hint">加载中�?/p>
+            <p className="settings-hint">加载中�?/p>
           ) : (
             <div className="tools-list">
               {toolsList.map(t => (
@@ -900,17 +900,17 @@ export default function Settings({
             </div>
           )}
           <p className="settings-hint" style={{ marginTop: 8 }}>
-            工具调用上限�?0 �?�?· bash 超时见「⚙�?高级」设�?
+            工具调用上限�?0 �?�?· bash 超时见「⚙�?高级」设�?
           </p>
         </>
       )}
 
-      {/* ━━�?Skills Tab ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━�?*/}
+      {/* ━━�?Skills Tab ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━�?*/}
       {tab === 'skills' && (
         <>
-          <div className="settings-section-title">已加�?Skills（{skillsList.length}�?/div>
+          <div className="settings-section-title">已加�?Skills（{skillsList.length}�?/div>
           {skillsList.length === 0 ? (
-            <p className="settings-hint">加载中�?/p>
+            <p className="settings-hint">加载中�?/p>
           ) : (
             <div className="skills-list">
               {skillsList.map(s => (
@@ -940,18 +940,18 @@ export default function Settings({
               onClick={fetchGallery}
               disabled={galleryLoading}
             >
-              {galleryLoading ? '加载中�? : '🛒 技能商�?}
+              {galleryLoading ? '加载中�? : '🛒 技能商�?}
             </button>
           </div>
 
           {/* Gallery 区域 */}
           {galleryError && (
-            <p className="settings-hint" style={{ color: '#f44336', marginTop: 8 }}>�?{galleryError}</p>
+            <p className="settings-hint" style={{ color: '#f44336', marginTop: 8 }}>�?{galleryError}</p>
           )}
           {galleryList.length > 0 && (
             <>
               <div className="settings-section-title" style={{ marginTop: 12 }}>
-                🛡�?可信仓库 Skills
+                🛡�?可信仓库 Skills
               </div>
               <p className="settings-hint">
                 以下 Skills 来自经过安全审计的官方仓库，安装前会自动进行安全扫描
@@ -962,14 +962,14 @@ export default function Settings({
                     <div className="skill-header">
                       <span className="skill-name">{g.name}</span>
                       <span className={`skill-trust trust-${g.trust}`}>
-                        {g.trust === 'official' ? '🔒 官方' : g.trust === 'verified' ? '�?已验�? : '👥 社区'}
+                        {g.trust === 'official' ? '🔒 官方' : g.trust === 'verified' ? '�?已验�? : '👥 社区'}
                       </span>
                     </div>
                     <div className="skill-desc">{g.description}</div>
                     <div className="gallery-actions">
                       {g.installed ? (
                         <>
-                          <span className="gallery-installed">�?已安�?/span>
+                          <span className="gallery-installed">�?已安�?/span>
                           <button className="btn-clear btn-sm" onClick={() => handleUninstallSkill(g.name)}>卸载</button>
                         </>
                       ) : (
@@ -978,7 +978,7 @@ export default function Settings({
                           disabled={installing[g.name] === 'installing'}
                           onClick={() => handleInstallSkill(g)}
                         >
-                          {installing[g.name] === 'installing' ? '安装中�? : installing[g.name] === 'ok' ? '�? : '安装'}
+                          {installing[g.name] === 'installing' ? '安装中�? : installing[g.name] === 'ok' ? '�? : '安装'}
                         </button>
                       )}
                     </div>
@@ -995,7 +995,7 @@ export default function Settings({
         </>
       )}
 
-      {/* ━━�?高级 Tab ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━�?*/}
+      {/* ━━�?高级 Tab ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━�?*/}
       {tab === 'advanced' && (
         <>
           <div className="advanced-section" style={{ marginBottom: 10 }}>
@@ -1021,18 +1021,18 @@ export default function Settings({
                 <button
                   className={`theme-btn subtle ${themePreference === 'system' ? 'active' : ''}`}
                   onClick={() => onThemeChange('system')}
-                  title="清除手动选择并跟随系�?
+                  title="清除手动选择并跟随系�?
                 >
                   跟随系统
                 </button>
               </div>
-              <p className="advanced-item-desc">默认会跟随系统主题。选择白色或深色后将固定，并在重启后保持�?/p>
+              <p className="advanced-item-desc">默认会跟随系统主题。选择白色或深色后将固定，并在重启后保持�?/p>
             </div>
           </div>
 
           {/* ─── Bash 超时配置 ────────────────────────────────────────── */}
           <div className="advanced-section">
-            <div className="advanced-section-title">�?性能设置</div>
+            <div className="advanced-section-title">�?性能设置</div>
 
             <div className="advanced-item">
               <div className="advanced-item-header">
@@ -1046,12 +1046,12 @@ export default function Settings({
                 value={draft['BASH_TIMEOUT_MS' as SecretKey] ?? ''}
                 onChange={e => setDraft(p => ({ ...p, BASH_TIMEOUT_MS: e.target.value }))}
               />
-              <p className="advanced-item-desc">bash 前台命令的总超时。最�?5s，默�?5 分钟。命令持续有输出不会被此超时中断，只有总时长超限才触发�?/p>
+              <p className="advanced-item-desc">bash 前台命令的总超时。最�?5s，默�?5 分钟。命令持续有输出不会被此超时中断，只有总时长超限才触发�?/p>
             </div>
 
             <div className="advanced-item">
               <div className="advanced-item-header">
-                <span className="advanced-item-label">无输出超�?/span>
+                <span className="advanced-item-label">无输出超�?/span>
                 <span className="advanced-item-unit">ms</span>
               </div>
               <input
@@ -1061,7 +1061,7 @@ export default function Settings({
                 value={draft['BASH_IDLE_TIMEOUT_MS' as SecretKey] ?? ''}
                 onChange={e => setDraft(p => ({ ...p, BASH_IDLE_TIMEOUT_MS: e.target.value }))}
               />
-              <p className="advanced-item-desc">命令在此时间内无任何 stdout/stderr 输出则判定卡死并终止。设�?0 禁用。默�?2 分钟�?/p>
+              <p className="advanced-item-desc">命令在此时间内无任何 stdout/stderr 输出则判定卡死并终止。设�?0 禁用。默�?2 分钟�?/p>
             </div>
 
             <div className="advanced-item">
@@ -1076,7 +1076,7 @@ export default function Settings({
                 value={draft['BASH_MAX_TIMEOUT_MS' as SecretKey] ?? ''}
                 onChange={e => setDraft(p => ({ ...p, BASH_MAX_TIMEOUT_MS: e.target.value }))}
               />
-              <p className="advanced-item-desc">单条 bash 命令的绝对上限，防止 LLM 传入过大�?timeout_ms。默�?30 分钟�?/p>
+              <p className="advanced-item-desc">单条 bash 命令的绝对上限，防止 LLM 传入过大�?timeout_ms。默�?30 分钟�?/p>
             </div>
 
             <div className="provider-actions" style={{ marginTop: 4 }}>
@@ -1092,21 +1092,21 @@ export default function Settings({
         </>
       )}
 
-      {/* ━━�?关于 Tab ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━�?*/}
+      {/* ━━�?关于 Tab ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━�?*/}
       {tab === 'about' && (
         <div className="about-section">
-          <div className="about-logo">�?/div>
+          <div className="about-logo">�?/div>
           <h2 className="about-title">Equality</h2>
           <p className="about-version">v0.2.1</p>
-          <p className="about-desc">面向中国大陆 Windows 用户�?AI 桌面智能助理</p>
+          <p className="about-desc">面向中国大陆 Windows 用户�?AI 桌面智能助理</p>
           <div className="about-info">
             <div className="about-row"><span>运行环境</span><span>Tauri + React + Fastify</span></div>
-            <div className="about-row"><span>工具数量</span><span>{toolsList.length || '�?}</span></div>
-            <div className="about-row"><span>Skills 数量</span><span>{skillsList.length || '�?}</span></div>
+            <div className="about-row"><span>工具数量</span><span>{toolsList.length || '�?}</span></div>
+            <div className="about-row"><span>Skills 数量</span><span>{skillsList.length || '�?}</span></div>
             <div className="about-row">
               <span>Key 存储</span>
               <span style={{ color: settings.storageMode === 'dpapi' ? '#30d158' : '#ff9f0a' }}>
-                {settings.storageMode === 'dpapi' ? '🔒 加密存储（DPAPI�? : '⚠️ 明文存储'}
+                {settings.storageMode === 'dpapi' ? '🔒 加密存储（DPAPI�? : '⚠️ 明文存储'}
               </span>
             </div>
           </div>
@@ -1114,10 +1114,10 @@ export default function Settings({
             <>
               <div className="settings-section-title" style={{ marginTop: 16, alignSelf: 'flex-start' }}>💰 累计费用</div>
               <div className="about-info">
-                <div className="about-row"><span>总费�?/span><span style={{ color: '#ff9f0a' }}>¥{globalCost.totalCny.toFixed(4)}</span></div>
-                <div className="about-row"><span>�?Tokens</span><span>{globalCost.totalTokens.toLocaleString()}</span></div>
+                <div className="about-row"><span>总费�?/span><span style={{ color: '#ff9f0a' }}>¥{globalCost.totalCny.toFixed(4)}</span></div>
+                <div className="about-row"><span>�?Tokens</span><span>{globalCost.totalTokens.toLocaleString()}</span></div>
                 <div className="about-row"><span>调用次数</span><span>{globalCost.callCount}</span></div>
-                <div className="about-row"><span>会话�?/span><span>{globalCost.sessionCount}</span></div>
+                <div className="about-row"><span>会话�?/span><span>{globalCost.sessionCount}</span></div>
               </div>
             </>
           )}
