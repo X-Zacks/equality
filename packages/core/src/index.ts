@@ -3,10 +3,10 @@ import cors from '@fastify/cors'
 import path from 'node:path'
 
 import { DESKTOP_SESSION_KEY } from './session/key.js'
-import { reap, getOrCreate } from './session/store.js'
+import { reap, getOrCreate, get } from './session/store.js'
 import { SessionQueue } from './session/queue.js'
 import { runAttempt } from './agent/runner.js'
-import { listSessions, deleteSession as deleteSessionFromDisk } from './session/persist.js'
+import { persist, listSessions, deleteSession as deleteSessionFromDisk } from './session/persist.js'
 import { initSecrets, setSecret, getSecret, listSecrets, hasSecret } from './config/secrets.js'
 import type { SecretKey } from './config/secrets.js'
 import { initProxy, setProxyUrl } from './config/proxy.js'
@@ -254,6 +254,15 @@ app.post<{ Body: { sessionKey?: string } }>('/chat/abort', async (req, reply) =>
     return reply.send({ ok: true, aborted: true })
   }
   return reply.send({ ok: true, aborted: false })
+})
+
+// ─── Session 主动持久化（暂停时调用，确保工具结果不因进程重启丢失）─────────────
+app.post<{ Params: { key: string } }>('/sessions/:key/persist', async (req, reply) => {
+  const { key } = req.params
+  const session = get(key)
+  if (!session) return reply.send({ ok: false, reason: 'session not found in memory' })
+  await persist(session)
+  return reply.send({ ok: true, messages: session.messages.length })
 })
 
 // ─── Tools API ────────────────────────────────────────────────────────────────

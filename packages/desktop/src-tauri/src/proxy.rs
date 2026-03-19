@@ -84,6 +84,18 @@ pub async fn abort_chat(session_key: Option<String>) -> Result<serde_json::Value
     resp.json().await.map_err(|e| format!("abort_chat parse failed: {}", e))
 }
 
+/// 暂停时主动持久化 session（防止进程重启后丢失已完成的工具执行结果）
+#[tauri::command]
+pub async fn persist_session(session_key: String) -> Result<serde_json::Value, String> {
+    let client = reqwest::Client::new();
+    let resp = client
+        .post(format!("{}/sessions/{}/persist", GATEWAY, session_key))
+        .send()
+        .await
+        .map_err(|e| format!("persist_session failed: {}", e))?;
+    resp.json().await.map_err(|e| format!("persist_session parse failed: {}", e))
+}
+
 /// GET /settings
 #[tauri::command]
 pub async fn get_settings() -> serde_json::Value {

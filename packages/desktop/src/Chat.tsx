@@ -76,6 +76,10 @@ export default function Chat({ sessionKey }: ChatProps) {
   const [dragOver, setDragOver] = useState(false)
   const streamingTextRef = useRef('')
   const activeToolCallsRef = useRef<ToolCallEvent[]>([])
+  const pauseIntentRef = useRef(false)   // 用户已点⏸，等待下一个 tool_result
+  const pauseAbortRef = useRef(false)    // 标记本次 abort 由暂停触发（非停止）
+  const [paused, setPaused] = useState(false)
+  const [pauseIntentVis, setPauseIntentVis] = useState(false)  // 驱动⏳按钮 re-render
   const { streaming, sendMessage, abort, loadSession } = useGateway()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -94,6 +98,9 @@ export default function Chat({ sessionKey }: ChatProps) {
     activeToolCallsRef.current = []
     setActiveToolCalls([])
     setAttachments([])
+    setPaused(false)
+    pauseIntentRef.current = false
+    setPauseIntentVis(false)
   }, [sessionKey, loadSession])
 
   // Tauri 原生拖拽事件
@@ -221,7 +228,12 @@ export default function Chat({ sessionKey }: ChatProps) {
   }
 
   const handleSend = async () => {
-    if ((!input.trim() && attachments.length === 0) || streaming) return
+    if ((!input.trim() && attachments.length === 0) || (streaming && !paused)) return
+    if (paused) {
+      setPaused(false)
+      pauseIntentRef.current = false
+      setPauseIntentVis(false)
+    }
     let text = input.trim()
 
     // 将附件路径注入消息末尾
@@ -279,26 +291,46 @@ export default function Chat({ sessionKey }: ChatProps) {
           activeToolCallsRef.current.push(toolEvent)
         }
         setActiveToolCalls([...activeToolCallsRef.current])
+
+        // 暂停检测：tool_result 到达（done 或 error）且用户已点⏸，触发暂停
+        if ((toolEvent.status === 'done' || toolEvent.status === 'error') && pauseIntentRef.current) {
+          pauseIntentRef.current = false
+          setPauseIntentVis(false)
+          pauseAbortRef.current = true  // 标记本次是暂停触发的 abort（非停止）
+          abort()
+          setPaused(true)
+          // 主动持久化 session，防止进程重启后丢失已完成的工具结果
+          invoke('persist_session', { sessionKey }).catch(() => {})
+        }
       },
       sessionKey,
       undefined,
       () => {
-        // onAbort — 中止时清理：保存已有部分到消息列表，清理工具卡片
-        const partial = streamingTextRef.current
-        const tools = activeToolCallsRef.current.map(t =>
-          t.status === 'running' ? { ...t, status: 'error' as const, result: '⏹ 已中止' } : t,
-        )
-        if (partial || tools.length > 0) {
-          setMessages(msgs => [...msgs, {
-            role: 'assistant',
-            content: partial ? partial + '\n\n⏹ *已中止*' : '⏹ *已中止*',
-            toolCalls: tools.length > 0 ? tools : undefined,
-          }])
+        // onAbort — 区分暂停触发的 abort vs 用户点停止
+        if (pauseAbortRef.current) {
+          // 暂停触发：保留已完成的工具调用卡片，不追加「已中止」
+          pauseAbortRef.current = false
+          streamingTextRef.current = ''
+          setStreamingText('')
+          // activeToolCalls 保留（暂停横幅中显示已完成的工具调用数）
+        } else {
+          // 普通停止：保存已有部分到消息列表，清理工具卡片
+          const partial = streamingTextRef.current
+          const tools = activeToolCallsRef.current.map(t =>
+            t.status === 'running' ? { ...t, status: 'error' as const, result: '⏹ 已中止' } : t,
+          )
+          if (partial || tools.length > 0) {
+            setMessages(msgs => [...msgs, {
+              role: 'assistant',
+              content: partial ? partial + '\n\n⏹ *已中止*' : '⏹ *已中止*',
+              toolCalls: tools.length > 0 ? tools : undefined,
+            }])
+          }
+          streamingTextRef.current = ''
+          setStreamingText('')
+          activeToolCallsRef.current = []
+          setActiveToolCalls([])
         }
-        streamingTextRef.current = ''
-        setStreamingText('')
-        activeToolCallsRef.current = []
-        setActiveToolCalls([])
       },
     )
   }
@@ -365,29 +397,44 @@ export default function Chat({ sessionKey }: ChatProps) {
           activeToolCallsRef.current.push(toolEvent)
         }
         setActiveToolCalls([...activeToolCallsRef.current])
+
+        if ((toolEvent.status === 'done' || toolEvent.status === 'error') && pauseIntentRef.current) {
+          pauseIntentRef.current = false
+          setPauseIntentVis(false)
+          pauseAbortRef.current = true
+          abort()
+          setPaused(true)
+          invoke('persist_session', { sessionKey }).catch(() => {})
+        }
       },
       sessionKey,
       undefined,
       () => {
         // onAbort — 重新生成时中止
-        const partial = streamingTextRef.current
-        const tools = activeToolCallsRef.current.map(t =>
-          t.status === 'running' ? { ...t, status: 'error' as const, result: '⏹ 已中止' } : t,
-        )
-        if (partial || tools.length > 0) {
-          setMessages(msgs => [...msgs, {
-            role: 'assistant',
-            content: partial ? partial + '\n\n⏹ *已中止*' : '⏹ *已中止*',
-            toolCalls: tools.length > 0 ? tools : undefined,
-          }])
+        if (pauseAbortRef.current) {
+          pauseAbortRef.current = false
+          streamingTextRef.current = ''
+          setStreamingText('')
+        } else {
+          const partial = streamingTextRef.current
+          const tools = activeToolCallsRef.current.map(t =>
+            t.status === 'running' ? { ...t, status: 'error' as const, result: '⏹ 已中止' } : t,
+          )
+          if (partial || tools.length > 0) {
+            setMessages(msgs => [...msgs, {
+              role: 'assistant',
+              content: partial ? partial + '\n\n⏹ *已中止*' : '⏹ *已中止*',
+              toolCalls: tools.length > 0 ? tools : undefined,
+            }])
+          }
+          streamingTextRef.current = ''
+          setStreamingText('')
+          activeToolCallsRef.current = []
+          setActiveToolCalls([])
         }
-        streamingTextRef.current = ''
-        setStreamingText('')
-        activeToolCallsRef.current = []
-        setActiveToolCalls([])
       },
     )
-  }, [streaming, messages, sendMessage, sessionKey])
+  }, [streaming, messages, sendMessage, sessionKey, abort, paused])
 
   return (
     <div className="chat-page">
@@ -464,6 +511,13 @@ export default function Chat({ sessionKey }: ChatProps) {
 
       {/* 输入区 */}
       <div className={`chat-input-area${dragOver ? ' drag-over' : ''}`}>
+        {/* 暂停横幅 */}
+        {paused && (
+          <div className="pause-banner">
+            <span>⏸ 已暂停 · 已完成 {activeToolCalls.filter(t => t.status === 'done').length} 个工具调用 · 输入指令继续，或</span>
+            <button className="pause-banner-cancel" onClick={() => { setPaused(false); activeToolCallsRef.current = []; setActiveToolCalls([]) }}>取消</button>
+          </div>
+        )}
         {/* 附件标签栏 */}
         {attachments.length > 0 && (
           <div className="chat-attachments">
@@ -481,22 +535,29 @@ export default function Chat({ sessionKey }: ChatProps) {
           <div className="drag-overlay">📎 拖放文件到此处</div>
         )}
         <div className="chat-input-row">
-          <button className="chat-btn attach-btn" onClick={handlePickFile} title="添加文件" disabled={streaming}>
+          <button className="chat-btn attach-btn" onClick={handlePickFile} title="添加文件" disabled={streaming && !paused}>
             📎
           </button>
           <textarea
             ref={textareaRef}
             className="chat-input"
-            placeholder="输入消息…（Enter 发送，Shift+Enter 换行）"
+            placeholder={paused ? '输入指令继续任务，或直接描述下一步…' : '输入消息…（Enter 发送，Shift+Enter 换行）'}
             rows={1}
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
-            disabled={streaming}
+            disabled={streaming && !paused}
           />
-          {streaming ? (
-            <button className="chat-btn chat-btn-stop" onClick={abort} title="停止">■</button>
+          {streaming && !paused ? (
+            <>
+              {pauseIntentVis ? (
+                <button className="chat-btn chat-btn-pause-pending" disabled title="等待当前工具完成后暂停">⏳</button>
+              ) : (
+                <button className="chat-btn chat-btn-pause" onClick={() => { pauseIntentRef.current = true; setPauseIntentVis(true) }} title="暂停（等当前工具完成）">⏸</button>
+              )}
+              <button className="chat-btn chat-btn-stop" onClick={() => { pauseIntentRef.current = false; setPauseIntentVis(false); abort() }} title="停止">■</button>
+            </>
           ) : (
             <button
               className="chat-btn chat-btn-send"

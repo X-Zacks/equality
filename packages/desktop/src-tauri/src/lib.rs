@@ -50,6 +50,7 @@ pub fn run() {
             proxy::core_health,
             proxy::chat_stream,
             proxy::abort_chat,
+            proxy::persist_session,
             proxy::get_settings,
             proxy::save_api_key,
             proxy::delete_key,

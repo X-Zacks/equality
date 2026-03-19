@@ -239,6 +239,51 @@
   color: #ff453a;
 }
 
+.chat-btn-pause {
+  background: rgba(255,255,255,0.12);
+  color: #ff9f0a;
+}
+
+.chat-btn-pause:hover {
+  background: rgba(255, 159, 10, 0.2);
+}
+
+.chat-btn-pause-pending {
+  background: transparent;
+  color: #ff9f0a;
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* 暂停横幅 */
+.pause-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px;
+  height: 32px;
+  background: rgba(255, 159, 10, 0.1);
+  border-left: 2px solid #ff9f0a;
+  color: #ff9f0a;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.pause-banner-cancel {
+  background: transparent;
+  border: 1px solid rgba(255, 159, 10, 0.4);
+  border-radius: 4px;
+  color: #ff9f0a;
+  font-size: 11px;
+  padding: 2px 8px;
+  cursor: pointer;
+  margin-left: auto;
+}
+
+.pause-banner-cancel:hover {
+  background: rgba(255, 159, 10, 0.15);
+}
+
 /* ─── Tool Calls ────────────────────────────────────────────── */
 .tool-calls {
   display: flex;
@@ -587,6 +632,18 @@
 
 .theme-light .chat-btn-stop {
   background: rgba(15,23,42,0.1);
+}
+
+.theme-light .chat-btn-pause {
+  background: rgba(15,23,42,0.07);
+}
+
+.theme-light .pause-banner {
+  background: rgba(255, 159, 10, 0.08);
+}
+
+.theme-light .pause-banner-cancel {
+  border-color: rgba(255, 159, 10, 0.5);
 }
 
 .theme-light .tool-call {
