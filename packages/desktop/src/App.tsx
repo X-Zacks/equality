@@ -15,6 +15,17 @@ const ZOOM_MIN = 50
 const ZOOM_MAX = 200
 const ZOOM_STEP = 10
 
+const MAX_OPENED_SESSIONS = 10
+
+/** 将 newKey 加入已打开列表；超出上限时移除最早加入的非当前会话 */
+function addToOpenedSessions(prev: string[], newKey: string): string[] {
+  if (prev.includes(newKey)) return prev
+  const next = [...prev, newKey]
+  if (next.length <= MAX_OPENED_SESSIONS) return next
+  const removeIdx = next.findIndex(k => k !== newKey)
+  return removeIdx === -1 ? next : next.filter((_, i) => i !== removeIdx)
+}
+
 /** 生成新的 session key */
 function newSessionKey(): string {
   const ts = Date.now().toString(36)
@@ -30,7 +41,12 @@ function App() {
   const [sessionKey, setSessionKey] = useState<string>(() => {
     return localStorage.getItem('equality-session-key') || newSessionKey()
   })
-  const { coreOnline, loadSettings, streaming } = useGateway()
+  const [openedSessions, setOpenedSessions] = useState<string[]>(() => {
+    const initial = localStorage.getItem('equality-session-key') || newSessionKey()
+    return [initial]
+  })
+  const [currentStreaming, setCurrentStreaming] = useState(false)
+  const { coreOnline, loadSettings } = useGateway()
   const [providerInfo, setProviderInfo] = useState('')
   const [zoom, setZoom] = useState(() => {
     const saved = localStorage.getItem(ZOOM_KEY)
@@ -76,21 +92,25 @@ function App() {
     localStorage.setItem(THEME_KEY, themePreference)
   }, [themePreference])
 
-  // 持久化 sessionKey 和 panelOpen
+  // 持久化 sessionKey 和 panelOpen；切换会话时重置 streaming 显示（新会话的 Chat 会通过 onStreamingChange 上报真实状态）
   useEffect(() => {
     localStorage.setItem('equality-session-key', sessionKey)
+    setCurrentStreaming(false)
   }, [sessionKey])
   useEffect(() => {
     localStorage.setItem('equality-panel-open', String(panelOpen))
   }, [panelOpen])
 
   const handleNewChat = useCallback(() => {
-    setSessionKey(newSessionKey())
+    const newKey = newSessionKey()
+    setSessionKey(newKey)
+    setOpenedSessions(prev => addToOpenedSessions(prev, newKey))
     setPage('chat')
   }, [])
 
   const handleSelectSession = useCallback((key: string) => {
     setSessionKey(key)
+    setOpenedSessions(prev => addToOpenedSessions(prev, key))
     setPage('chat')
   }, [])
 
@@ -186,11 +206,18 @@ function App() {
                   activeKey={sessionKey}
                   onSelect={handleSelectSession}
                   onNewChat={handleNewChat}
-                  disabled={streaming}
-                  streaming={streaming}
+                  disabled={currentStreaming}
+                  streaming={currentStreaming}
                 />
               )}
-              <Chat sessionKey={sessionKey} />
+              {openedSessions.map(key => (
+                <div key={key} style={{ display: key === sessionKey ? 'contents' : 'none' }}>
+                  <Chat
+                    sessionKey={key}
+                    onStreamingChange={key === sessionKey ? setCurrentStreaming : undefined}
+                  />
+                </div>
+              ))}
             </div>
           </div>
           {page === 'settings' && (

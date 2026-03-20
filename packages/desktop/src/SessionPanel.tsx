@@ -145,7 +145,7 @@ export default function SessionPanel({ activeKey, onSelect, onNewChat, disabled,
               <div
                 key={s.key}
                 className={`session-item ${s.key === activeKey ? 'active' : ''}`}
-                onClick={() => !disabled && onSelect(s.key)}
+                onClick={() => onSelect(s.key)}
               >
                 <div className="session-item-title">
                   {titles[s.key] || s.title}

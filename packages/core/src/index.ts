@@ -177,7 +177,7 @@ app.post<{ Body: ChatBody }>('/chat/stream', async (req, reply) => {
   })
   reply.raw.flushHeaders()
 
-  const send = (obj: unknown) => reply.raw.write(`data: ${JSON.stringify(obj)}\n\n`)
+  const send = (obj: unknown) => reply.raw.write(`data: ${JSON.stringify({ ...obj as object, sessionKey })}\n\n`)
 
   // 如果该 session 有正在进行的请求，先中止它
   const prevAbort = activeAborts.get(sessionKey)

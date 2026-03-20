@@ -26,6 +26,7 @@ export interface SettingsState {
 
 interface DeltaEvent {
   type: 'delta' | 'done' | 'error' | 'tool_start' | 'tool_result' | 'tool_update'
+  sessionKey?: string
   content?: string
   message?: string
   usage?: { inputTokens: number; outputTokens: number; totalCny: number; toolCallCount?: number }
@@ -48,10 +49,8 @@ export interface ToolCallEvent {
 }
 
 export function useGateway() {
-  const [streaming, setStreaming] = useState(false)
   const [coreOnline, setCoreOnline] = useState<boolean | null>(null)
-  const abortRef = useRef<(() => void) | null>(null)
-  const activeSessionRef = useRef<string | null>(null)
+  const abortMapRef = useRef<Map<string, () => void>>(new Map())
 
   // 定期检测 Core 是否在线
   useEffect(() => {
@@ -74,29 +73,27 @@ export function useGateway() {
       sessionKey?: string,
       model?: string,
       onAbort?: () => void,
+      onStreamingChange?: (streaming: boolean) => void,
     ): Promise<void> => {
       if (!message.trim()) return
-      setStreaming(true)
-      activeSessionRef.current = sessionKey ?? null
+      const sk = sessionKey ?? ''
+      onStreamingChange?.(true)
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let unlisten: any = null
       let resolvePromise: (() => void) | null = null
 
-      abortRef.current = () => {
+      abortMapRef.current.set(sk, () => {
         if (unlisten) unlisten()
         unlisten = null
-        setStreaming(false)
-        abortRef.current = null
-        // 通知 Core 中止（借鉴 OpenClaw chat.abort RPC）
-        const sk = activeSessionRef.current
-        activeSessionRef.current = null
-        invoke('abort_chat', { sessionKey: sk }).catch(() => {})
-        // 通知调用方做清理（工具卡片、streaming text 等）
+        onStreamingChange?.(false)
+        abortMapRef.current.delete(sk)
+        // 通知 Core 中止
+        invoke('abort_chat', { sessionKey: sk || null }).catch(() => {})
+        // 通知调用方做清理
         onAbort?.()
-        // 释放 Promise，让 sendMessage 正常返回
+        // 释放 Promise
         if (resolvePromise) { resolvePromise(); resolvePromise = null }
-      }
+      })
 
       try {
         // 用 Promise 等待 done/error 事件，确保所有 delta 都处理完
@@ -105,6 +102,8 @@ export function useGateway() {
           listen<DeltaEvent>('chat-delta', (event) => {
             try {
               const evt = event.payload
+              // 过滤：只处理属于本会话的事件
+              if (evt.sessionKey && evt.sessionKey !== sk) return
               console.log('[chat-delta]', JSON.stringify(evt))
               if (evt.type === 'delta' && evt.content) {
                 onDelta(evt.content)
@@ -132,12 +131,12 @@ export function useGateway() {
                 })
               } else if (evt.type === 'done') {
                 if (unlisten) { unlisten(); unlisten = null }
-                setStreaming(false)
+                onStreamingChange?.(false)
                 onDone(evt.usage)
                 resolve()
               } else if (evt.type === 'error') {
                 if (unlisten) { unlisten(); unlisten = null }
-                setStreaming(false)
+                onStreamingChange?.(false)
                 onError(evt.message ?? 'Unknown error')
                 resolve()
               }
@@ -150,18 +149,17 @@ export function useGateway() {
         })
       } catch (err: unknown) {
         if (unlisten) unlisten()
-        setStreaming(false)
+        onStreamingChange?.(false)
         onError(err instanceof Error ? err.message : String(err))
       } finally {
-        abortRef.current = null
-        activeSessionRef.current = null
+        abortMapRef.current.delete(sk)
       }
     },
     [],
   )
 
-  const abort = useCallback(() => {
-    abortRef.current?.()
+  const abort = useCallback((sk: string) => {
+    abortMapRef.current.get(sk)?.()
   }, [])
 
   const saveApiKey = useCallback(async (provider: SecretKey, key: string): Promise<boolean> => {
@@ -241,7 +239,7 @@ export function useGateway() {
   }, [])
 
   return {
-    streaming, coreOnline, sendMessage, abort,
+    coreOnline, sendMessage, abort,
     saveApiKey, loadSettings, deleteKey,
     copilotLogin, copilotLoginStatus, copilotLogout, copilotModels,
     listSessions, loadSession, deleteSession,

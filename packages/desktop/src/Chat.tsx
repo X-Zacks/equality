@@ -49,6 +49,7 @@ interface Attachment {
 
 interface ChatProps {
   sessionKey: string
+  onStreamingChange?: (streaming: boolean) => void
 }
 
 const MAX_ATTACHMENTS = 5
@@ -67,7 +68,7 @@ function getFileName(filePath: string): string {
   return filePath.replace(/\\/g, '/').split('/').pop() ?? filePath
 }
 
-export default function Chat({ sessionKey }: ChatProps) {
+export default function Chat({ sessionKey, onStreamingChange }: ChatProps) {
   const [input, setInput] = useState('')
   const [messages, setMessages] = useState<Message[]>([])
   const [streamingText, setStreamingText] = useState('')
@@ -79,13 +80,15 @@ export default function Chat({ sessionKey }: ChatProps) {
   const pauseIntentRef = useRef(false)   // 用户已点⏸，等待下一个 tool_result
   const pauseAbortRef = useRef(false)    // 标记本次 abort 由暂停触发（非停止）
   const [paused, setPaused] = useState(false)
-  const [pauseIntentVis, setPauseIntentVis] = useState(false)  // 驱动⏳按钮 re-render
-  const { streaming, sendMessage, abort, loadSession } = useGateway()
+  const [pauseIntentVis, setPauseIntentVis] = useState(false)  // 驱动⏳按鈕 re-render
+  const [streaming, setStreaming] = useState(false)
+  const { sendMessage, abort, loadSession } = useGateway()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  // sessionKey 变化时加载历史消息
+  // sessionKey 变化时：从 Core 磁盘加载历史（首次切入或重启后）
   useEffect(() => {
+    // 从 Core 磁盘加载历史（首次切入或重启后）
     loadSession(sessionKey).then(history => {
       if (history?.messages?.length) {
         setMessages(history.messages.map(m => ({
@@ -103,15 +106,21 @@ export default function Chat({ sessionKey }: ChatProps) {
         setMessages([])
       }
     })
-    setStreamingText('')
     streamingTextRef.current = ''
+    setStreamingText('')
     activeToolCallsRef.current = []
     setActiveToolCalls([])
     setAttachments([])
+    setStreaming(false)
     setPaused(false)
     pauseIntentRef.current = false
     setPauseIntentVis(false)
-  }, [sessionKey, loadSession])
+  }, [sessionKey, loadSession]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // streaming 变化时通知外层 App.tsx
+  useEffect(() => {
+    onStreamingChange?.(streaming)
+  }, [streaming, onStreamingChange])
 
   // Tauri 原生拖拽事件
   useEffect(() => {
@@ -279,6 +288,7 @@ export default function Chat({ sessionKey }: ChatProps) {
         setStreamingText('')
         activeToolCallsRef.current = []
         setActiveToolCalls([])
+        // 任务结束：清除快照，下次切回走磁盘历史（保证看到完整持久化数据）
       },
       (err) => {
         setMessages(prev => [...prev, { role: 'assistant', content: `⚠️ ${err}` }])
@@ -307,7 +317,7 @@ export default function Chat({ sessionKey }: ChatProps) {
           pauseIntentRef.current = false
           setPauseIntentVis(false)
           pauseAbortRef.current = true  // 标记本次是暂停触发的 abort（非停止）
-          abort()
+          abort(sessionKey)
           setPaused(true)
           // 主动持久化 session，防止进程重启后丢失已完成的工具结果
           invoke('persist_session', { sessionKey }).catch(() => {})
@@ -342,10 +352,11 @@ export default function Chat({ sessionKey }: ChatProps) {
           setActiveToolCalls([])
         }
       },
+      (s) => setStreaming(s),
     )
   }
 
-  // ─── 复制消息 ─────────────────────────────────────────────────────
+  // ─── 复制消息 ───────────────────────────────────────────────────
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null)
   const handleCopyMsg = useCallback((idx: number) => {
     const text = messages[idx]?.content ?? ''
@@ -412,7 +423,7 @@ export default function Chat({ sessionKey }: ChatProps) {
           pauseIntentRef.current = false
           setPauseIntentVis(false)
           pauseAbortRef.current = true
-          abort()
+          abort(sessionKey)
           setPaused(true)
           invoke('persist_session', { sessionKey }).catch(() => {})
         }
@@ -443,6 +454,7 @@ export default function Chat({ sessionKey }: ChatProps) {
           setActiveToolCalls([])
         }
       },
+      (s) => setStreaming(s),
     )
   }, [streaming, messages, sendMessage, sessionKey, abort, paused])
 
@@ -566,7 +578,7 @@ export default function Chat({ sessionKey }: ChatProps) {
               ) : (
                 <button className="chat-btn chat-btn-pause" onClick={() => { pauseIntentRef.current = true; setPauseIntentVis(true) }} title="暂停（等当前工具完成）">⏸</button>
               )}
-              <button className="chat-btn chat-btn-stop" onClick={() => { pauseIntentRef.current = false; setPauseIntentVis(false); abort() }} title="停止">■</button>
+              <button className="chat-btn chat-btn-stop" onClick={() => { pauseIntentRef.current = false; setPauseIntentVis(false); abort(sessionKey) }} title="停止">■</button>
             </>
           ) : (
             <button
