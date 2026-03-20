@@ -88,7 +88,17 @@ export default function Chat({ sessionKey }: ChatProps) {
   useEffect(() => {
     loadSession(sessionKey).then(history => {
       if (history?.messages?.length) {
-        setMessages(history.messages.map(m => ({ role: m.role, content: m.content })))
+        setMessages(history.messages.map(m => ({
+          role: m.role,
+          content: m.content,
+          toolCalls: m.toolCalls?.map(tc => ({
+            toolCallId: tc.toolCallId,
+            name: tc.name,
+            args: tc.args,
+            result: tc.result,
+            status: (tc.status === 'done' || tc.status === 'error' ? tc.status : 'done') as 'running' | 'done' | 'error',
+          })),
+        })))
       } else {
         setMessages([])
       }

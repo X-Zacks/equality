@@ -441,20 +441,60 @@ app.get('/sessions', async (_req, reply) => {
 app.get<{ Params: { key: string } }>('/sessions/:key', async (req, reply) => {
   const { key } = req.params
   const session = await getOrCreate(key)
-  // 只返回 user 和 assistant 消息（过滤掉 tool/system）
-  const messages: Array<{ role: string; content: string }> = []
+
+  // 构建 tool_call_id -> tool result 的快速查找表
+  const toolResultMap = new Map<string, { content: string; isError?: boolean }>()
+  for (const m of session.messages) {
+    if (!('role' in m)) continue
+    const msg = m as { role: string; tool_call_id?: string; content?: unknown }
+    if (msg.role === 'tool' && msg.tool_call_id) {
+      toolResultMap.set(msg.tool_call_id, {
+        content: typeof msg.content === 'string' ? msg.content : '',
+      })
+    }
+  }
+
+  type HistoryToolCall = { toolCallId: string; name: string; args?: Record<string, unknown>; result?: string; status: string }
+  type HistoryMessage = { role: string; content: string; toolCalls?: HistoryToolCall[] }
+  const messages: HistoryMessage[] = []
+
   session.messages.forEach((m, idx) => {
     if (!('role' in m)) return
     const role = (m as { role: string }).role
-    if (role !== 'user' && role !== 'assistant') return
-    let content = typeof (m as { content?: unknown }).content === 'string' ? (m as { content: string }).content : ''
-    // 对 assistant 消息追加费用行（仅用于前端显示）
-    const cl = session.costLines[idx]
-    if (role === 'assistant' && cl) {
-      content += `\n\n${cl}`
+
+    if (role === 'assistant') {
+      const msg = m as { role: string; content?: unknown; tool_calls?: Array<{ id: string; function: { name: string; arguments?: string } }> }
+      let content = typeof msg.content === 'string' ? msg.content : ''
+      // 对 assistant 消息追加费用行（仅用于前端显示）
+      const cl = session.costLines[idx]
+      if (cl) content += `\n\n${cl}`
+
+      if (msg.tool_calls && msg.tool_calls.length > 0) {
+        // assistant 工具调用消息：将 tool_calls + 对应的 tool result 合并返回
+        const toolCalls: HistoryToolCall[] = msg.tool_calls.map(tc => {
+          let args: Record<string, unknown> = {}
+          try { args = tc.function.arguments ? JSON.parse(tc.function.arguments) : {} } catch { /* ignore */ }
+          const resultEntry = toolResultMap.get(tc.id)
+          return {
+            toolCallId: tc.id,
+            name: tc.function.name,
+            args,
+            result: resultEntry?.content,
+            status: resultEntry ? 'done' : 'running',
+          }
+        })
+        messages.push({ role: 'assistant', content, toolCalls })
+      } else if (content) {
+        // 纯文本 assistant 消息
+        messages.push({ role: 'assistant', content })
+      }
+    } else if (role === 'user') {
+      const content = typeof (m as { content?: unknown }).content === 'string' ? (m as { content: string }).content : ''
+      if (content) messages.push({ role: 'user', content })
     }
-    messages.push({ role, content })
+    // tool 和 system 消息不直接返回（tool 结果已内嵌到 assistant 的 toolCalls 里）
   })
+
   return reply.send({
     key: session.key,
     title: session.title,

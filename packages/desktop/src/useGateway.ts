@@ -216,7 +216,7 @@ export function useGateway() {
     key: string
     title?: string
     createdAt: number
-    messages: Array<{ role: 'user' | 'assistant'; content: string }>
+    messages: Array<{ role: 'user' | 'assistant'; content: string; toolCalls?: Array<{ toolCallId: string; name: string; args?: Record<string, unknown>; result?: string; status: string }> }>
   }
 
   const listSessions = useCallback(async (): Promise<SessionSummary[]> => {
