@@ -2,13 +2,13 @@
 
 ## Phase 1：Core 改动
 
-- [ ] 1.1 `packages/core/src/agent/runner.ts` — 在文件顶部 import 中新增 `persist` 的导入：
+- [x] 1.1 `packages/core/src/agent/runner.ts` — 在文件顶部 import 中新增 `persist` 的导入：
   ```typescript
   import { persist } from '../session/persist.js'
   ```
   （检查是否已有此 import，若已有则跳过）
 
-- [ ] 1.2 `packages/core/src/agent/runner.ts` — 在 `onToolResult?.({ ... })` 调用之后、`messages.push({ role: 'tool', ... })` 之后，新增：
+- [x] 1.2 `packages/core/src/agent/runner.ts` — 在 `onToolResult?.({ ... })` 调用之后、`messages.push({ role: 'tool', ... })` 之后，新增：
   ```typescript
   // 提前持久化：确保用户切换会话再切回来时 loadHistory 能看到已完成的工具调用
   await persist(session)

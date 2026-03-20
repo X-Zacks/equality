@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid'
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions'
 import { getOrCreate } from '../session/store.js'
+import { persist } from '../session/persist.js'
 import { appendFile, mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
@@ -293,6 +294,10 @@ export async function runAttempt(params: RunAttemptParams): Promise<RunAttemptRe
           tool_call_id: tc.id,
           content: resultContent,
         })
+
+        // 提前持久化：确保用户切换会话再切回来时 loadHistory 能看到已完成的工具调用
+        // persist() 是覆盖写，与 afterTurn() 最终写入幂等，不会产生重复消息
+        await persist(session)
 
         // ── 循环检测（Phase 6）──────────────────────────────────
         const argsHash = computeArgsHash(tc.name, args)
