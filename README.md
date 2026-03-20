@@ -53,6 +53,12 @@ OpenClaw Web UI 没有内置主题切换，默认固定深色。
 
 Equality 支持浅色 / 深色 / 跟随系统三档，在设置界面实时切换，无需重启。
 
+### 🔄 会话切换后流式内容恢复（Session Stream Restore）
+
+OpenClaw 的工具卡片和流式文本只存在于前端内存（`toolStreamById` Map），切换到其他会话再切回来，执行中任务的工具卡片和已输出内容**全部丢失**。OpenClaw 的 `chat.history` 接口只返回 run 完全结束后写入磁盘的消息，无法恢复执行中的状态。OpenClaw 没有提供任何 run-events 回放或流式内容恢复接口（`chat` 命名空间仅有 `history`、`send`、`abort`、`inject` 四个方法）。
+
+Equality 实现了**执行中内容持久化**：每次 `tool_result` 到达后立即将已完成的工具调用写入 session，用户切换会话再切回来时，`loadHistory` 即可恢复所有已完成的工具卡片。
+
 ---
 
 ## 📦 项目结构
