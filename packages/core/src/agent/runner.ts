@@ -48,10 +48,22 @@ import { truncateToolResult, LoopDetector, computeArgsHash, computeResultHash } 
 import { getProxyUrl } from '../config/proxy.js'
 import { DefaultContextEngine, trimMessages } from '../context/index.js'
 import { memorySave } from '../memory/index.js'
+import { getSecret } from '../config/secrets.js'
 
-// ─── 常量 ─────────────────────────────────────────────────────────────────────
+// ─── 配置读取工具函数 ─────────────────────────────────────────────────────────
 
-const MAX_TOOL_LOOP = 50     // 防无限循环的最大 LLM 轮次
+function getAgentConfigNumber(
+  key: Parameters<typeof getSecret>[0],
+  defaultVal: number,
+  min: number,
+  max: number,
+): number {
+  const raw = getSecret(key)
+  if (!raw) return defaultVal
+  const v = parseInt(raw, 10)
+  if (isNaN(v) || v < min) return defaultVal
+  return Math.min(v, max)
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -147,18 +159,22 @@ export async function runAttempt(params: RunAttemptParams): Promise<RunAttemptRe
   console.log(`[runner] provider=${provider.providerId}/${provider.modelId}, toolSchemas=${toolSchemas?.length ?? 0}, hasTools=${hasTools}, recalled=${assembled.recalledMemories}, compacted=${assembled.wasCompacted}`)
 
   // 7. Tool Loop
+  // 读取运行时配置（支持用户在设置页修改后立即生效）
+  const maxLlmTurns  = getAgentConfigNumber('AGENT_MAX_LLM_TURNS',  50, 1, 500)
+  const maxToolCalls = getAgentConfigNumber('AGENT_MAX_TOOL_CALLS', 50, 1, 500)
+
   let fullText = ''
   let totalToolCalls = 0
   let totalInputTokens = 0
   let totalOutputTokens = 0
   let loopCount = 0
-  const loopDetector = new LoopDetector()
+  const loopDetector = new LoopDetector(maxToolCalls)
 
   // Stream Decorator 管道（Phase 9）
   const decorators = buildDecoratorPipeline(provider)
 
   try {
-    toolLoop: while (loopCount < MAX_TOOL_LOOP) {
+    toolLoop: while (loopCount < maxLlmTurns) {
       loopCount++
 
       // 检查 abort

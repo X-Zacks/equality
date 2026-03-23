@@ -30,8 +30,10 @@ const POLL_TERMINATE_THRESHOLD = 10
 /** ping_pong 终止阈值（交替次数） */
 const PING_PONG_THRESHOLD = 20
 
-/** 全局断路器上限 */
-const CIRCUIT_BREAKER_LIMIT = 30
+/** 全局断路器默认上限 */
+const DEFAULT_CIRCUIT_BREAKER_LIMIT = 50
+/** 全局断路器允许的最大上限（防滥用） */
+const MAX_CIRCUIT_BREAKER_LIMIT = 500
 
 /** 已知的轮询类工具名 */
 const POLL_TOOL_NAMES = new Set(['bash', 'process'])
@@ -80,6 +82,13 @@ export class LoopDetector {
   private history: ToolCallRecord[] = []
   /** 全局工具调用计数 */
   private totalCalls = 0
+  /** 断路器上限（可通过构造函数配置） */
+  private readonly circuitBreakerLimit: number
+
+  constructor(circuitBreakerLimit?: number) {
+    const raw = circuitBreakerLimit ?? DEFAULT_CIRCUIT_BREAKER_LIMIT
+    this.circuitBreakerLimit = Math.min(Math.max(raw, 1), MAX_CIRCUIT_BREAKER_LIMIT)
+  }
 
   /**
    * 记录一次工具调用并检测循环
@@ -239,11 +248,11 @@ export class LoopDetector {
   // ── 检测器 4：全局断路器 ──────────────────────────────────────────────────
 
   private checkCircuitBreaker(): DetectorVerdict {
-    if (this.totalCalls > CIRCUIT_BREAKER_LIMIT) {
+    if (this.totalCalls > this.circuitBreakerLimit) {
       return {
         action: 'terminate',
         detector: 'circuit_breaker',
-        message: `单次 runAttempt 工具调用总数达到 ${this.totalCalls}（上限 ${CIRCUIT_BREAKER_LIMIT}），已终止。`,
+        message: `单次 runAttempt 工具调用总数达到 ${this.totalCalls}（上限 ${this.circuitBreakerLimit}），已终止。`,
       }
     }
     return { action: 'ok', detector: 'circuit_breaker', message: '' }

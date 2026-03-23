@@ -899,7 +899,7 @@ export default function Settings({
             </div>
           )}
           <p className="settings-hint" style={{ marginTop: 8 }}>
-            工具调用上限：30 次/轮 · bash 超时见「⚙️ 高级」设置
+            工具调用上限及 LLM 轮次上限见「⚙️ 高级」设置
           </p>
         </>
       )}
@@ -1085,6 +1085,51 @@ export default function Settings({
                 onClick={() => handleSave('advanced', ['BASH_TIMEOUT_MS' as SecretKey, 'BASH_IDLE_TIMEOUT_MS' as SecretKey, 'BASH_MAX_TIMEOUT_MS' as SecretKey])}
               >
                 {saveLabel(saving.advanced ?? 'idle')}
+              </button>
+            </div>
+          </div>
+
+          {/* ─── Agent 循环上限配置 ─────────────────────────────────── */}
+          <div className="advanced-section">
+            <div className="advanced-section-title">🔁 Agent 循环上限</div>
+
+            <div className="advanced-item">
+              <div className="advanced-item-header">
+                <span className="advanced-item-label">工具调用上限</span>
+                <span className="advanced-item-unit">次</span>
+              </div>
+              <input
+                className="advanced-input"
+                type="number"
+                placeholder={getMasked('AGENT_MAX_TOOL_CALLS' as SecretKey) || '50'}
+                value={draft['AGENT_MAX_TOOL_CALLS' as SecretKey] ?? ''}
+                onChange={e => setDraft(p => ({ ...p, AGENT_MAX_TOOL_CALLS: e.target.value }))}
+              />
+              <p className="advanced-item-desc">单次任务最多执行多少次工具调用。默认 50，写大型项目时可调高（如 200-300）。最大允许 500。</p>
+            </div>
+
+            <div className="advanced-item">
+              <div className="advanced-item-header">
+                <span className="advanced-item-label">LLM 轮次上限</span>
+                <span className="advanced-item-unit">轮</span>
+              </div>
+              <input
+                className="advanced-input"
+                type="number"
+                placeholder={getMasked('AGENT_MAX_LLM_TURNS' as SecretKey) || '50'}
+                value={draft['AGENT_MAX_LLM_TURNS' as SecretKey] ?? ''}
+                onChange={e => setDraft(p => ({ ...p, AGENT_MAX_LLM_TURNS: e.target.value }))}
+              />
+              <p className="advanced-item-desc">单次任务最多发起多少轮 LLM 调用。默认 50，通常保持默认即可，工具调用上限是更常见的瓶颁。最大允许 500。</p>
+            </div>
+
+            <div className="provider-actions" style={{ marginTop: 4 }}>
+              <button
+                className="btn-save"
+                disabled={(!draft['AGENT_MAX_TOOL_CALLS' as SecretKey]?.trim() && !draft['AGENT_MAX_LLM_TURNS' as SecretKey]?.trim()) || saving.agentLoop === 'saving'}
+                onClick={() => handleSave('agentLoop', ['AGENT_MAX_TOOL_CALLS' as SecretKey, 'AGENT_MAX_LLM_TURNS' as SecretKey])}
+              >
+                {saveLabel(saving.agentLoop ?? 'idle')}
               </button>
             </div>
           </div>
