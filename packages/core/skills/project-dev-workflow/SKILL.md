@@ -23,9 +23,9 @@ description: '完整项目开发工作流：需求澄清 → OpenSpec 规范 →
 
 | 文件类型 | 解析方法 |
 |---------|---------|
-| `.docx` / `.doc` | `pandoc document.docx -o requirement.md` 提取全文 |
-| `.pdf` | `python -c "import pdfplumber; ..."` 提取文本+表格 |
-| `.pptx` | `python -m markitdown presentation.pptx` 提取内容 |
+| `.docx` / `.doc` | `pandoc document.docx -o requirement.md` 提取全文（需安装 pandoc） |
+| `.pdf` | `pip install pdfplumber` → Python 提取文本+表格 |
+| `.pptx` | `pip install "markitdown[pptx]"` → `markitdown presentation.pptx`（Microsoft 开源，本地运行，无需 LLM） |
 | 设计图 `.png/.jpg` | 直接用 `read_image` 工具分析界面设计 |
 | 多个文件混合 | 逐一解析，综合信息后再提问 |
 
