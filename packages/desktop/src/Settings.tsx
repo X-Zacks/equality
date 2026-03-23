@@ -449,6 +449,96 @@ function ProviderDrawer({
   )
 }
 
+// ─── 工具图标映射 ────────────────────────────────────────────────────────────
+const TOOL_ICONS: Record<string, string> = {
+  bash: '💻',
+  read_file: '📄',
+  write_file: '✏️',
+  edit_file: '📝',
+  glob: '🔎',
+  grep: '🔍',
+  list_dir: '📁',
+  web_fetch: '🌐',
+  web_search: '🔍',
+  read_image: '🖼️',
+  read_pdf: '📑',
+  process: '⚙️',
+  apply_patch: '🩹',
+  cron: '⏰',
+  browser: '🌏',
+  memory_save: '💾',
+  memory_search: '🧠',
+}
+function getToolIcon(name: string): string {
+  return TOOL_ICONS[name] ?? '🔧'
+}
+
+// ─── ToolDetailDrawer: 工具详情右侧抽屉 ─────────────────────────────────────
+interface ToolSchema {
+  name: string
+  description: string
+  parameters?: {
+    type?: string
+    properties?: Record<string, { type?: string; description?: string; enum?: string[]; default?: unknown }>
+    required?: string[]
+  }
+}
+
+function ToolDetailDrawer({ tool, onClose }: { tool: ToolSchema; onClose: () => void }) {
+  const props = tool.parameters?.properties ?? {}
+  const required = new Set(tool.parameters?.required ?? [])
+  const paramEntries = Object.entries(props)
+
+  return (
+    <div className="drawer-mask" onClick={onClose}>
+      <div className="drawer-panel" onClick={e => e.stopPropagation()}>
+        <div className="drawer-header">
+          <span className="drawer-title">{getToolIcon(tool.name)} {tool.name}</span>
+          <button className="drawer-close" onClick={onClose}>✕</button>
+        </div>
+        <div className="drawer-body">
+          <div className="tool-detail-section">
+            <div className="tool-detail-label">描述</div>
+            <p className="tool-detail-desc">{tool.description || '暂无描述'}</p>
+          </div>
+
+          {paramEntries.length > 0 && (
+            <div className="tool-detail-section">
+              <div className="tool-detail-label">参数</div>
+              <div className="tool-detail-params">
+                {paramEntries.map(([pname, pdef]) => (
+                  <div key={pname} className="tool-detail-param">
+                    <div className="tool-detail-param-header">
+                      <code className="tool-detail-param-name">{pname}</code>
+                      {required.has(pname) && <span className="tool-detail-required">必填</span>}
+                      {pdef.type && <span className="tool-detail-type">{pdef.type}</span>}
+                    </div>
+                    {pdef.description && (
+                      <p className="tool-detail-param-desc">{pdef.description}</p>
+                    )}
+                    {pdef.enum && (
+                      <p className="tool-detail-param-desc">
+                        可选值：{pdef.enum.map(v => `"${v}"`).join(' | ')}
+                      </p>
+                    )}
+                    {pdef.default !== undefined && (
+                      <p className="tool-detail-param-desc">默认值：{String(pdef.default)}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {paramEntries.length === 0 && (
+            <p className="drawer-hint">此工具无需额外参数</p>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── AdvancedDrawer: 高级设置右侧抽屉 ────────────────────────────────────────
 interface AdvancedDrawerProps {
   panel: 'performance' | 'agentLoop'
@@ -673,7 +763,9 @@ export default function Settings({
 
   // ─── Tab 状态 ───────────────────────────────────────────────────────
   const [tab, setTab] = useState<SettingsTab>('model')
-  const [toolsList, setToolsList] = useState<Array<{ name: string }>>([])
+  const [toolsList, setToolsList] = useState<ToolSchema[]>([])
+  // 当前查看详情的工具
+  const [toolDetail, setToolDetail] = useState<ToolSchema | null>(null)
   const [skillsList, setSkillsList] = useState<Array<{ name: string; description: string; source: string }>>([])
 
   // Gallery 状态
@@ -745,7 +837,12 @@ export default function Settings({
 
   useEffect(() => {
     if (tab === 'tools') {
-      fetch('http://localhost:18790/tools').then(r => r.json()).then(setToolsList).catch(() => {})
+      fetch('http://localhost:18790/tools/schemas')
+        .then(r => r.json())
+        .then((schemas: Array<{ type: string; function: { name: string; description: string; parameters: ToolSchema['parameters'] } }>) =>
+          setToolsList(schemas.map(s => ({ name: s.function.name, description: s.function.description, parameters: s.function.parameters })))
+        )
+        .catch(() => {})
     }
     if (tab === 'skills') {
       fetch('http://localhost:18790/skills').then(r => r.json()).then(setSkillsList).catch(() => {})
@@ -993,16 +1090,21 @@ export default function Settings({
           ) : (
             <div className="tools-list">
               {toolsList.map(t => (
-                <div key={t.name} className="tool-item">
-                  <span className="tool-icon">🔧</span>
+                <div key={t.name} className="tool-item" onClick={() => setToolDetail(t)} style={{ cursor: 'pointer' }}>
+                  <span className="tool-icon">{getToolIcon(t.name)}</span>
                   <span className="tool-name">{t.name}</span>
+                  <span className="tool-detail-btn">›</span>
                 </div>
               ))}
             </div>
           )}
           <p className="settings-hint" style={{ marginTop: 8 }}>
-            工具调用上限及 LLM 轮次上限见「⚙️ 高级」设置
+            点击工具名查看详情。工具调用上限及 LLM 轮次上限见「⚙️ 高级」设置
           </p>
+
+          {toolDetail && (
+            <ToolDetailDrawer tool={toolDetail} onClose={() => setToolDetail(null)} />
+          )}
         </>
       )}
 
