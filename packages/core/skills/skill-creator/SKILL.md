@@ -1,6 +1,6 @@
 ---
 name: skill-creator
-description: 创建、改进或审查 Equality Skill（目录结构、双分区 description、脚本提取、渐进式披露）。Use when: 用户说"创建 skill"、"做成 skill"、"保存为 skill"、"改进/审查/整理 skill"。NOT for: 直接执行任务（不保存为 skill）；安装软件；查询文档。
+description: '创建、改进或审查 Equality Skill（目录结构、双分区 description、脚本提取、渐进式披露）。Use when: 用户说"创建 skill"、"做成 skill"、"保存为 skill"、"改进/审查/整理 skill"。NOT for: 直接执行任务（不保存为 skill）；安装软件；查询文档。'
 user-invocable: true
 equality:
   always: false
@@ -64,8 +64,8 @@ skill-name/
 ```yaml
 ---
 name: skill-name          # 小写+数字+连字符，≤64 字符，与目录名一致
-description: [功能摘要]。Use when: [触发场景1]、[触发场景2]。NOT for: [排除场景1]。
-                          # 长度 ≤ 200 字符，两个分区均必填
+description: '[功能摘要]。Use when: [触发场景1]、[触发场景2]。NOT for: [排除场景1]。'
+                          # 长度 ≤ 200 字符，两个分区均必填；含冒号时必须用单引号包裹
 user-invocable: true      # 可选，用户可主动触发时填写
 ---
 ```

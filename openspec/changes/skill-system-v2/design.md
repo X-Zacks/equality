@@ -123,9 +123,9 @@ equality:
 
 **新增 frontmatter description 格式**（双分区，含 NOT for）：
 ```yaml
-description: 创建、改进或审查 Equality Skill（目录结构、双分区 description、脚本提取）。
+description: '创建、改进或审查 Equality Skill（目录结构、双分区 description、脚本提取）。
   Use when: 用户说"创建 skill"、"做成 skill"、"保存为 skill"、"改进/审查 skill"。
-  NOT for: 直接执行任务（不保存为 skill）；安装软件；查询文档。
+  NOT for: 直接执行任务（不保存为 skill）；安装软件；查询文档。'
 ```
 
 **新增"创建流程"章节**（6步骤，对齐 OpenClaw）：

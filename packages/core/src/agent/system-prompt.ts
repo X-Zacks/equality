@@ -95,8 +95,9 @@ export function buildSystemPrompt(options?: SystemPromptOptions): string {
 **frontmatter 格式**（仅以下字段）：
 \`\`\`yaml
 name: skill-name                   # 小写+数字+连字符，≤64 字符
-description: [功能摘要]。Use when: [触发场景1]、[触发场景2]。NOT for: [排除场景1]、[排除场景2]。
+description: '[功能摘要]。Use when: [触发场景1]、[触发场景2]。NOT for: [排除场景1]、[排除场景2]。'
                                    # 长度 ≤ 200 字符，Use when + NOT for 两个分区均必填
+                                   # ⚠️ description 含冒号时必须用单引号包裹整个值
 tools:
   - bash
   - write_file

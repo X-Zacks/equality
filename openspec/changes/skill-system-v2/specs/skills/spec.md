@@ -16,8 +16,9 @@
 3. **NOT for**：列举 1-3 个明确不适用的场景，防止误触发
 
 格式模板：
-```
-[功能摘要]。Use when: [触发场景1]、[触发场景2]。NOT for: [排除场景1]、[排除场景2]。
+```yaml
+# description 值含冒号时必须加引号
+description: '[功能摘要]。Use when: [触发场景1]、[触发场景2]。NOT for: [排除场景1]、[排除场景2]。'
 ```
 
 #### Scenario: Agent 自动生成 Skill 时写入双分区 description
