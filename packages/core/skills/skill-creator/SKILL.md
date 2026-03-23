@@ -1,9 +1,6 @@
 ---
 name: skill-creator
-description: 指导创建高质量的 Equality Skill（目录结构、frontmatter、Windows 兼容、PRC 镜像）
-tools:
-  - write_file
-  - read_file
+description: 创建、改进或审查 Equality Skill（目录结构、双分区 description、脚本提取、渐进式披露）。Use when: 用户说"创建 skill"、"做成 skill"、"保存为 skill"、"改进/审查/整理 skill"。NOT for: 直接执行任务（不保存为 skill）；安装软件；查询文档。
 user-invocable: true
 equality:
   always: false
@@ -12,79 +9,131 @@ equality:
 
 # Skill Creator
 
-当用户要求创建新 Skill 时，按照以下规范操作。
+## 关于 Skill
 
-## 目录结构
+Skill 是可复用的知识包，为 Equality 提供特定领域的工作流、脚本和参考材料。每个 Skill 由一个 `SKILL.md` 文件和可选的配套资源组成。
+
+### 目录结构
 
 ```
 skill-name/
 ├── SKILL.md          # 必填：YAML frontmatter + Markdown 正文
-├── scripts/          # 可选：可执行脚本（.py / .js / .ps1）
+├── scripts/          # 可选：可执行脚本（.py / .js）
 ├── references/       # 可选：参考文档（按需 read_file 加载）
 └── assets/           # 可选：输出资源（模板、图片、字体）
 ```
 
-## SKILL.md 模板
+### 渐进式披露（三层加载）
 
-```markdown
----
-name: skill-name                    # 小写字母+数字+连字符，≤64 字符
-description: 一句话描述功能           # ≤120 字符，LLM 路由用
-tools:
-  - bash                            # 依赖的工具列表
-  - write_file
-equality:
-  emoji: 📊
-  requires:
-    bins: [python3]                 # 可选：依赖的系统命令
-    env: []                         # 可选：依赖的环境变量
-  install:                          # 可选：依赖安装指令
-    - kind: pip
-      spec: pandas openpyxl
+| 层级 | 内容 | 加载时机 |
+|------|------|---------|
+| 元数据 | `name` + `description` | 始终在 System Prompt 中（~100 词） |
+| SKILL.md 正文 | 工作流、参数、步骤 | Skill 触发后加载（≤ 300 行） |
+| 资源文件 | scripts/、references/、assets/ | 按需读取或执行 |
+
 ---
 
-# Skill 名称
+## 创建流程（6步）
 
-描述何时使用此 Skill，以及执行的核心逻辑。
+### Step 1：澄清使用场景（创建前必做）
 
-## 参数
+在创建任何文件之前，先明确：
+- **触发场景**（1-3 个）：用户说什么、在什么情境下会用到这个 Skill？
+- **排除场景**（1-2 个）：哪些看似相关、但不应触发的场景？
 
-| 参数 | 说明 | 示例 |
-|------|------|------|
-| input | 输入文件路径 | C:/data/input.xlsx |
-| output | 输出文件路径 | C:/data/output.xlsx |
+示例问题：
+- "这个 skill 主要处理什么类型的输入？"
+- "有没有你不希望它触发的场景？比如只是查看文件而不做分析时，是否应该触发？"
 
-## 执行步骤
+跳过条件：触发/排除场景已经完全清晰。
 
-1. 第一步...
-2. 第二步...
+### Step 2：规划三层内容
 
-脚本模板使用 `{{参数名}}` 占位符。
+分析使用场景，确定每层放什么：
+
+| 层 | 放什么 | 何时创建 |
+|----|--------|---------|
+| `scripts/` | 重复执行的代码（> 50 行 Python/JS） | 脚本逻辑固定，需要可靠性时 |
+| `references/` | 领域知识、API 文档、表格、schema | 内容丰富且不需要每次都加载时 |
+| `assets/` | 模板文件、图片、字体、boilerplate | 输出中会用到的现成文件 |
+
+### Step 3：创建 SKILL.md
+
+**frontmatter**（仅以下字段）：
+
+```yaml
+---
+name: skill-name          # 小写+数字+连字符，≤64 字符，与目录名一致
+description: [功能摘要]。Use when: [触发场景1]、[触发场景2]。NOT for: [排除场景1]。
+                          # 长度 ≤ 200 字符，两个分区均必填
+user-invocable: true      # 可选，用户可主动触发时填写
+---
 ```
 
-## 命名规范
+**正文结构**：任务说明、参数表格、执行步骤（引用脚本路径，不内联大段代码）
 
-- 小写字母 + 数字 + 连字符：`excel-diff`、`pdf-rotate`、`git-commit-msg`
-- 动词开头描述动作
-- 目录名 MUST 与 `name` 字段一致
-- 长度 ≤ 64 字符
+### Step 4：提取脚本到 scripts/
 
-## 渐进式披露
+判断标准：
+- 脚本行数 > 50 行 → 存为 `scripts/<name>.py`，正文只写调用命令
+- 脚本需反复调用 → 用 `argparse` 接收参数
+- 小片段（< 20 行）→ 可内联在正文
 
-- **元数据**（name + description）：始终在 System Prompt 索引中（~100 词）
-- **SKILL.md 正文**：Skill 触发后通过 `read_file` 加载（< 500 行）
-- **scripts/ 资源文件**：按需读取（无上限，脚本可不读入上下文直接执行）
+示例正文写法（引用脚本）：
+```markdown
+运行分析脚本：
+```bash
+python scripts/analyze.py --input {{输入目录}} --output {{输出目录}}
+```
+```
 
-## Windows 兼容规则（重要）
+### Step 5：验证清单
+
+- [ ] `name` 与目录名一致，小写+连字符，≤ 64 字符
+- [ ] `description` 含功能摘要 + "Use when:" + "NOT for:"，≤ 200 字符
+- [ ] 正文 ≤ 300 行（超出则拆分到 references/）
+- [ ] 超过 50 行的脚本已移至 scripts/
+- [ ] scripts/ 脚本遵守 Windows 兼容规则
+- [ ] 如有安装依赖，使用 PRC 镜像
+
+### Step 6：迭代
+
+使用 Skill 执行真实任务后观察触发准确性、步骤适用性、脚本参数是否需更新。
+
+---
+
+## description 写作指南
+
+格式：`[功能摘要]。Use when: [触发场景]。NOT for: [排除场景]。`
+
+**正面示例**：
+> 分析两个季度费用 Excel 的多维差异，生成 MD/HTML 报告。Use when: 用户提供季度费用对比 Excel 目录时。NOT for: 单个 Excel 读取；非财务数据对比。
+
+**反面示例**（缺 NOT for）：
+> 分析费用 Excel 的差异并生成报告
+
+**"NOT for" 必填**——防止模糊场景下的误触发。
+
+---
+
+## 审查现有 Skill
+
+1. 读取 SKILL.md
+2. 检查 description 是否含 "NOT for:"（缺失则询问用户并补充）
+3. 检查正文是否有 > 50 行内联脚本（如有，建议提取到 scripts/）
+4. 检查正文行数（> 200 行时建议拆分到 references/）
+5. 更新后告知具体改动
+
+---
+
+## Windows 兼容规则（必须遵守）
 
 1. 脚本用 `.py` 或 `.js`，**不要用 `.sh`**
-2. **不要用 heredoc**（`<<EOF`），先用 `write_file` 保存为 `.py`/`.js` 文件，再用 `bash` 执行
+2. **不要用 heredoc**（`<<EOF`）；先用 `write_file` 保存为 `.py` 文件，再用 `bash` 执行
 3. 路径用正斜杠 `/` 或 Python raw string `r"C:\path"`
-4. 换行符注意：Windows 是 `\r\n`，脚本中避免依赖 `\n` 分割
+4. 不依赖 `\n` 分割换行（Windows 是 `\r\n`）
 
-## PRC 镜像规则（重要）
-
-所有安装命令 MUST 使用国内镜像：
+## PRC 镜像规则（必须遵守）
 
 | 包管理器 | 镜像参数 |
 |---------|---------|
@@ -93,16 +142,11 @@ equality:
 | conda | `-c https://mirrors.tuna.tsinghua.edu.cn/anaconda` |
 | go | `GOPROXY=https://goproxy.cn` |
 
-示例：
-```
-pip install -i https://pypi.tuna.tsinghua.edu.cn/simple pandas openpyxl
-```
-
 ## 反面案例（不要做）
 
 - ❌ 创建 README.md / CHANGELOG.md 等冗余文件
-- ❌ 在 SKILL.md 中解释 LLM 已知的常识（如"Python 是一种编程语言"）
+- ❌ description 缺少 "NOT for:" 分区
+- ❌ 将 > 50 行脚本内联在 SKILL.md 正文
 - ❌ 在正文和 references/ 中重复同一信息
-- ❌ frontmatter 中写超过 120 字符的 description
 - ❌ 使用 `.sh` 脚本（Windows 不兼容）
 - ❌ 使用 heredoc 语法

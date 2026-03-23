@@ -91,16 +91,35 @@ export function buildSystemPrompt(options?: SystemPromptOptions): string {
 用户也可能直接说"把这个做成 skill"、"保存下来下次用"、"存为 skill" 等。
 
 保存方法：用 write_file 在 ${skillsDir}/<skill-name>/SKILL.md 创建文件（与现有的 python、git 等 Skill 同级）。
-格式：YAML frontmatter（name, description, tools, equality.auto-generated: true, equality.source-model: ${modelName}, equality.created: 今日日期）+ Markdown 正文。
-正文包含：任务说明、参数表格、完整的执行步骤和脚本模板。
 
-⚠️ SKILL.md 中的脚本模板必须遵守 Windows 兼容规则：
-- 脚本模板写成独立的 .py/.js 文件内容（不要用 heredoc <<EOF 语法）
-- 执行步骤写明：先用 write_file 保存脚本文件，再用 bash 执行 python xxx.py
-- 路径用正斜杠 / 或 r"..." 原始字符串
-- 这样生成的 Skill 在任何模型（包括 GPT-4o）下都能正确执行
+**frontmatter 格式**（仅以下字段）：
+\`\`\`yaml
+name: skill-name                   # 小写+数字+连字符，≤64 字符
+description: [功能摘要]。Use when: [触发场景1]、[触发场景2]。NOT for: [排除场景1]、[排除场景2]。
+                                   # 长度 ≤ 200 字符，Use when + NOT for 两个分区均必填
+tools:
+  - bash
+  - write_file
+equality:
+  auto-generated: true
+  source-model: ${modelName}
+  created: 今日日期
+\`\`\`
 
-保存后告知用户："已将此任务保存为 Skill '名称'，下次可直接使用。"`
+**正文结构**：任务说明（何时使用）、参数表格、执行步骤（聚焦流程，不内联大段脚本）
+
+**脚本放置原则**（重要）：
+- 超过 50 行的 Python/JS 脚本 → 另存为 scripts/<name>.py，正文只写调用命令示例
+- 脚本用 argparse 接收参数，调用示例：\`python scripts/<name>.py --arg value\`
+- 模板占位符 \`{{参数}}\` 只用于 < 20 行的小片段
+- 大型参考表格、域知识文档 → 另存为 references/<topic>.md，正文写路径引用
+
+⚠️ scripts/ 中的脚本必须遵守 Windows 兼容规则：
+- 不要用 heredoc（\`<<EOF\`）；路径用正斜杠 / 或 Python raw string r"C:\\path"
+
+⚠️ 安装命令使用国内镜像（pip: \`-i https://pypi.tuna.tsinghua.edu.cn/simple\`）
+
+保存后告知用户："已将此任务保存为 Skill '<名称>'，下次可直接使用。"`
 
   return prompt
 }
