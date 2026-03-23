@@ -449,6 +449,106 @@ function ProviderDrawer({
   )
 }
 
+// ─── AdvancedDrawer: 高级设置右侧抽屉 ────────────────────────────────────────
+interface AdvancedDrawerProps {
+  panel: 'performance' | 'agentLoop'
+  draft: Partial<Record<SecretKey, string>>
+  saving: Record<string, 'idle' | 'saving' | 'ok' | 'err'>
+  getMasked: (key: SecretKey) => string
+  onDraftChange: (key: SecretKey, value: string) => void
+  onSave: (groupId: string, keys: SecretKey[]) => Promise<void>
+  onClose: () => void
+}
+
+function AdvancedDrawer({ panel, draft, saving, getMasked, onDraftChange, onSave, onClose }: AdvancedDrawerProps) {
+  const isPerformance = panel === 'performance'
+  const title = isPerformance ? '⚡ 性能设置' : '🔁 Agent 循环上限'
+  const saveGroup = isPerformance ? 'advanced' : 'agentLoop'
+  const saveKeys: SecretKey[] = isPerformance
+    ? ['BASH_TIMEOUT_MS', 'BASH_IDLE_TIMEOUT_MS', 'BASH_MAX_TIMEOUT_MS']
+    : ['AGENT_MAX_TOOL_CALLS', 'AGENT_MAX_LLM_TURNS']
+  const hasDraft = saveKeys.some(k => draft[k]?.trim())
+
+  return (
+    <div className="drawer-mask" onClick={onClose}>
+      <div className="drawer-panel" onClick={e => e.stopPropagation()}>
+        <div className="drawer-header">
+          <span className="drawer-title">{title}</span>
+          <button className="drawer-close" onClick={onClose}>✕</button>
+        </div>
+        <div className="drawer-body">
+          {isPerformance ? (
+            <>
+              <div className="key-row">
+                <label>Bash 默认超时 (ms)</label>
+                <input
+                  type="number"
+                  placeholder={getMasked('BASH_TIMEOUT_MS') || '300000'}
+                  value={draft['BASH_TIMEOUT_MS'] ?? ''}
+                  onChange={e => onDraftChange('BASH_TIMEOUT_MS', e.target.value)}
+                />
+              </div>
+              <p className="drawer-hint">bash 前台命令总超时。最小 5s，默认 5 分钟。持续有输出不会中断，总时长超限才触发。</p>
+              <div className="key-row" style={{ marginTop: 10 }}>
+                <label>无输出超时 (ms)</label>
+                <input
+                  type="number"
+                  placeholder={getMasked('BASH_IDLE_TIMEOUT_MS') || '120000'}
+                  value={draft['BASH_IDLE_TIMEOUT_MS'] ?? ''}
+                  onChange={e => onDraftChange('BASH_IDLE_TIMEOUT_MS', e.target.value)}
+                />
+              </div>
+              <p className="drawer-hint">命令无 stdout/stderr 输出超过此时间则终止。设为 0 禁用。默认 2 分钟。</p>
+              <div className="key-row" style={{ marginTop: 10 }}>
+                <label>超时上限 (ms)</label>
+                <input
+                  type="number"
+                  placeholder={getMasked('BASH_MAX_TIMEOUT_MS') || '1800000'}
+                  value={draft['BASH_MAX_TIMEOUT_MS'] ?? ''}
+                  onChange={e => onDraftChange('BASH_MAX_TIMEOUT_MS', e.target.value)}
+                />
+              </div>
+              <p className="drawer-hint">单条 bash 命令绝对上限，防止 LLM 传入过大 timeout_ms。默认 30 分钟。</p>
+            </>
+          ) : (
+            <>
+              <div className="key-row">
+                <label>工具调用上限 (次)</label>
+                <input
+                  type="number"
+                  placeholder={getMasked('AGENT_MAX_TOOL_CALLS') || '50'}
+                  value={draft['AGENT_MAX_TOOL_CALLS'] ?? ''}
+                  onChange={e => onDraftChange('AGENT_MAX_TOOL_CALLS', e.target.value)}
+                />
+              </div>
+              <p className="drawer-hint">单次任务最多执行多少次工具调用。默认 50，写大型项目可调高（如 200-300）。最大 500。</p>
+              <div className="key-row" style={{ marginTop: 10 }}>
+                <label>LLM 轮次上限 (轮)</label>
+                <input
+                  type="number"
+                  placeholder={getMasked('AGENT_MAX_LLM_TURNS') || '50'}
+                  value={draft['AGENT_MAX_LLM_TURNS'] ?? ''}
+                  onChange={e => onDraftChange('AGENT_MAX_LLM_TURNS', e.target.value)}
+                />
+              </div>
+              <p className="drawer-hint">单次任务最多发起多少轮 LLM 调用。默认 50，通常保持默认即可，工具调用上限是更常见的瓶颈。最大 500。</p>
+            </>
+          )}
+          <div className="provider-actions" style={{ marginTop: 12 }}>
+            <button
+              className="btn-save"
+              disabled={!hasDraft || saving[saveGroup] === 'saving'}
+              onClick={() => onSave(saveGroup, saveKeys)}
+            >
+              {saveLabel(saving[saveGroup] ?? 'idle')}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function Settings({
   onClose,
   themePreference,
@@ -473,6 +573,8 @@ export default function Settings({
   const [saving, setSaving] = useState<Record<string, 'idle' | 'saving' | 'ok' | 'err'>>({})
   // 当前打开的 drawer（provider id，null 表示关闭）
   const [drawerProvider, setDrawerProvider] = useState<string | null>(null)
+  // 高级设置 drawer
+  const [advancedDrawer, setAdvancedDrawer] = useState<'performance' | 'agentLoop' | null>(null)
   // proxy 展开（保留 tools tab 的 accordion）
   const [expanded, setExpanded] = useState<Record<string, boolean>>({ braveSearch: false, chromePath: false, proxy: false })
 
@@ -1029,110 +1131,41 @@ export default function Settings({
             </div>
           </div>
 
-          {/* ─── Bash 超时配置 ────────────────────────────────────────── */}
+          {/* ─── 高级配置条目行 ──────────────────────────────────────── */}
           <div className="advanced-section">
-            <div className="advanced-section-title">⚡ 性能设置</div>
-
-            <div className="advanced-item">
-              <div className="advanced-item-header">
-                <span className="advanced-item-label">Bash 默认超时</span>
-                <span className="advanced-item-unit">ms</span>
+            <div className="advanced-section-title">⚙️ 高级配置</div>
+            <div className="provider-card" style={{ marginBottom: 6 }}>
+              <div className="provider-header" onClick={() => setAdvancedDrawer('performance')} style={{ cursor: 'pointer' }}>
+                <span className="provider-name">⚡ 性能设置</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 11, color: '#888' }}>Bash 超时</span>
+                  <span className="chevron">›</span>
+                </div>
               </div>
-              <input
-                className="advanced-input"
-                type="number"
-                placeholder={getMasked('BASH_TIMEOUT_MS' as SecretKey) || '300000'}
-                value={draft['BASH_TIMEOUT_MS' as SecretKey] ?? ''}
-                onChange={e => setDraft(p => ({ ...p, BASH_TIMEOUT_MS: e.target.value }))}
-              />
-              <p className="advanced-item-desc">bash 前台命令的总超时。最小 5s，默认 5 分钟。命令持续有输出不会被此超时中断，只有总时长超限才触发。</p>
             </div>
-
-            <div className="advanced-item">
-              <div className="advanced-item-header">
-                <span className="advanced-item-label">无输出超时</span>
-                <span className="advanced-item-unit">ms</span>
+            <div className="provider-card">
+              <div className="provider-header" onClick={() => setAdvancedDrawer('agentLoop')} style={{ cursor: 'pointer' }}>
+                <span className="provider-name">🔁 Agent 循环上限</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 11, color: '#888' }}>工具次数 / LLM 轮次</span>
+                  <span className="chevron">›</span>
+                </div>
               </div>
-              <input
-                className="advanced-input"
-                type="number"
-                placeholder={getMasked('BASH_IDLE_TIMEOUT_MS' as SecretKey) || '120000'}
-                value={draft['BASH_IDLE_TIMEOUT_MS' as SecretKey] ?? ''}
-                onChange={e => setDraft(p => ({ ...p, BASH_IDLE_TIMEOUT_MS: e.target.value }))}
-              />
-              <p className="advanced-item-desc">命令在此时间内无任何 stdout/stderr 输出则判定卡死并终止。设为 0 禁用。默认 2 分钟。</p>
-            </div>
-
-            <div className="advanced-item">
-              <div className="advanced-item-header">
-                <span className="advanced-item-label">超时上限</span>
-                <span className="advanced-item-unit">ms</span>
-              </div>
-              <input
-                className="advanced-input"
-                type="number"
-                placeholder={getMasked('BASH_MAX_TIMEOUT_MS' as SecretKey) || '1800000'}
-                value={draft['BASH_MAX_TIMEOUT_MS' as SecretKey] ?? ''}
-                onChange={e => setDraft(p => ({ ...p, BASH_MAX_TIMEOUT_MS: e.target.value }))}
-              />
-              <p className="advanced-item-desc">单条 bash 命令的绝对上限，防止 LLM 传入过大的 timeout_ms。默认 30 分钟。</p>
-            </div>
-
-            <div className="provider-actions" style={{ marginTop: 4 }}>
-              <button
-                className="btn-save"
-                disabled={(!draft['BASH_TIMEOUT_MS' as SecretKey]?.trim() && !draft['BASH_IDLE_TIMEOUT_MS' as SecretKey]?.trim() && !draft['BASH_MAX_TIMEOUT_MS' as SecretKey]?.trim()) || saving.advanced === 'saving'}
-                onClick={() => handleSave('advanced', ['BASH_TIMEOUT_MS' as SecretKey, 'BASH_IDLE_TIMEOUT_MS' as SecretKey, 'BASH_MAX_TIMEOUT_MS' as SecretKey])}
-              >
-                {saveLabel(saving.advanced ?? 'idle')}
-              </button>
             </div>
           </div>
 
-          {/* ─── Agent 循环上限配置 ─────────────────────────────────── */}
-          <div className="advanced-section">
-            <div className="advanced-section-title">🔁 Agent 循环上限</div>
-
-            <div className="advanced-item">
-              <div className="advanced-item-header">
-                <span className="advanced-item-label">工具调用上限</span>
-                <span className="advanced-item-unit">次</span>
-              </div>
-              <input
-                className="advanced-input"
-                type="number"
-                placeholder={getMasked('AGENT_MAX_TOOL_CALLS' as SecretKey) || '50'}
-                value={draft['AGENT_MAX_TOOL_CALLS' as SecretKey] ?? ''}
-                onChange={e => setDraft(p => ({ ...p, AGENT_MAX_TOOL_CALLS: e.target.value }))}
-              />
-              <p className="advanced-item-desc">单次任务最多执行多少次工具调用。默认 50，写大型项目时可调高（如 200-300）。最大允许 500。</p>
-            </div>
-
-            <div className="advanced-item">
-              <div className="advanced-item-header">
-                <span className="advanced-item-label">LLM 轮次上限</span>
-                <span className="advanced-item-unit">轮</span>
-              </div>
-              <input
-                className="advanced-input"
-                type="number"
-                placeholder={getMasked('AGENT_MAX_LLM_TURNS' as SecretKey) || '50'}
-                value={draft['AGENT_MAX_LLM_TURNS' as SecretKey] ?? ''}
-                onChange={e => setDraft(p => ({ ...p, AGENT_MAX_LLM_TURNS: e.target.value }))}
-              />
-              <p className="advanced-item-desc">单次任务最多发起多少轮 LLM 调用。默认 50，通常保持默认即可，工具调用上限是更常见的瓶颁。最大允许 500。</p>
-            </div>
-
-            <div className="provider-actions" style={{ marginTop: 4 }}>
-              <button
-                className="btn-save"
-                disabled={(!draft['AGENT_MAX_TOOL_CALLS' as SecretKey]?.trim() && !draft['AGENT_MAX_LLM_TURNS' as SecretKey]?.trim()) || saving.agentLoop === 'saving'}
-                onClick={() => handleSave('agentLoop', ['AGENT_MAX_TOOL_CALLS' as SecretKey, 'AGENT_MAX_LLM_TURNS' as SecretKey])}
-              >
-                {saveLabel(saving.agentLoop ?? 'idle')}
-              </button>
-            </div>
-          </div>
+          {/* ─── 高级设置 drawer ─────────────────────────────────────── */}
+          {advancedDrawer && (
+            <AdvancedDrawer
+              panel={advancedDrawer}
+              draft={draft}
+              saving={saving}
+              getMasked={getMasked}
+              onDraftChange={(key, value) => setDraft(p => ({ ...p, [key]: value }))}
+              onSave={handleSave}
+              onClose={() => setAdvancedDrawer(null)}
+            />
+          )}
         </>
       )}
 
