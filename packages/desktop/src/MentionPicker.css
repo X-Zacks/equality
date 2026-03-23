@@ -1,0 +1,121 @@
+/* ─── MentionPicker 浮层 ─────────────────────────────────────────────────── */
+
+.mention-picker {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 24px;
+  right: 24px;
+  max-height: 280px;
+  overflow-y: auto;
+  background: #1e1e20;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.4);
+  z-index: 200;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.15) transparent;
+}
+
+.mention-picker::-webkit-scrollbar { width: 4px; }
+.mention-picker::-webkit-scrollbar-track { background: transparent; }
+.mention-picker::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 2px; }
+
+.mention-picker-header {
+  padding: 7px 12px 5px;
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.35);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+  user-select: none;
+}
+
+.mention-picker-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.mention-picker-item.highlighted {
+  background: rgba(10, 132, 255, 0.18);
+}
+
+.mention-picker-item-icon {
+  font-size: 15px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.mention-picker-item-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.mention-picker-item-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: #f0f0f0;
+}
+
+.mention-picker-item-desc {
+  font-size: 11px;
+  color: rgba(255,255,255,0.4);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mention-picker-empty {
+  padding: 12px;
+  font-size: 13px;
+  color: rgba(255,255,255,0.3);
+  text-align: center;
+}
+
+/* ─── Mention Chips（skill/tool 标签） ──────────────────────────────────── */
+
+.mention-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px 2px 6px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: default;
+  user-select: none;
+}
+
+.mention-chip-skill {
+  background: rgba(48, 209, 88, 0.15);
+  border: 1px solid rgba(48, 209, 88, 0.3);
+  color: #30d158;
+}
+
+.mention-chip-tool {
+  background: rgba(255, 159, 10, 0.15);
+  border: 1px solid rgba(255, 159, 10, 0.3);
+  color: #ff9f0a;
+}
+
+.mention-chip-remove {
+  background: none;
+  border: none;
+  color: inherit;
+  opacity: 0.5;
+  cursor: pointer;
+  font-size: 11px;
+  padding: 0 1px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+}
+
+.mention-chip-remove:hover {
+  opacity: 1;
+}

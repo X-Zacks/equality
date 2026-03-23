@@ -29,7 +29,7 @@ export class DefaultContextEngine implements ContextEngine {
   readonly engineId = 'default'
 
   async assemble(params: AssembleParams): Promise<AssembleResult> {
-    const { sessionKey, provider, userMessage, workspaceDir, skills, abortSignal, onCompaction } = params
+    const { sessionKey, provider, userMessage, workspaceDir, skills, activeSkill, abortSignal, onCompaction } = params
 
     // 1. 获取 session
     const session = await getOrCreate(sessionKey)
@@ -39,6 +39,7 @@ export class DefaultContextEngine implements ContextEngine {
       workspaceDir,
       skills,
       modelName: provider.modelId,
+      activeSkill,
     })
 
     // 3. Memory Recall：用用户消息检索 top-3 记忆

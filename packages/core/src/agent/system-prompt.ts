@@ -10,6 +10,8 @@ export interface SystemPromptOptions {
   skills?: Skill[]
   /** 当前使用的模型名称（用于 Skill 沉淀时记录） */
   modelName?: string
+  /** 用户通过 @ 指定的高优先级 Skill */
+  activeSkill?: Skill
 }
 
 // ─── 主构建函数 ───────────────────────────────────────────────────────────────
@@ -26,6 +28,20 @@ export function buildSystemPrompt(options?: SystemPromptOptions): string {
 当前: ${now} | ${platform}${cwd ? ` | 工作目录: ${cwd}` : ''}
 
 重要规则：当前系统是 Windows + PowerShell。执行多行 Python/Node 脚本时，不要用 heredoc（<<EOF）或管道传代码。正确做法：先用 write_file 保存为 .py/.js 文件，再用 bash 工具执行 python xxx.py。`
+
+  // ─── 用户指定 Skill（@ 触发，高优先级）──────────────────────────────────
+  if (options?.activeSkill) {
+    const sk = options.activeSkill
+    prompt += `\n
+## 🎯 用户指定 Skill：${sk.name}
+
+用户通过 @ 明确指定了本次使用此 Skill，请**严格按照以下 Skill 的步骤执行**，不要跳过：
+
+${sk.body}
+
+---
+`
+  }
 
   // 任务感知规则
   prompt += `\n

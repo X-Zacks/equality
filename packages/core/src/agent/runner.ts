@@ -79,6 +79,10 @@ export interface RunAttemptParams {
   workspaceDir?: string
   /** 已加载的 Skills（注入到 system prompt） */
   skills?: import('../skills/types.js').Skill[]
+  /** 用户通过 @ 指定的 Skill 名称（高优先级注入到 system prompt） */
+  activeSkillName?: string
+  /** 用户通过 # 指定的工具白名单（非空时只暴露这些工具给 LLM） */
+  allowedTools?: string[]
   /** 回调：每个 delta 文本片段（最终回复阶段） */
   onDelta?: (chunk: string) => void
   /** 回调：工具调用开始 */
@@ -141,6 +145,11 @@ export async function runAttempt(params: RunAttemptParams): Promise<RunAttemptRe
   autoCapture(actualMessage, sessionKey)
 
   // 5. Context Engine: 组装消息列表（system prompt + memory recall + history + compaction + trim）
+  // 解析 @ Skill 指定
+  const activeSkill = params.activeSkillName && params.skills
+    ? params.skills.find(s => s.name === params.activeSkillName)
+    : undefined
+
   const contextEngine = new DefaultContextEngine()
   const assembled = await contextEngine.assemble({
     sessionKey,
@@ -148,13 +157,19 @@ export async function runAttempt(params: RunAttemptParams): Promise<RunAttemptRe
     userMessage: actualMessage,
     workspaceDir: params.workspaceDir,
     skills: params.skills,
+    activeSkill,
     abortSignal: abort.signal,
     onCompaction: (summary) => params.onDelta?.(`\n\n💭 ${summary}\n\n`),
   })
   const messages = assembled.messages
 
-  // 6. 准备工具 schema
-  const toolSchemas: OpenAIToolSchema[] | undefined = params.toolRegistry?.getToolSchemas()
+  // 6. 准备工具 schema（支持 # 工具白名单过滤）
+  let toolSchemas: OpenAIToolSchema[] | undefined = params.toolRegistry?.getToolSchemas()
+  if (toolSchemas && params.allowedTools && params.allowedTools.length > 0) {
+    const allowed = new Set(params.allowedTools)
+    toolSchemas = toolSchemas.filter(s => allowed.has(s.function.name))
+    console.log(`[runner] # 工具过滤: ${params.allowedTools.join(',')} → ${toolSchemas.length} 个工具`)
+  }
   const hasTools = toolSchemas && toolSchemas.length > 0
   console.log(`[runner] provider=${provider.providerId}/${provider.modelId}, toolSchemas=${toolSchemas?.length ?? 0}, hasTools=${hasTools}, recalled=${assembled.recalledMemories}, compacted=${assembled.wasCompacted}`)
 

@@ -198,19 +198,31 @@ app.post<{ Body: ChatBody }>('/chat/stream', async (req, reply) => {
       provider = getProviderById(parts[0], parts[1])
     }
 
-    const result = await sessionQueue.enqueue(sessionKey, () => runAttempt({
-      sessionKey,
-      userMessage: message,
-      abortSignal: abort.signal,
-      toolRegistry,
-      workspaceDir: process.cwd(),
-      skills: skillsWatcher.getSkills().map(e => e.skill),
-      ...(provider ? { provider } : {}),
-      onDelta: (chunk) => send({ type: 'delta', content: chunk }),
-      onToolStart: (info) => send({ type: 'tool_start', name: info.name, args: info.args, toolCallId: info.toolCallId }),
-      onToolUpdate: (info) => send({ type: 'tool_update', toolCallId: info.toolCallId, content: info.content }),
-      onToolResult: (info) => send({ type: 'tool_result', name: info.name, content: info.content.slice(0, 500), isError: info.isError, toolCallId: info.toolCallId }),
-    }))
+    const result = await sessionQueue.enqueue(sessionKey, () => {
+      // 提取 mention 标记
+      const skillMatch = message.match(/^\[@([a-zA-Z0-9_-]+)\]\s*/)
+      const activeSkillName = skillMatch?.[1]
+      const toolMatch = message.match(/\[#([a-zA-Z0-9_,#-]+)\]/)
+      const allowedTools = toolMatch
+        ? toolMatch[1].split(',').map(t => t.replace(/^#/, '').trim()).filter(Boolean)
+        : undefined
+
+      return runAttempt({
+        sessionKey,
+        userMessage: message,
+        abortSignal: abort.signal,
+        toolRegistry,
+        workspaceDir: process.cwd(),
+        skills: skillsWatcher.getSkills().map(e => e.skill),
+        activeSkillName,
+        allowedTools,
+        ...(provider ? { provider } : {}),
+        onDelta: (chunk) => send({ type: 'delta', content: chunk }),
+        onToolStart: (info) => send({ type: 'tool_start', name: info.name, args: info.args, toolCallId: info.toolCallId }),
+        onToolUpdate: (info) => send({ type: 'tool_update', toolCallId: info.toolCallId, content: info.content }),
+        onToolResult: (info) => send({ type: 'tool_result', name: info.name, content: info.content.slice(0, 500), isError: info.isError, toolCallId: info.toolCallId }),
+      })
+    })
     send({ type: 'delta', content: `\n\n${result.costLine}` })
     done = true
     send({ type: 'done', usage: { inputTokens: result.inputTokens, outputTokens: result.outputTokens, totalCny: result.totalCny, toolCallCount: result.toolCallCount } })

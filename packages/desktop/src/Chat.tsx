@@ -4,7 +4,9 @@ import { open } from '@tauri-apps/plugin-dialog'
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { invoke } from '@tauri-apps/api/core'
 import Markdown from './Markdown'
+import { MentionPicker } from './MentionPicker'
 import './Chat.css'
+import './MentionPicker.css'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -75,6 +77,15 @@ export default function Chat({ sessionKey, onStreamingChange }: ChatProps) {
   const [activeToolCalls, setActiveToolCalls] = useState<ToolCallEvent[]>([])
   const [attachments, setAttachments] = useState<Attachment[]>([])
   const [dragOver, setDragOver] = useState(false)
+
+  // ─── Mention Picker 状态 ────────────────────────────────────────────────
+  const [mentionState, setMentionState] = useState<{
+    type: 'skill' | 'tool'
+    query: string
+    triggerPos: number   // @ 或 # 在 input 中的起始位置
+  } | null>(null)
+  const [skillTag, setSkillTag] = useState<string | null>(null)    // '@skill-name'
+  const [toolTags, setToolTags] = useState<string[]>([])           // ['bash','write_file']
   const streamingTextRef = useRef('')
   const activeToolCallsRef = useRef<ToolCallEvent[]>([])
   const pauseIntentRef = useRef(false)   // 用户已点⏸，等待下一个 tool_result
@@ -239,7 +250,59 @@ export default function Chat({ sessionKey, onStreamingChange }: ChatProps) {
     }
   }, [input])
 
+  // ─── Mention 检测 ───────────────────────────────────────────────────────
+  const detectMention = useCallback((value: string, cursorPos: number) => {
+    // IME 组合输入期间不触发
+    const slice = value.slice(0, cursorPos)
+    // 从光标往左找最近的未结束的 @ 或 #（遇到空格则终止）
+    const atMatch = slice.match(/(?:^|[\s\n])(@(\w*))$/)
+    const hashMatch = slice.match(/(?:^|[\s\n])(#(\w*))$/)
+    if (atMatch) {
+      const triggerPos = slice.lastIndexOf('@')
+      setMentionState({ type: 'skill', query: atMatch[2], triggerPos })
+    } else if (hashMatch) {
+      const triggerPos = slice.lastIndexOf('#')
+      setMentionState({ type: 'tool', query: hashMatch[2], triggerPos })
+    } else {
+      setMentionState(null)
+    }
+  }, [])
+
+  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const val = e.target.value
+    setInput(val)
+    detectMention(val, e.target.selectionStart ?? val.length)
+  }, [detectMention])
+
+  const handleMentionSelect = useCallback((name: string) => {
+    if (!mentionState) return
+    // 删除触发词（@xxx 或 #xxx）
+    const before = input.slice(0, mentionState.triggerPos)
+    const after = input.slice(mentionState.triggerPos + 1 + mentionState.query.length)
+    setInput(before + after)
+    setMentionState(null)
+    if (mentionState.type === 'skill') {
+      setSkillTag(name)
+    } else {
+      setToolTags(prev => prev.includes(name) ? prev : [...prev, name])
+    }
+    // 恢复焦点
+    setTimeout(() => textareaRef.current?.focus(), 0)
+  }, [mentionState, input])
+
+  const handleMentionClose = useCallback(() => setMentionState(null), [])
+
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    // 当 picker 开着时，↑↓Enter/Escape 交给 MentionPicker 处理（通过 window 事件）
+    if (mentionState && (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Escape')) {
+      e.preventDefault()
+      return
+    }
+    if (mentionState && (e.key === 'Enter' || e.key === 'Tab')) {
+      // 如果 picker 有结果，让 picker 的键盘 handler 先处理（capture=true）
+      // picker handler 会 stopPropagation，这里兜底不发送
+      return
+    }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       void handleSend()
@@ -264,15 +327,25 @@ export default function Chat({ sessionKey, onStreamingChange }: ChatProps) {
 
     if (!text) return
 
+    // ─── 构建 mention 前缀 ────────────────────────────────────────────────
+    const prefixParts: string[] = []
+    if (skillTag) prefixParts.push(`[@${skillTag}]`)
+    if (toolTags.length > 0) prefixParts.push(`[${toolTags.map(t => `#${t}`).join(',')}]`)
+    const prefix = prefixParts.length > 0 ? prefixParts.join(' ') + ' ' : ''
+    const finalText = prefix + text
+
     setInput('')
-    setMessages(prev => [...prev, { role: 'user', content: text }])
+    setMentionState(null)
+    setSkillTag(null)
+    setToolTags([])
+    setMessages(prev => [...prev, { role: 'user', content: finalText }])
     streamingTextRef.current = ''
     setStreamingText('')
     activeToolCallsRef.current = []
     setActiveToolCalls([])
 
     await sendMessage(
-      text,
+      finalText,
       (chunk) => {
         streamingTextRef.current += chunk
         setStreamingText(streamingTextRef.current)
@@ -540,9 +613,24 @@ export default function Chat({ sessionKey, onStreamingChange }: ChatProps) {
             <button className="pause-banner-cancel" onClick={() => { setPaused(false); activeToolCallsRef.current = []; setActiveToolCalls([]) }}>取消</button>
           </div>
         )}
-        {/* 附件标签栏 */}
-        {attachments.length > 0 && (
+        {/* 附件标签栏（附件 + mention chips 合并在此行） */}
+        {(attachments.length > 0 || skillTag || toolTags.length > 0) && (
           <div className="chat-attachments">
+            {/* Skill chip */}
+            {skillTag && (
+              <span className="mention-chip mention-chip-skill">
+                🧩 {skillTag}
+                <button className="mention-chip-remove" onClick={() => setSkillTag(null)}>✕</button>
+              </span>
+            )}
+            {/* Tool chips */}
+            {toolTags.map(t => (
+              <span key={t} className="mention-chip mention-chip-tool">
+                🔧 {t}
+                <button className="mention-chip-remove" onClick={() => setToolTags(prev => prev.filter(x => x !== t))}>✕</button>
+              </span>
+            ))}
+            {/* 文件附件 */}
             {attachments.map(a => (
               <span key={a.path} className="attachment-tag" title={a.path}>
                 <span className="attachment-icon">{a.icon}</span>
@@ -556,6 +644,15 @@ export default function Chat({ sessionKey, onStreamingChange }: ChatProps) {
         {dragOver && (
           <div className="drag-overlay">📎 拖放文件到此处</div>
         )}
+        {/* MentionPicker 浮层 */}
+        {mentionState && (
+          <MentionPicker
+            type={mentionState.type}
+            query={mentionState.query}
+            onSelect={handleMentionSelect}
+            onClose={handleMentionClose}
+          />
+        )}
         <div className="chat-input-row">
           <button className="chat-btn attach-btn" onClick={handlePickFile} title="添加文件" disabled={streaming && !paused}>
             📎
@@ -563,10 +660,10 @@ export default function Chat({ sessionKey, onStreamingChange }: ChatProps) {
           <textarea
             ref={textareaRef}
             className="chat-input"
-            placeholder={paused ? '输入指令继续任务，或直接描述下一步…' : '输入消息…（Enter 发送，Shift+Enter 换行）'}
+            placeholder={paused ? '输入指令继续任务，或直接描述下一步…' : '输入消息…（Enter 发送，Shift+Enter 换行，@ 选 Skill，# 选工具）'}
             rows={1}
             value={input}
-            onChange={e => setInput(e.target.value)}
+            onChange={handleInputChange}
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
             disabled={streaming && !paused}

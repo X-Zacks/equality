@@ -17,6 +17,8 @@ export interface AssembleParams {
   workspaceDir?: string
   /** 已加载的 Skills */
   skills?: Skill[]
+  /** 用户通过 @ 指定的高优先级 Skill */
+  activeSkill?: Skill
   /** 用户本轮消息（用于 memory recall） */
   userMessage: string
   /** AbortSignal */
