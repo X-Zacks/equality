@@ -10,9 +10,10 @@
 ```
 NEW_REQUEST
     ↓ (Agent 检测到项目开发意图)
-CLARIFY          ← 问 3-5 个需求问题
-    ↓ (用户回答后)
-SPEC_WRITE       ← 生成 OpenSpec 目录 + 文件
+CLARIFY          ← 多轮问答，每轮 3-5 个问题，覆盖不同维度
+    ↓               首轮必问：工程目录路径
+    ↓            ← 持续对话，直到用户说"可以开始了"
+SPEC_WRITE       ← 在用户指定工程目录下生成 OpenSpec 目录 + 文件
     ↓
 SPEC_CONFIRM     ← 展示 spec 摘要，等用户确认
     ↓ (用户说"开始"/"确认"/"ok")
@@ -28,23 +29,36 @@ DONE
 
 ## OpenSpec 目录规范
 
-生成路径：`<workspaceDir>/openspec/changes/<feature-name>/`
+生成路径：`<用户指定工程目录>/openspec/changes/<feature-name>/`
+
+所有代码也写入同一工程目录，保持 spec 与代码同根：
 
 ```
-<feature-name>/
-  proposal.md          ← 需求 + 用户故事 + 验收标准
-  design.md            ← 技术选型 + 架构图（文字版）+ 数据流
-  tasks.md             ← Phase 分解，每个 task 用 checkbox
-  specs/
-    api/
-      spec.md          ← 接口列表（method、path、request、response）
-    data/
-      spec.md          ← 数据模型定义
-    ui/
-      spec.md          ← 页面/组件列表（如有前端）
+<用户工程目录>/
+  openspec/
+    changes/<feature-name>/
+      proposal.md
+      design.md
+      tasks.md
+      specs/
+        api/spec.md
+        data/spec.md
+        ui/spec.md    （如有前端）
+  src/               ← 所有代码
+  README.md
 ```
 
-## tasks.md Checkpoint 格式
+## memory_save checkpoint 格式
+
+```markdown
+[project-dev] feature=<name>
+project-dir=<用户工程目录绝对路径>
+phase=<当前Phase编号>/<总Phase数>
+status=in-progress|blocked|done
+spec=<工程目录>/openspec/changes/<name>/tasks.md
+last-action: <一句话描述最后完成的操作>
+blocking: <阻塞原因（如有）>
+```
 
 ```markdown
 # Tasks: <feature-name>
@@ -70,15 +84,17 @@ DONE
 
 ## 需求澄清问题模板
 
-Agent 应在首次接收项目请求后，一次性问以下 3-5 个问题（根据已知信息动态选择）：
+Agent 通过**多轮对话**持续澄清，直到用户说"可以开始了"为止。问题按 4 批优先级排列，每轮聚焦一个维度（3-5 个问题），根据用户回答动态追问。
 
-1. **目标用户**：这个系统/功能主要给谁用？（内部工具？用户量级？）
-2. **技术栈**：前端用什么（React/Vue/原生）？后端语言（Python/Node/Rust）？数据库？
-3. **核心功能**：最核心的 3 个功能是什么？其他都可以暂时不做。
-4. **部署环境**：运行在哪里？（本地/云服务器/Docker？Windows/Linux？）
-5. **时间预期**：是快速原型（能跑就行）还是生产就绪（需要完整错误处理和测试）？
+**第一批（首轮必问）**：工程目录路径 / 目标用户 / 核心功能 / MVP 边界
 
-每次最多问 5 个，已经明确的不问。
+**第二批**：技术栈（后端语言 / 前端 / 数据库 / 运行环境）
+
+**第三批**：认证权限 / 外部集成 / 性能要求 / 质量要求
+
+**第四批（复杂系统）**：数据规模 / 已有代码 / 参考系统
+
+规则：**工程目录**首轮必须确认（所有 spec 和代码都写到这里），其他信息可逐轮补充。无问题数量上限。
 
 ## Phase 推进节奏
 
@@ -92,13 +108,8 @@ Agent 应在首次接收项目请求后，一次性问以下 3-5 个问题（根
 ## memory_save 使用时机
 
 以下情况 Agent 应调用 `memory_save`：
-- Spec 生成完成后（保存 spec 路径 + feature 名）
+- Spec 生成完成后（保存工程目录 + spec 路径 + feature 名）
 - 每个 Phase 完成后（保存当前 Phase 编号 + 关键决策）
 - 遇到需要用户决策的阻塞点时（保存阻塞原因）
 
-保存内容格式：
-```
-[project-dev] feature=<name> phase=<n>/total=<total> status=<in-progress|blocked|done>
-spec=<path-to-tasks.md>
-last-action: <一句话描述>
-```
+详见上方 **memory_save checkpoint 格式** 章节。
