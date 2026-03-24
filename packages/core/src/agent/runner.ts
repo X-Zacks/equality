@@ -48,7 +48,7 @@ import { truncateToolResult, LoopDetector, computeArgsHash, computeResultHash } 
 import { getProxyUrl } from '../config/proxy.js'
 import { DefaultContextEngine, trimMessages } from '../context/index.js'
 import { memorySave } from '../memory/index.js'
-import { getSecret } from '../config/secrets.js'
+import { getSecret, hasSecret } from '../config/secrets.js'
 
 // ─── 配置读取工具函数 ─────────────────────────────────────────────────────────
 
@@ -58,6 +58,7 @@ function getAgentConfigNumber(
   min: number,
   max: number,
 ): number {
+  if (!hasSecret(key)) return defaultVal
   const raw = getSecret(key)
   if (!raw) return defaultVal
   const v = parseInt(raw, 10)

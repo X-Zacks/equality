@@ -228,9 +228,12 @@ app.post<{ Body: ChatBody }>('/chat/stream', async (req, reply) => {
     send({ type: 'done', usage: { inputTokens: result.inputTokens, outputTokens: result.outputTokens, totalCny: result.totalCny, toolCallCount: result.toolCallCount } })
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err)
-    if (msg.includes('Secret not configured: GITHUB_TOKEN') || msg.includes('Copilot') && msg.includes('not configured')) {
+    // API Key 相关错误
+    const API_KEY_SECRETS = ['DEEPSEEK_API_KEY', 'QWEN_API_KEY', 'VOLC_API_KEY', 'CUSTOM_API_KEY', 'CUSTOM_BASE_URL', 'MINIMAX_API_KEY']
+    const isApiKeyMissing = API_KEY_SECRETS.some(k => msg.includes(`Secret not configured: ${k}`))
+    if (msg.includes('Secret not configured: GITHUB_TOKEN') || (msg.includes('Copilot') && msg.includes('not configured'))) {
       send({ type: 'error', message: '⚠️ GitHub Copilot 登录已过期，请在设置中重新登录 Copilot。' })
-    } else if (msg.includes('Secret not configured')) {
+    } else if (isApiKeyMissing) {
       send({ type: 'error', message: '请先在设置中配置 API Key' })
     } else if (msg.includes('insufficient balance') || msg.includes('1008')) {
       send({ type: 'error', message: '❌ API 余额不足（错误码 1008）。请前往 platform.minimaxi.com 充值，或更换其他模型。' })
@@ -238,6 +241,10 @@ app.post<{ Body: ChatBody }>('/chat/stream', async (req, reply) => {
       send({ type: 'error', message: '❌ API Key 无效或已过期，请在设置中重新填入正确的 Key。' })
     } else if (msg.includes('rate limit') || msg.includes('429')) {
       send({ type: 'error', message: '❌ 请求过于频繁（限速），请稍等片刻后重试。' })
+    } else if (msg.includes('Secret not configured:')) {
+      // 内部配置项缺失（如 AGENT_MAX_LLM_TURNS），不应暴露给用户，属于程序 bug
+      console.error('[chat/stream] internal config error:', msg)
+      send({ type: 'error', message: `❌ 内部配置错误：${msg}，请反馈给开发者。` })
     } else {
       send({ type: 'error', message: msg })
     }
