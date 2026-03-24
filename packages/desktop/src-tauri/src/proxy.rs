@@ -16,6 +16,7 @@ pub async fn core_health() -> bool {
 #[tauri::command]
 pub async fn chat_stream(app: AppHandle, message: String, session_key: Option<String>, model: Option<String>) -> Result<(), String> {
     let client = reqwest::Client::new();
+    let sk = session_key.clone().unwrap_or_default();
     let mut body = serde_json::json!({
         "message": message,
     });
@@ -41,7 +42,18 @@ pub async fn chat_stream(app: AppHandle, message: String, session_key: Option<St
     let mut buf = String::new();
 
     while let Some(chunk) = stream.next().await {
-        let bytes = chunk.map_err(|e| e.to_string())?;
+        let bytes = match chunk {
+            Ok(b) => b,
+            Err(e) => {
+                // 网络中断时发 error 事件让前端感知，避免 hang 住
+                let _ = app.emit("chat-delta", serde_json::json!({
+                    "type": "error",
+                    "message": format!("网络连接中断: {}", e),
+                    "sessionKey": sk
+                }));
+                break;
+            }
+        };
         buf.push_str(&String::from_utf8_lossy(&bytes));
 
         // 按行处理 SSE

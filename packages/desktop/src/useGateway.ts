@@ -84,17 +84,20 @@ export function useGateway() {
 
       let unlisten: any = null
       let resolvePromise: (() => void) | null = null
+      let timeoutId: ReturnType<typeof setTimeout> | null = null
+
+      // 清理函数：统一释放监听器和超时
+      const cleanup = () => {
+        if (timeoutId) { clearTimeout(timeoutId); timeoutId = null }
+        if (unlisten) { unlisten(); unlisten = null }
+      }
 
       abortMapRef.current.set(sk, () => {
-        if (unlisten) unlisten()
-        unlisten = null
+        cleanup()
         onStreamingChange?.(false)
         abortMapRef.current.delete(sk)
-        // 通知 Core 中止
         invoke('abort_chat', { sessionKey: sk || null }).catch(() => {})
-        // 通知调用方做清理
         onAbort?.()
-        // 释放 Promise
         if (resolvePromise) { resolvePromise(); resolvePromise = null }
       })
 
@@ -102,11 +105,26 @@ export function useGateway() {
         // 用 Promise 等待 done/error 事件，确保所有 delta 都处理完
         await new Promise<void>((resolve, reject) => {
           resolvePromise = resolve
+
+          // 超时兜底：10 分钟无任何事件则强制终止（防止 hang 住）
+          const resetTimeout = () => {
+            if (timeoutId) clearTimeout(timeoutId)
+            timeoutId = setTimeout(() => {
+              console.warn('[sendMessage] timeout: no event received for 10 minutes, force-resolving')
+              cleanup()
+              onStreamingChange?.(false)
+              onError('⏱️ 响应超时（10 分钟无数据），请重试。')
+              resolve()
+            }, 10 * 60 * 1000)
+          }
+
           listen<DeltaEvent>('chat-delta', (event) => {
             try {
               const evt = event.payload
               // 过滤：只处理属于本会话的事件
               if (evt.sessionKey && evt.sessionKey !== sk) return
+              // 收到任何属于本会话的事件，重置超时
+              resetTimeout()
               console.log('[chat-delta]', JSON.stringify(evt))
               if (evt.type === 'delta' && evt.content) {
                 onDelta(evt.content)
@@ -133,12 +151,12 @@ export function useGateway() {
                   status: evt.isError ? 'error' : 'done',
                 })
               } else if (evt.type === 'done') {
-                if (unlisten) { unlisten(); unlisten = null }
+                cleanup()
                 onStreamingChange?.(false)
                 onDone(evt.usage)
                 resolve()
               } else if (evt.type === 'error') {
-                if (unlisten) { unlisten(); unlisten = null }
+                cleanup()
                 onStreamingChange?.(false)
                 onError(evt.message ?? 'Unknown error')
                 resolve()
@@ -146,12 +164,17 @@ export function useGateway() {
             } catch { /* ignore parse error */ }
           }).then(fn => {
             unlisten = fn
-            // 监听器注册好后再发起请求
-            invoke('chat_stream', { message, sessionKey: sessionKey ?? null, model: model ?? null }).catch(reject)
+            // 监听器注册好后启动超时，再发起请求
+            resetTimeout()
+            invoke('chat_stream', { message, sessionKey: sessionKey ?? null, model: model ?? null }).catch(err => {
+              // invoke 本身失败（网络断开等），直接报错
+              cleanup()
+              reject(err)
+            })
           }).catch(reject)
         })
       } catch (err: unknown) {
-        if (unlisten) unlisten()
+        cleanup()
         onStreamingChange?.(false)
         onError(err instanceof Error ? err.message : String(err))
       } finally {
