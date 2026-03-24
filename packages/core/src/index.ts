@@ -228,7 +228,9 @@ app.post<{ Body: ChatBody }>('/chat/stream', async (req, reply) => {
     send({ type: 'done', usage: { inputTokens: result.inputTokens, outputTokens: result.outputTokens, totalCny: result.totalCny, toolCallCount: result.toolCallCount } })
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err)
-    if (msg.includes('Secret not configured')) {
+    if (msg.includes('Secret not configured: GITHUB_TOKEN') || msg.includes('Copilot') && msg.includes('not configured')) {
+      send({ type: 'error', message: '⚠️ GitHub Copilot 登录已过期，请在设置中重新登录 Copilot。' })
+    } else if (msg.includes('Secret not configured')) {
       send({ type: 'error', message: '请先在设置中配置 API Key' })
     } else if (msg.includes('insufficient balance') || msg.includes('1008')) {
       send({ type: 'error', message: '❌ API 余额不足（错误码 1008）。请前往 platform.minimaxi.com 充值，或更换其他模型。' })

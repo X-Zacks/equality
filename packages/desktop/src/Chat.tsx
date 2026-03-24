@@ -12,6 +12,8 @@ interface Message {
   role: 'user' | 'assistant'
   content: string
   toolCalls?: ToolCallEvent[]
+  /** 错误消息关联的操作（如跳转到设置页） */
+  action?: { label: string; target: 'settings' }
 }
 
 /** 从工具参数中提取可读摘要 */
@@ -52,6 +54,7 @@ interface Attachment {
 interface ChatProps {
   sessionKey: string
   onStreamingChange?: (streaming: boolean) => void
+  onOpenSettings?: () => void
 }
 
 const MAX_ATTACHMENTS = 5
@@ -70,7 +73,7 @@ function getFileName(filePath: string): string {
   return filePath.replace(/\\/g, '/').split('/').pop() ?? filePath
 }
 
-export default function Chat({ sessionKey, onStreamingChange }: ChatProps) {
+export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: ChatProps) {
   const [input, setInput] = useState('')
   const [messages, setMessages] = useState<Message[]>([])
   const [streamingText, setStreamingText] = useState('')
@@ -364,7 +367,12 @@ export default function Chat({ sessionKey, onStreamingChange }: ChatProps) {
         // 任务结束：清除快照，下次切回走磁盘历史（保证看到完整持久化数据）
       },
       (err) => {
-        setMessages(prev => [...prev, { role: 'assistant', content: `⚠️ ${err}` }])
+        const isCopilotExpired = err.includes('Copilot') && err.includes('登录已过期')
+        setMessages(prev => [...prev, {
+          role: 'assistant',
+          content: `⚠️ ${err}`,
+          action: isCopilotExpired ? { label: '去设置重新登录', target: 'settings' as const } : undefined,
+        }])
         streamingTextRef.current = ''
         setStreamingText('')
         activeToolCallsRef.current = []
@@ -473,7 +481,12 @@ export default function Chat({ sessionKey, onStreamingChange }: ChatProps) {
         setActiveToolCalls([])
       },
       (err) => {
-        setMessages(prev => [...prev, { role: 'assistant', content: `⚠️ ${err}` }])
+        const isCopilotExpired = err.includes('Copilot') && err.includes('登录已过期')
+        setMessages(prev => [...prev, {
+          role: 'assistant',
+          content: `⚠️ ${err}`,
+          action: isCopilotExpired ? { label: '去设置重新登录', target: 'settings' as const } : undefined,
+        }])
         streamingTextRef.current = ''
         setStreamingText('')
         activeToolCallsRef.current = []
@@ -558,6 +571,14 @@ export default function Chat({ sessionKey, onStreamingChange }: ChatProps) {
             <span className="bubble-content">
               {msg.role === 'assistant' ? <Markdown content={msg.content} /> : msg.content}
             </span>
+            {msg.action && msg.action.target === 'settings' && onOpenSettings && (
+              <button
+                className="msg-action-link"
+                onClick={onOpenSettings}
+              >
+                {msg.action.label} →
+              </button>
+            )}
             {/* 消息操作按钮 */}
             <div className="msg-actions">
               <button

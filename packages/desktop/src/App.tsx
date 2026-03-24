@@ -215,6 +215,7 @@ function App() {
                   <Chat
                     sessionKey={key}
                     onStreamingChange={key === sessionKey ? setCurrentStreaming : undefined}
+                    onOpenSettings={() => setPage('settings')}
                   />
                 </div>
               ))}

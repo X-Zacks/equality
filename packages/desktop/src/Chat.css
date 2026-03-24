@@ -574,6 +574,29 @@
   border-color: rgba(255,255,255,0.2);
 }
 
+/* 错误消息内联跳转按钮（如 Copilot 登录过期 → 去设置） */
+.msg-action-link {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 4px 12px;
+  background: rgba(10, 132, 255, 0.15);
+  border: 1px solid rgba(10, 132, 255, 0.4);
+  border-radius: 6px;
+  color: #0a84ff;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.msg-action-link:hover {
+  background: rgba(10, 132, 255, 0.25);
+  border-color: rgba(10, 132, 255, 0.7);
+}
+.theme-light .msg-action-link {
+  background: rgba(0, 112, 255, 0.08);
+  border-color: rgba(0, 112, 255, 0.35);
+  color: #0057cc;
+}
+
 .theme-light .chat-messages {
   scrollbar-color: rgba(15,23,42,0.18) transparent;
 }

@@ -10,6 +10,9 @@ export type SecretKey =
   | 'BRAVE_SEARCH_API_KEY'
   | 'CHROME_PATH'
   | 'MINIMAX_API_KEY'
+  | 'MODEL_ROUTING' | 'SELECTED_MODEL'
+  | 'BASH_TIMEOUT_MS' | 'BASH_IDLE_TIMEOUT_MS' | 'BASH_MAX_TIMEOUT_MS'
+  | 'AGENT_MAX_TOOL_CALLS' | 'AGENT_MAX_LLM_TURNS'
 
 export interface ConfiguredSecret {
   key: SecretKey
