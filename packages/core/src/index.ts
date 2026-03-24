@@ -1,6 +1,8 @@
 import Fastify from 'fastify'
 import cors from '@fastify/cors'
 import path from 'node:path'
+import os from 'node:os'
+import fs from 'node:fs'
 
 import { DESKTOP_SESSION_KEY } from './session/key.js'
 import { reap, getOrCreate, get } from './session/store.js'
@@ -32,6 +34,20 @@ const VERSION = '0.2.1'
 // 初始化 secrets（从环境变量读取）
 initSecrets()
 
+// 用户工作目录：优先读 WORKSPACE_DIR，否则 fallback 到 ~/Equality/workspace
+function getWorkspaceDir(): string {
+  if (hasSecret('WORKSPACE_DIR')) {
+    const dir = getSecret('WORKSPACE_DIR').trim()
+    if (dir) {
+      try { fs.mkdirSync(dir, { recursive: true }) } catch { /* ignore */ }
+      return dir
+    }
+  }
+  const defaultDir = path.join(os.homedir(), 'Equality', 'workspace')
+  try { fs.mkdirSync(defaultDir, { recursive: true }) } catch { /* ignore */ }
+  return defaultDir
+}
+
 // 初始化代理（从 settings.json 或环境变量读取）
 initProxy(hasSecret('HTTPS_PROXY') ? getSecret('HTTPS_PROXY') : undefined)
 
@@ -44,7 +60,7 @@ console.log(`[equality-core] 已注册 ${toolRegistry.size} 个工具: ${toolReg
 
 // 初始化 Skills 热加载
 const skillsWatcher = new SkillsWatcher({
-  workspaceDir: process.cwd(),
+  workspaceDir: getWorkspaceDir(),
   onChange: (skills, event) => {
     console.log(`[equality-core] Skills 已重载: ${skills.length} 个 (v=${event.version}, reason=${event.reason})`)
   },
@@ -75,8 +91,8 @@ const cronScheduler = new CronScheduler({
       sessionKey,
       userMessage,
       toolRegistry,
-      workspaceDir: process.cwd(),
-      skills: skillsWatcher.getSkills().map(e => e.skill),
+        workspaceDir: getWorkspaceDir(),
+        skills: skillsWatcher.getSkills().map(e => e.skill),
     }))
     return result.text.slice(0, 500)
   },
@@ -212,7 +228,7 @@ app.post<{ Body: ChatBody }>('/chat/stream', async (req, reply) => {
         userMessage: message,
         abortSignal: abort.signal,
         toolRegistry,
-        workspaceDir: process.cwd(),
+        workspaceDir: getWorkspaceDir(),
         skills: skillsWatcher.getSkills().map(e => e.skill),
         activeSkillName,
         allowedTools,

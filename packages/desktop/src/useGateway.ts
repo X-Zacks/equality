@@ -13,6 +13,7 @@ export type SecretKey =
   | 'MODEL_ROUTING' | 'SELECTED_MODEL'
   | 'BASH_TIMEOUT_MS' | 'BASH_IDLE_TIMEOUT_MS' | 'BASH_MAX_TIMEOUT_MS'
   | 'AGENT_MAX_TOOL_CALLS' | 'AGENT_MAX_LLM_TURNS'
+  | 'WORKSPACE_DIR'
 
 export interface ConfiguredSecret {
   key: SecretKey

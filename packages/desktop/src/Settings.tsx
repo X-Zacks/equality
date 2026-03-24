@@ -1236,6 +1236,33 @@ export default function Settings({
           {/* ─── 高级配置条目行 ──────────────────────────────────────── */}
           <div className="advanced-section">
             <div className="advanced-section-title">⚙️ 高级配置</div>
+
+            {/* 工作目录 */}
+            <div className="advanced-item" style={{ marginBottom: 10 }}>
+              <div className="advanced-item-header">
+                <span className="advanced-item-label">📁 工作目录</span>
+                <span className="advanced-item-unit">{getMasked('WORKSPACE_DIR') || '未设置（使用默认）'}</span>
+              </div>
+              <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+                <input
+                  type="text"
+                  className="key-input"
+                  style={{ flex: 1 }}
+                  placeholder="例：C:\Users\你的用户名\Equality\workspace"
+                  value={draft['WORKSPACE_DIR'] ?? ''}
+                  onChange={e => setDraft(p => ({ ...p, WORKSPACE_DIR: e.target.value }))}
+                />
+                <button
+                  className="btn-save"
+                  disabled={!draft['WORKSPACE_DIR']?.trim() || saving['workspaceDir'] === 'saving'}
+                  onClick={() => handleSave('workspaceDir', ['WORKSPACE_DIR'])}
+                >
+                  {saveLabel(saving['workspaceDir'] ?? 'idle')}
+                </button>
+              </div>
+              <p className="advanced-item-desc">Agent 写脚本、临时文件的默认目录。bash 命令也在此目录下执行。留空使用默认路径。</p>
+            </div>
+
             <div className="provider-card" style={{ marginBottom: 6 }}>
               <div className="provider-header" onClick={() => setAdvancedDrawer('performance')} style={{ cursor: 'pointer' }}>
                 <span className="provider-name">⚡ 性能设置</span>

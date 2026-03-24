@@ -36,6 +36,7 @@ const KEY_NAMES = [
   'BRAVE_SEARCH_API_KEY',
   'CHROME_PATH',
   'MINIMAX_API_KEY',
+  'WORKSPACE_DIR',
 ] as const
 export type SecretKey = (typeof KEY_NAMES)[number]
 
