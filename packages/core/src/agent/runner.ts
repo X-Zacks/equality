@@ -44,7 +44,7 @@ import { applyDecorators, buildDecoratorPipeline } from './stream.js'
 import { record, calcCost, formatCostLine } from '../cost/ledger.js'
 import type { LLMProvider, ChatDelta, ToolCallDelta } from '../providers/types.js'
 import type { ToolRegistry, ToolContext, OpenAIToolSchema } from '../tools/index.js'
-import { truncateToolResult, LoopDetector, computeArgsHash, computeResultHash } from '../tools/index.js'
+import { truncateToolResult, calcMaxToolResultChars, LoopDetector, computeArgsHash, computeResultHash } from '../tools/index.js'
 import { getProxyUrl } from '../config/proxy.js'
 import { DefaultContextEngine, trimMessages } from '../context/index.js'
 import { memorySave } from '../memory/index.js'
@@ -355,7 +355,8 @@ export async function runAttempt(params: RunAttemptParams): Promise<RunAttemptRe
                   ? (partial: string) => onToolUpdate({ toolCallId: tc.id, content: partial })
                   : undefined
                 const result = await tool.execute(args, toolCtx, toolOnUpdate)
-                const truncated = truncateToolResult(result.content)
+                const maxResultChars = calcMaxToolResultChars(provider.getCapabilities().contextWindow)
+                const truncated = truncateToolResult(result.content, maxResultChars)
                 resultContent = truncated.content
                 isError = result.isError ?? false
               } catch (err) {

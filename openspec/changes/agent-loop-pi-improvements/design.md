@@ -130,12 +130,18 @@ logToolCall（异步，不等待）
 - 优点：接口清晰
 - 缺点：`ContextEngine` 接口每次扩展都需要修改所有实现
 
-**Option C（选择）**：内置到 `DefaultContextEngine`，基于规则自动裁剪
-- 在 history 消息组装后、compaction 判断前，自动对超大 tool result 裁剪（超过阈值的 tool result 替换为摘要占位）
-- 不需要扩展接口，不影响 `ContextEngine` 抽象
-- 行为：`role: 'tool'` 消息的 `content` 超过 `TOOL_RESULT_TRIM_CHARS`（默认 8000 chars）时，替换为 `[工具结果已裁剪，原始长度 N 字符]`
+**Option C（已实施）**：内置到 `DefaultContextEngine`，全部参数与 OpenClaw 对齐动态计算
 
-> ⚠️ 阶段 C 需要在启动实施前确认：裁剪阈值、是否保留最近 N 轮的完整 tool result（只裁剪老旧的）。**在此之前暂不实施。**
+最终参数（讨论后确认）：
+- 单条 tool result 上限：`contextWindow × 4字/token × 50%`（无固定阈值，随模型变大自动扩容）
+- 全局 context 预算：`contextWindow × 4字/token × 75%`（同 OpenClaw CONTEXT_INPUT_HEADROOM_RATIO）
+- 绝对硬上限：400,000 字（HARD_MAX_TOOL_RESULT_CHARS）
+- 无"最近 N 轮保护"：与 OpenClaw 一致
+- `trimMessages` 的预算也改为动态计算（同全局预算），退化为极端兜底
+
+`truncateToolResult` 同步升级：
+- head+tail 策略：尾部有 error/JSON/summary 时 head 70% + tail 30%
+- 截断提示文案与 OpenClaw 对齐（说明可分段请求）
 
 ---
 

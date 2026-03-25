@@ -34,12 +34,16 @@
 
 ## 阶段 C：transformContext 主动上下文裁剪
 
-> ⚠️ 启动前需讨论：裁剪阈值、是否只裁剪旧轮次的 tool result
+> ✅ 完成（参数与 OpenClaw 对齐）
 
-- [ ] C.1 在 `DefaultContextEngine.assemble()` 中，history 组装后、`compactIfNeeded` 前，插入 tool result 裁剪逻辑
-  - `role: 'tool'` 消息内容超过阈值时替换为摘要占位
-  - 最近 N 轮（待定）的 tool result 不裁剪
-- [ ] C.2 TypeScript 编译零新增错误
+- [x] C.1 `tools/truncation.ts` 重写：动态阈值（`contextWindow × 30% × 4字/token`），绝对上限 400,000 字，head+tail 策略保留尾部重要内容（error/JSON/summary）
+- [x] C.2 `tools/index.ts` 导出 `calcMaxToolResultChars`、`HARD_MAX_TOOL_RESULT_CHARS`、`DEFAULT_MAX_TOOL_RESULT_CHARS`
+- [x] C.3 `runner.ts` 工具执行时调用 `calcMaxToolResultChars(provider.getCapabilities().contextWindow)` 传入动态上限
+- [x] C.4 `DefaultContextEngine.assemble()` 步骤 5 新增 `enforceToolResultBudget()`：
+  - 单条上限：`contextWindow × 4字 × 50%`，超限内容替换为占位（保留消息条目）
+  - 全局预算：`contextWindow × 4字 × 75%`，超限时从最旧 tool result 开始 compact
+  - `trimMessages` 退化为最后兜底，预算也改为动态计算
+- [x] C.5 TypeScript 编译零新增错误
 
 ---
 
