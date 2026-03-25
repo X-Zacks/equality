@@ -6,14 +6,14 @@
 
 ## 阶段 A：工具并行执行
 
-- [ ] A.1 在 `runner.ts` toolLoop 内，将顺序 `for` 循环替换为 `Promise.allSettled` 并发执行
+- [x] A.1 在 `runner.ts` toolLoop 内，将顺序 `for` 循环替换为 `Promise.allSettled` 并发执行
   - 每个工具的执行封装为独立 async 函数（含 args 解析、onToolStart、execute、onToolResult、logToolCall）
   - 返回 `ToolExecResult` 结构体（tc、resultContent、isError、durationMs、args）
-- [ ] A.2 汇总阶段：按原始顺序遍历 `Promise.allSettled` 结果，顺序写入 messages
+- [x] A.2 汇总阶段：按原始顺序遍历 `Promise.allSettled` 结果，顺序写入 messages
   - rejected 的 settled 视为 `isError: true`，resultContent = 错误消息
-- [ ] A.3 汇总阶段：LoopDetector.check() 保持按顺序调用
-- [ ] A.4 汇总阶段：断路器（breakerTriggered）逻辑不变，去掉"为未执行工具补占位"逻辑（并行时不存在未执行工具）
-- [ ] A.5 TypeScript 编译零新增错误
+- [x] A.3 汇总阶段：LoopDetector.check() 保持按顺序调用
+- [x] A.4 汇总阶段：断路器（breakerTriggered）逻辑不变，去掉"为未执行工具补占位"逻辑（并行时不存在未执行工具）
+- [x] A.5 TypeScript 编译零新增错误
 
 ---
 
@@ -21,14 +21,14 @@
 
 > 依赖：阶段 A 完成
 
-- [ ] B.1 扩展 `RunAttemptParams`，加入 `beforeToolCall?` 和 `afterToolCall?` 可选字段
-- [ ] B.2 在各工具的 exec 函数内，`onToolStart` 之前调用 `beforeToolCall`
+- [x] B.1 扩展 `RunAttemptParams`，加入 `beforeToolCall?` 和 `afterToolCall?` 可选字段
+- [x] B.2 在各工具的 exec 函数内，`onToolStart` 之前调用 `beforeToolCall`
   - 返回 `{ block: true, reason }` 时：resultContent = reason，isError = true，跳过 execute
   - 抛出异常时：记录 warn，视为允许执行
-- [ ] B.3 在 `tool.execute()` 完成后、`onToolResult` 之前调用 `afterToolCall`
+- [x] B.3 在 `tool.execute()` 完成后、`onToolResult` 之前调用 `afterToolCall`
   - 返回 `{ result: newContent }` 时：写入 messages 的内容替换为 newContent（onToolResult 仍用原始值）
   - 抛出异常时：记录 warn，使用原始 result
-- [ ] B.4 TypeScript 编译零新增错误
+- [x] B.4 TypeScript 编译零新增错误
 
 ---
 

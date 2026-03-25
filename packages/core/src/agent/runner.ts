@@ -68,6 +68,20 @@ function getAgentConfigNumber(
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+export interface BeforeToolCallInfo {
+  toolCallId: string
+  name: string
+  args: Record<string, unknown>
+}
+
+export interface AfterToolCallInfo {
+  toolCallId: string
+  name: string
+  args: Record<string, unknown>
+  result: string
+  isError: boolean
+}
+
 export interface RunAttemptParams {
   sessionKey: string
   userMessage: string
@@ -92,6 +106,18 @@ export interface RunAttemptParams {
   onToolUpdate?: (info: { toolCallId: string; content: string }) => void
   /** 回调：工具调用完成 */
   onToolResult?: (info: { toolCallId: string; name: string; content: string; isError: boolean }) => void
+  /**
+   * Hook（阶段 B）：工具执行前拦截。
+   * 返回 { block: true, reason } 时跳过工具执行，LLM 收到 isError=true 的结果。
+   * 抛出异常时记录 warn 并继续执行。
+   */
+  beforeToolCall?: (info: BeforeToolCallInfo) => Promise<{ block: true; reason: string } | undefined>
+  /**
+   * Hook（阶段 B）：工具执行后处理。
+   * 返回 { result: newContent } 时替换写入 messages 的内容（onToolResult 仍用原始值）。
+   * 抛出异常时记录 warn 并使用原始结果。
+   */
+  afterToolCall?: (info: AfterToolCallInfo) => Promise<{ result?: string } | undefined>
 }
 
 export interface RunAttemptResult {
@@ -273,89 +299,153 @@ export async function runAttempt(params: RunAttemptParams): Promise<RunAttemptRe
         provider,
       }
 
-      let breakerTriggered = false
-      for (let tci = 0; tci < toolCalls.length; tci++) {
-        const tc = toolCalls[tci]
-        totalToolCalls++
+      // ── 阶段 A：并发执行所有工具调用 ──────────────────────────
+      // 每个工具独立封装为 async 函数，Promise.allSettled 并发启动，保序汇总
+      interface ToolExecResult {
+        tc: AccumulatedToolCall
+        args: Record<string, unknown>
+        resultContent: string
+        resultForMessages: string   // afterToolCall hook 可能替换的版本
+        isError: boolean
+        durationMs: number
+      }
 
-        // 解析参数
-        let args: Record<string, unknown> = {}
-        try {
-          args = tc.arguments ? JSON.parse(tc.arguments) : {}
-        } catch {
-          // JSON 解析失败，传原始字符串
-          args = { _raw: tc.arguments }
-        }
-
-        // 通知：工具开始
-        onToolStart?.({ toolCallId: tc.id, name: tc.name, args })
-
-        // 查找并执行工具
-        let resultContent: string
-        let isError = false
-
-        const tool = params.toolRegistry?.resolve(tc.name)
-        const t0 = Date.now()
-        if (!tool) {
-          resultContent = `Error: 未知工具 "${tc.name}"。可用工具: ${params.toolRegistry?.list().join(', ') ?? '无'}`
-          isError = true
-        } else {
+      const executions = toolCalls.map((tc): Promise<ToolExecResult> =>
+        (async (): Promise<ToolExecResult> => {
+          // 解析参数
+          let args: Record<string, unknown> = {}
           try {
-            const toolOnUpdate = onToolUpdate
-              ? (partial: string) => onToolUpdate({ toolCallId: tc.id, content: partial })
-              : undefined
-            const result = await tool.execute(args, toolCtx, toolOnUpdate)
-            // 截断保护
-            const truncated = truncateToolResult(result.content)
-            resultContent = truncated.content
-            isError = result.isError ?? false
-          } catch (err) {
-            resultContent = `Error executing ${tc.name}: ${(err as Error).message}\n${(err as Error).stack ?? ''}`
-            isError = true
+            args = tc.arguments ? JSON.parse(tc.arguments) : {}
+          } catch {
+            args = { _raw: tc.arguments }
+          }
+
+          let resultContent: string
+          let isError = false
+          const t0 = Date.now()
+
+          // ── 阶段 B：beforeToolCall hook ──────────────────────
+          let blocked = false
+          if (params.beforeToolCall) {
+            try {
+              const decision = await params.beforeToolCall({ toolCallId: tc.id, name: tc.name, args })
+              if (decision?.block) {
+                resultContent = decision.reason
+                isError = true
+                blocked = true
+                console.log(`[runner] 🚫 beforeToolCall blocked "${tc.name}": ${decision.reason}`)
+              }
+            } catch (hookErr) {
+              console.warn(`[runner] beforeToolCall hook error for "${tc.name}":`, hookErr)
+            }
+          }
+
+          // 通知：工具开始（block 的工具也发通知，让 UI 知道有这次调用）
+          onToolStart?.({ toolCallId: tc.id, name: tc.name, args })
+
+          if (!blocked) {
+            // 查找并执行工具
+            const tool = params.toolRegistry?.resolve(tc.name)
+            if (!tool) {
+              resultContent = `Error: 未知工具 "${tc.name}"。可用工具: ${params.toolRegistry?.list().join(', ') ?? '无'}`
+              isError = true
+            } else {
+              try {
+                const toolOnUpdate = onToolUpdate
+                  ? (partial: string) => onToolUpdate({ toolCallId: tc.id, content: partial })
+                  : undefined
+                const result = await tool.execute(args, toolCtx, toolOnUpdate)
+                const truncated = truncateToolResult(result.content)
+                resultContent = truncated.content
+                isError = result.isError ?? false
+              } catch (err) {
+                resultContent = `Error executing ${tc.name}: ${(err as Error).message}\n${(err as Error).stack ?? ''}`
+                isError = true
+              }
+            }
+          }
+
+          const durationMs = Date.now() - t0
+
+          // 持久化日志（异步，不阻塞）
+          logToolCall(tc.name, args, resultContent!, isError, durationMs).catch(() => {})
+
+          // 通知：工具完成（使用原始结果）
+          onToolResult?.({ toolCallId: tc.id, name: tc.name, content: resultContent!, isError })
+
+          // ── 阶段 B：afterToolCall hook ───────────────────────
+          let resultForMessages = resultContent!
+          if (params.afterToolCall) {
+            try {
+              const post = await params.afterToolCall({
+                toolCallId: tc.id, name: tc.name, args,
+                result: resultContent!, isError,
+              })
+              if (post?.result !== undefined) {
+                resultForMessages = post.result
+              }
+            } catch (hookErr) {
+              console.warn(`[runner] afterToolCall hook error for "${tc.name}":`, hookErr)
+            }
+          }
+
+          return { tc, args, resultContent: resultContent!, resultForMessages, isError, durationMs }
+        })()
+      )
+
+      // 并发等待所有工具，rejected 视为 isError（不因单个工具失败丢弃其他结果）
+      const settled = await Promise.allSettled(executions)
+
+      // ── 汇总阶段：按原始顺序写入 messages + LoopDetector ─────
+      let breakerTriggered = false
+      for (const settledItem of settled) {
+        let execResult: ToolExecResult
+        if (settledItem.status === 'fulfilled') {
+          execResult = settledItem.value
+        } else {
+          // Promise 本身 reject（极少见，通常是 async 函数外部逻辑错误）
+          const tc = toolCalls[settled.indexOf(settledItem)]
+          execResult = {
+            tc,
+            args: {},
+            resultContent: `Error: 工具执行异常 — ${String(settledItem.reason)}`,
+            resultForMessages: `Error: 工具执行异常 — ${String(settledItem.reason)}`,
+            isError: true,
+            durationMs: 0,
           }
         }
-        // 持久化日志（异步，不阻塞主流程）
-        logToolCall(tc.name, args, resultContent, isError, Date.now() - t0).catch(() => {})
 
-        // 通知：工具完成
-        onToolResult?.({ toolCallId: tc.id, name: tc.name, content: resultContent, isError })
+        const { tc, args, resultForMessages, isError } = execResult
+        totalToolCalls++
 
         // 将工具结果注入消息列表（给下一轮 LLM）
         messages.push({
           role: 'tool',
           tool_call_id: tc.id,
-          content: resultContent,
+          content: resultForMessages,
         })
 
-        // 提前持久化：确保用户切换会话再切回来时 loadHistory 能看到已完成的工具调用
-        // persist() 是覆盖写，与 afterTurn() 最终写入幂等，不会产生重复消息
+        // 提前持久化（覆盖写，幂等）
         await persist(session)
 
         // ── 循环检测（Phase 6）──────────────────────────────────
         const argsHash = computeArgsHash(tc.name, args)
-        const resultHash = computeResultHash(resultContent)
+        const resultHash = computeResultHash(resultForMessages)
         const verdict = loopDetector.check(tc.name, argsHash, resultHash)
 
         if (verdict.action === 'warn') {
           console.warn(`[runner] ⚠️ [${verdict.detector}] ${verdict.message}`)
         }
 
-        if (verdict.action === 'terminate') {
+        if (verdict.action === 'terminate' && !breakerTriggered) {
           console.warn(`[runner] 🛑 [${verdict.detector}] ${verdict.message}`)
-          // 给剩余未执行的 tool_call 补上占位 result（API 要求每个 tool_call 都有对应 result）
-          for (let j = tci + 1; j < toolCalls.length; j++) {
-            messages.push({
-              role: 'tool',
-              tool_call_id: toolCalls[j].id,
-              content: '⚠️ 已跳过：检测到工具调用循环',
-            })
-          }
+          // 并行模式下所有工具已执行完，无需补占位；直接注入用户提示让 LLM 总结
           messages.push({
             role: 'user',
             content: `⚠️ ${verdict.message} 请根据已有的工具结果直接给出最终回答，不要再调用任何工具。`,
           })
           breakerTriggered = true
-          break
+          // 不 break——继续让其余工具结果也写入 messages（保持 tool_call / tool_result 配对完整）
         }
       }
 
