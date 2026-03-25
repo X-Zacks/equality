@@ -49,15 +49,17 @@
 
 ## 阶段 D：Steering 消息
 
-> ⚠️ 启动前需与阶段 A 完成后讨论时序问题
+> ✅ 完成
 
-- [ ] D.1 扩展 `RunAttemptParams`，加入 `steeringQueue?: string[]` 可选字段
-- [ ] D.2 在 `runner.ts` toolLoop 中，每轮工具全部执行完后（汇总阶段结束后），检查 `steeringQueue`
+- [x] D.1 扩展 `RunAttemptParams`，加入 `steeringQueue?: string[]` 可选字段
+- [x] D.2 在 `runner.ts` toolLoop 中，每轮工具全部执行完后（汇总阶段结束后），检查 `steeringQueue`
   - 有消息时：shift() 取出，push 到 messages（role: user），发出 onDelta 提示
-- [ ] D.3 在 `index.ts` 中创建 `steeringQueues: Map<string, string[]>`
-- [ ] D.4 `runAttempt` 调用时，将对应 session 的 queue 引用通过 `steeringQueue` 参数传入
-- [ ] D.5 新增 HTTP 端点 `POST /chat/steer`
+- [x] D.3 在 `index.ts` 中创建 `steeringQueues: Map<string, string[]>`，注释说明生命周期
+- [x] D.4 `runAttempt` 调用时，复用或新建对应 session 的 queue，通过 `steeringQueue` 传入引用
+- [x] D.5 `finally` 块中 `steeringQueues.delete(sessionKey)`，避免队列泄漏
+- [x] D.6 新增 HTTP 端点 `POST /chat/steer`
   - body: `{ sessionKey?: string, message: string }`
-  - response: `{ ok: boolean, queued: boolean }`
-  - 仅当 session 当前在 `activeAborts` 中时写入 queue（queued: true），否则丢弃（queued: false）
-- [ ] D.6 TypeScript 编译零新增错误
+  - response: `{ ok: boolean, queued: boolean, reason?: string }`
+  - 仅当 session 在 `activeAborts` 中（正在运行）且 steeringQueues 中有对应队列时入队（queued: true）
+  - 否则返回 queued: false + reason，提示改用 `/chat/stream`
+- [x] D.7 TypeScript 编译零新增错误

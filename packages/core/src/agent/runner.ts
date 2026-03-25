@@ -118,6 +118,12 @@ export interface RunAttemptParams {
    * 抛出异常时记录 warn 并使用原始结果。
    */
   afterToolCall?: (info: AfterToolCallInfo) => Promise<{ result?: string } | undefined>
+  /**
+   * Steering 队列引用（阶段 D）。
+   * 由 index.ts 创建并传入，每轮工具执行完后 shift() 取出消息注入到对话中。
+   * 不需要持久化，是纯运行时状态。
+   */
+  steeringQueue?: string[]
 }
 
 export interface RunAttemptResult {
@@ -462,6 +468,16 @@ export async function runAttempt(params: RunAttemptParams): Promise<RunAttemptRe
           }
         }
         break toolLoop
+      }
+
+      // ── 阶段 D：Steering 消息注入 ────────────────────────────
+      // 在当前轮工具全部执行完、下一次 LLM 调用前检查队列。
+      // shift() 每次只取一条：让 LLM 先响应后再消费下一条（保证有序）。
+      if (params.steeringQueue && params.steeringQueue.length > 0) {
+        const steeredMsg = params.steeringQueue.shift()!
+        console.log(`[runner] 🎯 Steering 注入: "${steeredMsg.slice(0, 60)}"`)
+        messages.push({ role: 'user', content: `[用户中途调整] ${steeredMsg}` })
+        onDelta?.(`\n\n📍 _用户调整了方向：${steeredMsg}_\n\n`)
       }
 
       // 继续循环：带工具结果的消息再次调 LLM

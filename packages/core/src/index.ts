@@ -170,6 +170,11 @@ app.post('/test/notify', async (req, reply) => {
 /** sessionKey → 当前活跃请求的 AbortController（借鉴 OpenClaw chat-abort.ts） */
 const activeAborts = new Map<string, AbortController>()
 
+/** sessionKey → 当前运行中的 Steering 消息队列（阶段 D）
+ *  生命周期与 runAttempt 相同，不持久化。
+ *  写入不走 SessionQueue（中途注入语义），直接由 runner 内部消费。 */
+const steeringQueues = new Map<string, string[]>()
+
 // ─── Chat Stream ──────────────────────────────────────────────────────────────
 interface ChatBody {
   message: string
@@ -223,6 +228,10 @@ app.post<{ Body: ChatBody }>('/chat/stream', async (req, reply) => {
         ? toolMatch[1].split(',').map(t => t.replace(/^#/, '').trim()).filter(Boolean)
         : undefined
 
+      // 为本次 run 准备 steering queue（复用或新建）
+      if (!steeringQueues.has(sessionKey)) steeringQueues.set(sessionKey, [])
+      const steeringQueue = steeringQueues.get(sessionKey)!
+
       return runAttempt({
         sessionKey,
         userMessage: message,
@@ -232,6 +241,7 @@ app.post<{ Body: ChatBody }>('/chat/stream', async (req, reply) => {
         skills: skillsWatcher.getSkills().map(e => e.skill),
         activeSkillName,
         allowedTools,
+        steeringQueue,
         ...(provider ? { provider } : {}),
         onDelta: (chunk) => send({ type: 'delta', content: chunk }),
         onToolStart: (info) => send({ type: 'tool_start', name: info.name, args: info.args, toolCallId: info.toolCallId }),
@@ -266,6 +276,7 @@ app.post<{ Body: ChatBody }>('/chat/stream', async (req, reply) => {
     }
   } finally {
     activeAborts.delete(sessionKey)
+    steeringQueues.delete(sessionKey)
     reply.raw.end()
 
     // 后台异步生成会话标题（不阻塞响应）
@@ -291,6 +302,30 @@ app.post<{ Body: { sessionKey?: string } }>('/chat/abort', async (req, reply) =>
     return reply.send({ ok: true, aborted: true })
   }
   return reply.send({ ok: true, aborted: false })
+})
+
+// ─── Chat Steer（阶段 D：运行中注入用户指令）──────────────────────────────────
+app.post<{ Body: { sessionKey?: string; message: string } }>('/chat/steer', async (req, reply) => {
+  const { sessionKey: rawKey, message } = req.body ?? {}
+  const sessionKey = rawKey || DESKTOP_SESSION_KEY
+
+  if (!message?.trim()) {
+    return reply.status(400).send({ ok: false, reason: 'message is required' })
+  }
+
+  // 仅当 session 当前在 activeAborts 中（正在运行）时才入队
+  if (!activeAborts.has(sessionKey)) {
+    return reply.send({ ok: true, queued: false, reason: 'session is idle, use /chat/stream instead' })
+  }
+
+  const queue = steeringQueues.get(sessionKey)
+  if (!queue) {
+    return reply.send({ ok: true, queued: false, reason: 'no active steering queue' })
+  }
+
+  queue.push(message.trim())
+  console.log(`[chat/steer] 📥 sessionKey=${sessionKey}, queued="${message.slice(0, 60)}", queueLen=${queue.length}`)
+  return reply.send({ ok: true, queued: true })
 })
 
 // ─── Session 主动持久化（暂停时调用，确保工具结果不因进程重启丢失）─────────────
