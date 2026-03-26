@@ -146,6 +146,61 @@ interface AccumulatedToolCall {
   arguments: string
 }
 
+const MUTATING_TOOL_NAMES = new Set([
+  'write_file',
+  'bash',
+  'apply_patch',
+  'delete_file',
+  'move_file',
+  'rename_file',
+])
+
+function containsExecutionSuccessClaim(text: string): boolean {
+  const patterns = [
+    /(已|已经|现已|成功).{0,8}(修改|更新|写入|创建|删除|保存|重命名|执行)/,
+    /我(已|已经|刚刚|成功).{0,12}(修改|更新|写入|创建|删除|保存|重命名|执行)/,
+    /这次真正.{0,4}(修改|更新|写入|创建|删除)/,
+    /I\s+(have|already|just)\s+(modified|updated|written|created|deleted|saved|executed)/i,
+  ]
+  return patterns.some(p => p.test(text))
+}
+
+function containsFileMutationClaim(text: string): boolean {
+  const patterns = [
+    /(文件|代码|脚本|配置|内容).{0,12}(已|已经|现已|成功).{0,8}(修改|更新|写入|创建|删除|保存|重命名)/,
+    /(已|已经|现已|成功).{0,8}(修改|更新|写入|创建|删除|保存|重命名).{0,20}(文件|代码|脚本|配置)/,
+    /(已更新|已修改|已写入).{0,40}(\.ts|\.tsx|\.js|\.jsx|\.json|\.md|\.py|\.rs|\.yaml|\.yml)/,
+    /I\s+(have|already|just)\s+(modified|updated|written|created|deleted|saved).{0,40}(file|code|script|config)/i,
+  ]
+  return patterns.some(p => p.test(text))
+}
+
+function guardUnsupportedSuccessClaims(text: string, executedToolNames: Set<string>): string {
+  const trimmed = text.trim()
+  if (!trimmed) return text
+
+  const toolNames = [...executedToolNames]
+  const hasMutatingTool = toolNames.some(name => MUTATING_TOOL_NAMES.has(name))
+
+  if (toolNames.length === 0 && containsExecutionSuccessClaim(trimmed)) {
+    return [
+      '⚠️ 我还没有实际调用任何工具执行修改或命令。',
+      '上面的内容只是计划或推测，并非真实执行结果。',
+      '如果你要我真正修改，请继续让我使用工具操作。',
+    ].join('\n')
+  }
+
+  if (!hasMutatingTool && containsFileMutationClaim(trimmed)) {
+    return [
+      '⚠️ 我本轮没有实际调用可写入的工具，因此并未真正修改文件。',
+      `本轮实际使用的工具：${toolNames.join(', ') || '无'}。`,
+      '上面的“已修改/已更新”描述不成立；如果需要我真正改动，请继续让我执行工具。',
+    ].join('\n')
+  }
+
+  return text
+}
+
 // ─── Runner ───────────────────────────────────────────────────────────────────
 
 export async function runAttempt(params: RunAttemptParams): Promise<RunAttemptResult> {
@@ -217,6 +272,7 @@ export async function runAttempt(params: RunAttemptParams): Promise<RunAttemptRe
   let totalOutputTokens = 0
   let loopCount = 0
   const loopDetector = new LoopDetector(maxToolCalls)
+  const executedToolNames = new Set<string>()
 
   // Stream Decorator 管道（Phase 9）
   const decorators = buildDecoratorPipeline(provider)
@@ -424,6 +480,7 @@ export async function runAttempt(params: RunAttemptParams): Promise<RunAttemptRe
 
         const { tc, args, resultForMessages, isError } = execResult
         totalToolCalls++
+        executedToolNames.add(tc.name)
 
         // 将工具结果注入消息列表（给下一轮 LLM）
         messages.push({
@@ -509,6 +566,12 @@ export async function runAttempt(params: RunAttemptParams): Promise<RunAttemptRe
   })
 
   const costLine = formatCostLine(entry)
+
+  const guardedText = guardUnsupportedSuccessClaims(fullText, executedToolNames)
+  if (guardedText !== fullText) {
+    console.warn(`[runner] ⚠️ 命中执行证据 Guard: tools=${[...executedToolNames].join(',') || 'none'}`)
+    fullText = guardedText
+  }
 
   // 10. Context Engine: afterTurn（追加 assistant 回复 + costLine 持久化）
   await contextEngine.afterTurn({ sessionKey, assistantMessage: fullText, costLine })
