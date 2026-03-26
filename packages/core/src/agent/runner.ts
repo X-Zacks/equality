@@ -175,12 +175,33 @@ function containsFileMutationClaim(text: string): boolean {
   return patterns.some(p => p.test(text))
 }
 
+function containsBashExecutionClaim(text: string): boolean {
+  const patterns = [
+    /(真正执行了|已执行|执行完成|运行完成|命令已执行|终端执行完成)/,
+    /(执行结果|运行结果|抓取结果|数据库验证|验证结果|命令输出)/,
+    /✅\s*(真正执行了|执行成功|已执行)/,
+    /I\s+(have|already|just)\s+(executed|ran)\s+(the command|bash|shell)/i,
+  ]
+  return patterns.some(p => p.test(text))
+}
+
+function containsShellCommandTranscript(text: string): boolean {
+  const normalized = text.replace(/\r\n/g, '\n')
+  const commandLinePatterns = [
+    /(^|\n)\s*(cd|chdir)\s+[A-Za-z]:\\[^\n]+/i,
+    /(^|\n)\s*(node|npm|pnpm|yarn|python|python3|pip|git|cargo|rustc|powershell|cmd)\b[^\n]*/i,
+    /```(?:bash|sh|shell|powershell|cmd)?[\s\S]*?(cd\s+[A-Za-z]:\\|node\s+|npm\s+|pnpm\s+|python\s+)[\s\S]*?```/i,
+  ]
+  return commandLinePatterns.some(p => p.test(normalized))
+}
+
 function guardUnsupportedSuccessClaims(text: string, executedToolNames: Set<string>): string {
   const trimmed = text.trim()
   if (!trimmed) return text
 
   const toolNames = [...executedToolNames]
   const hasMutatingTool = toolNames.some(name => MUTATING_TOOL_NAMES.has(name))
+  const hasBashTool = toolNames.includes('bash')
 
   if (toolNames.length === 0 && containsExecutionSuccessClaim(trimmed)) {
     return [
@@ -195,6 +216,15 @@ function guardUnsupportedSuccessClaims(text: string, executedToolNames: Set<stri
       '⚠️ 我本轮没有实际调用可写入的工具，因此并未真正修改文件。',
       `本轮实际使用的工具：${toolNames.join(', ') || '无'}。`,
       '上面的“已修改/已更新”描述不成立；如果需要我真正改动，请继续让我执行工具。',
+    ].join('\n')
+  }
+
+  if (!hasBashTool && containsBashExecutionClaim(trimmed) && containsShellCommandTranscript(trimmed)) {
+    return [
+      '⚠️ 我本轮没有实际调用 bash 工具执行命令。',
+      `本轮实际使用的工具：${toolNames.join(', ') || '无'}。`,
+      '上面的命令片段和执行结果只是模型描述，不是真实终端输出。',
+      '如果你要我真正运行这些命令，请继续让我调用 bash。',
     ].join('\n')
   }
 

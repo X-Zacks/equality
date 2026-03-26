@@ -32,7 +32,11 @@ export function buildSystemPrompt(options?: SystemPromptOptions): string {
 执行证据规则：
 - 没有收到真实的 tool_result 之前，不得宣称“已经修改/已经写入/已经创建/已经删除/已经执行命令”。
 - 如果本轮只是计划、建议或准备执行，必须说“我准备…”“我将…”“建议这样做…”，不能说“我已经…”。
-- 没有写能力工具（如 write_file、bash）实际执行证据时，不得宣称文件已修改。`
+- 没有写能力工具（如 write_file、bash）实际执行证据时，不得宣称文件已修改。
+- 没有收到 bash 的真实 tool_result 前，不得输出伪造的终端回执、命令执行记录、抓取结果或数据库验证结果；像 \
+  \
+  cd C:\\path\\to\\project\n+  node script.js\n+  \
+  这样的内容只有在 bash 真正执行后才能展示。`
 
   // ─── 用户指定 Skill（@ 触发，高优先级）──────────────────────────────────
   if (options?.activeSkill) {

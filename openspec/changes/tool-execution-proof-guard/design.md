@@ -51,6 +51,21 @@ Prompt 只能降低幻觉概率，不能单独作为可靠性保证。
 上面的“已修改/已更新”描述不成立；如果需要我真正改动，请继续让我执行工具。
 ```
 
+#### 校验规则 C：未调用 bash 却输出命令执行回执
+
+若：
+- `executedToolNames` 中不包含 `bash`
+- 最终文本包含“真正执行了”“执行结果”“抓取结果”“数据库验证”等执行完成语义
+- 且同时包含看起来像终端执行片段的命令（如 `cd ...`、`node ...`、`npm ...`、`pnpm ...`、`python ...`）
+
+则将最终文本改写为：
+
+```text
+⚠️ 我本轮没有实际调用 bash 工具执行命令。
+上面的命令片段和执行结果只是模型描述，不是真实终端输出。
+如果你要我真正运行这些命令，请继续让我调用 bash。
+```
+
 ### 3. 写能力工具集合
 
 初版按静态集合判断：
@@ -83,6 +98,8 @@ const MUTATING_TOOLS = new Set([
 新增辅助函数：
 - `containsExecutionSuccessClaim(text)`
 - `containsFileMutationClaim(text)`
+- `containsBashExecutionClaim(text)`
+- `containsShellCommandTranscript(text)`
 - `guardUnsupportedSuccessClaims(text, executedToolNames)`
 
 并在 `runAttempt()` 中：
@@ -108,3 +125,17 @@ const MUTATING_TOOLS = new Set([
 - 不是做完美的文件系统变更审计
 
 后续可再升级为真正的“变更证明链”。
+
+### 风险 3：命令示例被误判为“已执行”
+
+例如模型在回答中只是建议用户运行：
+
+```text
+你可以执行：
+cd project
+node script.js
+```
+
+应对：
+- 仅当“终端命令片段”与“已执行/执行结果/验证结果/真正执行了”等完成态语义同时出现时才触发
+- 纯建议语气（“你可以执行”“建议运行”）不拦截
