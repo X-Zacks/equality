@@ -66,6 +66,29 @@ Prompt 只能降低幻觉概率，不能单独作为可靠性保证。
 如果你要我真正运行这些命令，请继续让我调用 bash。
 ```
 
+#### 校验规则 D：自动纠偏重试（一次）
+
+若：
+- 本轮 `toolCalls.length === 0`
+- 当前请求启用了工具（`hasTools === true`）
+- 模型文本命中“伪执行回执 / 命令片段 / 明显工具执行意图”
+- 本次运行尚未做过自动纠偏
+
+则框架不立即接受该文本为最终答案，而是：
+
+1. 将该 assistant 文本回填到上下文
+2. 自动追加一条 user 纠偏消息：
+
+```text
+你还没有实际调用任何工具。
+如果需要执行命令，必须调用 bash；如果需要读写文件，必须调用对应工具。
+不要再描述计划，直接执行。
+```
+
+3. 再继续一轮 `toolLoop`
+
+这是一次性重试，避免无限循环。
+
 ### 3. 写能力工具集合
 
 初版按静态集合判断：
@@ -100,6 +123,7 @@ const MUTATING_TOOLS = new Set([
 - `containsFileMutationClaim(text)`
 - `containsBashExecutionClaim(text)`
 - `containsShellCommandTranscript(text)`
+- `shouldForceToolRetry(text, hasTools, alreadyRetried)`
 - `guardUnsupportedSuccessClaims(text, executedToolNames)`
 
 并在 `runAttempt()` 中：
@@ -139,3 +163,10 @@ node script.js
 应对：
 - 仅当“终端命令片段”与“已执行/执行结果/验证结果/真正执行了”等完成态语义同时出现时才触发
 - 纯建议语气（“你可以执行”“建议运行”）不拦截
+
+### 风险 4：自动重试导致额外 token 开销
+
+这是有意的兜底成本：
+- 只在“应该调工具却没调”的场景触发
+- 每次运行最多触发一次
+- 相比“明明没执行却谎称执行成功”，多一次重试的成本可接受

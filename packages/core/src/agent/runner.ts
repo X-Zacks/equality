@@ -195,6 +195,26 @@ function containsShellCommandTranscript(text: string): boolean {
   return commandLinePatterns.some(p => p.test(normalized))
 }
 
+function containsToolExecutionIntent(text: string): boolean {
+  const patterns = [
+    /(调用|使用).{0,6}(bash|read_file|write_file|工具)/,
+    /(让我|我将|我需要).{0,10}(用|调用).{0,6}(bash|工具)/,
+    /(直接执行|开始执行|真正执行)/,
+    /must\s+use\s+(bash|tools?)|call\s+(bash|tool)/i,
+  ]
+  return patterns.some(p => p.test(text))
+}
+
+function shouldForceToolRetry(text: string, hasTools: boolean, alreadyRetried: boolean): boolean {
+  if (!hasTools || alreadyRetried) return false
+  const trimmed = text.trim()
+  if (!trimmed) return false
+  return (
+    (containsBashExecutionClaim(trimmed) && containsShellCommandTranscript(trimmed)) ||
+    containsToolExecutionIntent(trimmed)
+  )
+}
+
 function guardUnsupportedSuccessClaims(text: string, executedToolNames: Set<string>): string {
   const trimmed = text.trim()
   if (!trimmed) return text
@@ -303,6 +323,7 @@ export async function runAttempt(params: RunAttemptParams): Promise<RunAttemptRe
   let loopCount = 0
   const loopDetector = new LoopDetector(maxToolCalls)
   const executedToolNames = new Set<string>()
+  let forcedToolRetryUsed = false
 
   // Stream Decorator 管道（Phase 9）
   const decorators = buildDecoratorPipeline(provider)
@@ -366,6 +387,18 @@ export async function runAttempt(params: RunAttemptParams): Promise<RunAttemptRe
       const toolCalls = [...accumulatedToolCalls.values()].filter(tc => tc.name)
 
       if (toolCalls.length === 0 || finishReason === 'stop') {
+        if (toolCalls.length === 0 && shouldForceToolRetry(currentText, !!hasTools, forcedToolRetryUsed)) {
+          forcedToolRetryUsed = true
+          console.warn('[runner] ⚠️ 检测到模型未调用工具却输出伪执行文本，自动追加一次纠偏重试')
+          onDelta?.('\n\n⚠️ 检测到模型尚未真正调用工具，正在强制改为工具执行…\n\n')
+          messages.push({ role: 'assistant', content: currentText || null })
+          messages.push({
+            role: 'user',
+            content: '你还没有实际调用任何工具。如果需要执行命令，必须调用 bash；如果需要读写文件，必须调用对应工具。不要再描述计划，直接执行。',
+          })
+          continue toolLoop
+        }
+
         // 纯文本回复，结束 loop
         fullText = currentText
         break toolLoop
