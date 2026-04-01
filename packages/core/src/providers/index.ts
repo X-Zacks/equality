@@ -66,6 +66,9 @@ export function createMiniMaxProvider(model = 'MiniMax-M2.5'): LLMProvider {
     baseURL: 'https://api.minimaxi.com/v1',
     capabilities: {
       contextWindow: 1_000_000,
+      // MiniMax-M2.7 通过 OpenAI 兼容接口的 function calling 支持不稳定：
+      // 部分场景下模型会把工具调用意图写进文本而非真正触发 tool_calls 协议。
+      // 建议文件修改等 agent 任务改用 GPT-4o / Claude。
       supportsToolCalling: true,
       // MiniMax 的 OpenAI 兼容接口明确不支持图像输入（官方文档注意事项第3条），
       // 所有 MiniMax 模型（包括 M2.7）通过此接口均无法处理图片。
