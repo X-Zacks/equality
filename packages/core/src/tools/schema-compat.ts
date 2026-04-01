@@ -22,17 +22,30 @@ interface JSONSchema {
   [key: string]: any
 }
 
-/** Provider ID 到 Family 的映射 */
+/** Provider ID 到 Family 的映射
+ *  包含本项目实际注册的 providerId（deepseek/qwen/volc/minimax/copilot/custom）
+ *  以及未来可能接入的 providerId
+ */
 const PROVIDER_FAMILY_MAP: Record<string, ProviderFamily> = {
+  // ─ Gemini 家族 ─
   'google-gemini': 'gemini',
   'gemini': 'gemini',
+  // ─ xAI 家族 ─
   'xai': 'xai',
   'x-ai': 'xai',
+  // ─ Standard（OpenAI 兼容）家族 ─
   'openai': 'standard',
   'openai-azure': 'standard',
   'anthropic': 'standard',
   'cohere': 'standard',
   'perplexity': 'standard',
+  // ─ 本项目已注册 provider ─
+  'deepseek': 'standard',
+  'qwen': 'standard',
+  'volc': 'standard',
+  'minimax': 'standard',
+  'copilot': 'standard',
+  'custom': 'standard',
 }
 
 // ─── Public API ────────────────────────────────────────────────────────────

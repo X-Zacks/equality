@@ -258,61 +258,48 @@ function guardUnsupportedSuccessClaims(text: string, executedToolNames: Set<stri
  * 仅对 bash 工具触发。
  */
 function isCompileOrTestError(toolName: string, content: string): boolean {
-  // 仅对 bash 工具检测
+  // 仅对 bash 工具的 isError 输出检测
   if (toolName !== 'bash') return false
 
-  const text = content.toLowerCase()
-
-  // TypeScript 编译错误
+  // TypeScript / JavaScript 编译错误（tsc、esbuild、swc 等）
   const tsPatterns = [
-    /error\s+ts\d+:/i,
-    /unable to find .* file '.*\.(ts|tsx)'/i,
-    /^(src|packages)\/.*\.ts\(\d+,\d+\):/m,
+    /error\s+TS\d+:/,                     // tsc: error TS2345:
+    /\.tsx?\(\d+,\d+\):\s*error/,          // src/foo.ts(10,5): error
+    /SyntaxError: Unexpected token/i,     // Node.js 解析失败
+    /Cannot find module '.*'/i,           // require / import 解析失败
+    /Module not found/i,                  // webpack / vite
   ]
 
-  // Python 编译/语法错误
+  // Python 编译期 / 导入错误（不包含运行时 TypeError 等）
   const pyPatterns = [
-    /syntaxerror:/i,
-    /^  file .*, line \d+/m,
-    /from.*import.*error/i,
-    /traceback \(most recent call last\):/i,
-    /modulenotfounderror:/i,
-    /importerror:/i,
+    /SyntaxError:/,                       // Python 语法错误
+    /IndentationError:/,                  // Python 缩进错误
+    /ModuleNotFoundError:/,               // import 找不到模块
+    /ImportError:/,                       // import 失败
   ]
 
   // Rust 编译错误
   const rsPatterns = [
-    /^error\[e\d+\]:/m,
+    /^error\[E\d+\]:/m,                   // error[E0308]:
     /error: could not compile/i,
-    /error: failed to run custom build command/i,
   ]
 
   // Go 编译错误
   const goPatterns = [
-    /^.*\.go:\d+:\d+: (undefined|cannot|error)/m,
-    /fatal error: cannot find.*\.h/i,
+    /^.*\.go:\d+:\d+:.*(?:undefined|cannot|expected)/m,
   ]
 
-  // Node.js 错误
-  const nodePatterns = [
-    /error: (module not found|cannot find module)/i,
-    /syntaxerror: unexpected token/i,
-    /typeerror:/i,
-    /referenceerror:/i,
-  ]
-
-  // 测试框架失败
+  // 测试框架失败（仅匹配明确的失败汇总行）
   const testPatterns = [
-    /\d+ (passing|passing,)/i,
-    /\d+ failing/i,
-    /test (suite|failed|passed)/i,
-    /assertion (failed|error)/i,
-    /expected .* but got/i,
-    /✖ (failed|failed test)/i,
+    /\d+ failing/i,                       // mocha / jest 汇总
+    /FAIL\s+.*\.test\./i,                 // jest FAIL src/foo.test.ts
+    /Tests:\s+\d+ failed/i,               // jest Tests: 2 failed
+    /FAILED\s+.*\.rs/i,                   // cargo test FAILED
+    /pytest.*\d+ failed/i,               // pytest 汇总
   ]
 
-  const allPatterns = [...tsPatterns, ...pyPatterns, ...rsPatterns, ...goPatterns, ...nodePatterns, ...testPatterns]
-  return allPatterns.some(p => p.test(text))
+  const allPatterns = [...tsPatterns, ...pyPatterns, ...rsPatterns, ...goPatterns, ...testPatterns]
+  return allPatterns.some(p => p.test(content))
 }
 
 /**
@@ -321,35 +308,36 @@ function isCompileOrTestError(toolName: string, content: string): boolean {
  */
 function extractCompileErrors(content: string, maxChars: number = 2000): string {
   const lines = content.split('\n')
-  const errorLines: string[] = []
 
-  // 第一遍：标记错误行
+  // 第一遍：标记匹配错误模式的行号
   const errorLineIndices = new Set<number>()
+  const errorPattern = /^error|^fatal|\berror\[E\d|error\s+TS\d|SyntaxError|IndentationError|ModuleNotFoundError|ImportError|FAIL\s|Tests:.*failed|failing/i
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].toLowerCase()
-    if (
-      /^error|^fatal|failed|^exception|^\s*at\s+|traceback|syntaxerror|typeerror|referenceerror/.test(line) ||
-      /^\s*\d+\s*\|/.test(lines[i]) // 行号标记的错误行
-    ) {
+    if (errorPattern.test(lines[i])) {
       errorLineIndices.add(i)
     }
   }
 
-  // 第二遍：收集错误行及其上下文（前后各1行）
+  // 第二遍：展开上下文（前后各1行），用 Set 去重
+  const selectedLines = new Set<number>()
   for (const idx of errorLineIndices) {
-    if (idx > 0) errorLines.push(lines[idx - 1])
-    errorLines.push(lines[idx])
-    if (idx < lines.length - 1) errorLines.push(lines[idx + 1])
+    if (idx > 0) selectedLines.add(idx - 1)
+    selectedLines.add(idx)
+    if (idx < lines.length - 1) selectedLines.add(idx + 1)
   }
 
+  // 按行号排序后收集（保持原始顺序）
+  const sortedIndices = [...selectedLines].sort((a, b) => a - b)
+  const collected = sortedIndices.map(i => lines[i])
+
   // 若无错误行匹配，取末尾内容
-  if (errorLines.length === 0) {
+  if (collected.length === 0) {
     const tailStart = Math.max(0, lines.length - 10)
-    errorLines.push(...lines.slice(tailStart))
+    collected.push(...lines.slice(tailStart))
   }
 
   // 拼接并截断
-  let summary = errorLines.join('\n')
+  let summary = collected.join('\n')
   if (summary.length > maxChars) {
     summary = summary.slice(0, maxChars) + '\n... (截断)'
   }
@@ -415,6 +403,14 @@ export async function runAttempt(params: RunAttemptParams): Promise<RunAttemptRe
     console.log(`[runner] # 工具过滤: ${params.allowedTools.join(',')} → ${toolSchemas.length} 个工具`)
   }
   const hasTools = toolSchemas && toolSchemas.length > 0
+
+  // ── Schema 清洗（Phase A.3）— 在循环外只执行一次 ─────────────
+  // provider 和 toolSchemas 在整个 runAttempt 生命周期内不变，无需每轮重复深拷贝
+  let cleanedToolSchemas = toolSchemas
+  if (toolSchemas && toolSchemas.length > 0) {
+    cleanedToolSchemas = cleanToolSchemas(toolSchemas, provider.providerId)
+  }
+
   console.log(`[runner] provider=${provider.providerId}/${provider.modelId}, toolSchemas=${toolSchemas?.length ?? 0}, hasTools=${hasTools}, recalled=${assembled.recalledMemories}, compacted=${assembled.wasCompacted}`)
 
   // 7. Tool Loop
@@ -450,17 +446,10 @@ export async function runAttempt(params: RunAttemptParams): Promise<RunAttemptRe
       let currentText = ''
       let finishReason: string | null = null
 
-      // ── Schema 清洗（Phase A.3）──────────────────────────────
-      // 根据 provider 的兼容性需求清洗 tool schema
-      let cleanedToolSchemas = toolSchemas
-      if (toolSchemas && toolSchemas.length > 0) {
-        cleanedToolSchemas = cleanToolSchemas(toolSchemas, provider.providerId)
-      }
-
       const streamParams = {
         messages,
         abortSignal: abort.signal,
-        ...(cleanedToolSchemas ? { tools: cleanedToolSchemas } : {}),
+        ...(hasTools ? { tools: cleanedToolSchemas } : {}),
       }
       console.log(`[runner] streamChat: loop=${loopCount}, toolsInParams=${streamParams.tools?.length ?? 0}`)
 
@@ -690,48 +679,7 @@ export async function runAttempt(params: RunAttemptParams): Promise<RunAttemptRe
         }
       }
 
-      // ── 编译错误检测与自动重试（Phase A.1）──────────────────
-      // 遍历所有工具结果，检测编译/测试错误
-      let compileErrorDetected = false
-      for (const settledItem of settled) {
-        if (settledItem.status !== 'fulfilled') continue
-        const execResult = settledItem.value
-        const { tc, resultContent, isError } = execResult
-
-        if (isError && isCompileOrTestError(tc.name, resultContent)) {
-          compileErrorDetected = true
-          const errorSummary = extractCompileErrors(resultContent, 2000)
-          console.warn(`[runner] ⚠️ [编译错误] ${tc.name} 输出包含编译/测试错误`)
-
-          // 检查是否已用过重试配额
-          if (!compileRetryUsed) {
-            compileRetryUsed = true
-            console.warn(`[runner] 🔧 [编译重试] 检测到编译错误，自动注入修复提示并重试…`)
-            onDelta?.('\n\n🔧 检测到编译错误，正在自动重试…\n\n')
-
-            // 注入修复提示到消息列表
-            const fixPrompt = `⚠️ 上面的工具执行报告中包含编译/测试错误。\n\n${errorSummary}\n\n请分析这个错误并修复代码，然后重新执行。`
-            messages.push({
-              role: 'user',
-              content: fixPrompt,
-            })
-
-            // 继续 toolLoop 而不是中断
-            continue toolLoop
-          } else {
-            console.warn(`[runner] ℹ️ [编译重试] 已使用过编译错误重试配额，不再自动重试`)
-          }
-          break // 只处理第一个编译错误
-        }
-      }
-
-      // 若已注入修复提示并继续 toolLoop，此处不会执行
-      if (compileErrorDetected && compileRetryUsed) {
-        // 不应该到达这里（已通过 continue 跳到下一轮）
-        continue toolLoop
-      }
-
-      // 断路器触发后让 LLM 再说一轮总结
+      // 断路器触发后让 LLM 再说一轮总结（优先于编译重试——安全优先）
       if (breakerTriggered) {
         // 再调一次 LLM 让它给个总结，但不传 tools 了
         fullText = ''
@@ -743,6 +691,28 @@ export async function runAttempt(params: RunAttemptParams): Promise<RunAttemptRe
           }
         }
         break toolLoop
+      }
+
+      // ── 编译错误检测与自动重试（Phase A.1）──────────────────
+      // 在断路器检查之后执行（安全保护优先于自动修复）
+      if (!compileRetryUsed) {
+        for (const settledItem of settled) {
+          if (settledItem.status !== 'fulfilled') continue
+          const { tc, resultContent, isError } = settledItem.value
+
+          if (isError && isCompileOrTestError(tc.name, resultContent)) {
+            compileRetryUsed = true
+            const errorSummary = extractCompileErrors(resultContent, 2000)
+            console.warn(`[runner] 🔧 [编译重试] ${tc.name} 输出包含编译/测试错误，注入修复提示`)
+            onDelta?.('\n\n🔧 检测到编译/测试错误，正在自动重试…\n\n')
+
+            messages.push({
+              role: 'user',
+              content: `⚠️ 上面的工具执行报告中包含编译/测试错误。\n\n${errorSummary}\n\n请分析这个错误并修复代码，然后重新执行。`,
+            })
+            continue toolLoop
+          }
+        }
       }
 
       // ── 阶段 D：Steering 消息注入 ────────────────────────────
