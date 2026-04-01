@@ -19,6 +19,10 @@ import { applyPatchTool } from './apply-patch.js'
 import { cronTool } from './cron.js'
 import { browserTool } from './browser.js'
 import { memorySaveTool, memorySearchTool } from './memory.js'
+import { lspHoverTool } from './lsp-hover.js'
+import { lspDefinitionTool } from './lsp-definition.js'
+import { lspReferencesTool } from './lsp-references.js'
+import { lspDiagnosticsTool } from './lsp-diagnostics.js'
 
 /** 全部内置工具 */
 export const builtinTools: ToolDefinition[] = [
@@ -47,6 +51,11 @@ export const builtinTools: ToolDefinition[] = [
   // 长期记忆 (Phase 12)
   memorySaveTool,
   memorySearchTool,
+  // LSP 语义代码理解 (Phase B)
+  lspHoverTool,
+  lspDefinitionTool,
+  lspReferencesTool,
+  lspDiagnosticsTool,
 ]
 
 export {
@@ -67,4 +76,8 @@ export {
   browserTool,
   memorySaveTool,
   memorySearchTool,
+  lspHoverTool,
+  lspDefinitionTool,
+  lspReferencesTool,
+  lspDiagnosticsTool,
 }

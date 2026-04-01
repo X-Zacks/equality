@@ -71,6 +71,10 @@ export interface ToolResultMetadata {
   originalLength?: number
   /** 执行耗时（毫秒） */
   durationMs?: number
+  /** 结果包含可操作建议（Phase B: Agent 可据此调用 bash 安装依赖） */
+  actionable?: boolean
+  /** 建议执行的命令（配合 actionable 使用） */
+  suggestedCommand?: string
 }
 
 // ─── Tool Policy ──────────────────────────────────────────────────────────────
