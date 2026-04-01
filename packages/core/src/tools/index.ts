@@ -7,6 +7,7 @@ export { truncateToolResult, calcMaxToolResultChars, HARD_MAX_TOOL_RESULT_CHARS,
 export { applyToolPolicy } from './policy.js'
 export { LoopDetector, computeArgsHash, computeResultHash } from './loop-detector.js'
 export type { DetectorVerdict, DetectorAction } from './loop-detector.js'
+export { cleanToolSchemas, resolveProviderFamily } from './schema-compat.js'
 export { builtinTools, bashTool, readFileTool, writeFileTool, globTool, webFetchTool } from './builtins/index.js'
 export type {
   ToolDefinition,

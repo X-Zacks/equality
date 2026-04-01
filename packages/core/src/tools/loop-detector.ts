@@ -30,6 +30,9 @@ const POLL_TERMINATE_THRESHOLD = 10
 /** ping_pong 终止阈值（交替次数） */
 const PING_PONG_THRESHOLD = 20
 
+/** 历史记录滑动窗口大小（Phase A.2）*/
+const HISTORY_WINDOW_SIZE = 30
+
 /** 全局断路器默认上限 */
 const DEFAULT_CIRCUIT_BREAKER_LIMIT = 50
 /** 全局断路器允许的最大上限（防滥用） */
@@ -100,6 +103,12 @@ export class LoopDetector {
     this.totalCalls++
     const record: ToolCallRecord = { name, argsHash, resultHash }
     this.history.push(record)
+
+    // ── 滑动窗口裁剪（Phase A.2）────────────────────────────────────
+    // 保持历史记录不超过 HISTORY_WINDOW_SIZE，移除最旧的记录
+    if (this.history.length > HISTORY_WINDOW_SIZE) {
+      this.history.shift()
+    }
 
     // 检测器 4：全局断路器（最优先）
     const circuitResult = this.checkCircuitBreaker()

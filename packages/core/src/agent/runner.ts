@@ -44,7 +44,7 @@ import { applyDecorators, buildDecoratorPipeline } from './stream.js'
 import { record, calcCost, formatCostLine } from '../cost/ledger.js'
 import type { LLMProvider, ChatDelta, ToolCallDelta } from '../providers/types.js'
 import type { ToolRegistry, ToolContext, OpenAIToolSchema } from '../tools/index.js'
-import { truncateToolResult, calcMaxToolResultChars, LoopDetector, computeArgsHash, computeResultHash } from '../tools/index.js'
+import { truncateToolResult, calcMaxToolResultChars, LoopDetector, computeArgsHash, computeResultHash, cleanToolSchemas } from '../tools/index.js'
 import { getProxyUrl } from '../config/proxy.js'
 import { DefaultContextEngine, trimMessages } from '../context/index.js'
 import { memorySave } from '../memory/index.js'
@@ -251,6 +251,112 @@ function guardUnsupportedSuccessClaims(text: string, executedToolNames: Set<stri
   return text
 }
 
+// ─── 编译错误检测与自动重试（Phase A.1）─────────────────────────────────────
+
+/**
+ * 检测工具输出是否为编译/测试错误。
+ * 仅对 bash 工具触发。
+ */
+function isCompileOrTestError(toolName: string, content: string): boolean {
+  // 仅对 bash 工具检测
+  if (toolName !== 'bash') return false
+
+  const text = content.toLowerCase()
+
+  // TypeScript 编译错误
+  const tsPatterns = [
+    /error\s+ts\d+:/i,
+    /unable to find .* file '.*\.(ts|tsx)'/i,
+    /^(src|packages)\/.*\.ts\(\d+,\d+\):/m,
+  ]
+
+  // Python 编译/语法错误
+  const pyPatterns = [
+    /syntaxerror:/i,
+    /^  file .*, line \d+/m,
+    /from.*import.*error/i,
+    /traceback \(most recent call last\):/i,
+    /modulenotfounderror:/i,
+    /importerror:/i,
+  ]
+
+  // Rust 编译错误
+  const rsPatterns = [
+    /^error\[e\d+\]:/m,
+    /error: could not compile/i,
+    /error: failed to run custom build command/i,
+  ]
+
+  // Go 编译错误
+  const goPatterns = [
+    /^.*\.go:\d+:\d+: (undefined|cannot|error)/m,
+    /fatal error: cannot find.*\.h/i,
+  ]
+
+  // Node.js 错误
+  const nodePatterns = [
+    /error: (module not found|cannot find module)/i,
+    /syntaxerror: unexpected token/i,
+    /typeerror:/i,
+    /referenceerror:/i,
+  ]
+
+  // 测试框架失败
+  const testPatterns = [
+    /\d+ (passing|passing,)/i,
+    /\d+ failing/i,
+    /test (suite|failed|passed)/i,
+    /assertion (failed|error)/i,
+    /expected .* but got/i,
+    /✖ (failed|failed test)/i,
+  ]
+
+  const allPatterns = [...tsPatterns, ...pyPatterns, ...rsPatterns, ...goPatterns, ...nodePatterns, ...testPatterns]
+  return allPatterns.some(p => p.test(text))
+}
+
+/**
+ * 从编译错误输出中提取错误行及上下文。
+ * 返回精简错误摘要（最多 maxChars）。
+ */
+function extractCompileErrors(content: string, maxChars: number = 2000): string {
+  const lines = content.split('\n')
+  const errorLines: string[] = []
+
+  // 第一遍：标记错误行
+  const errorLineIndices = new Set<number>()
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].toLowerCase()
+    if (
+      /^error|^fatal|failed|^exception|^\s*at\s+|traceback|syntaxerror|typeerror|referenceerror/.test(line) ||
+      /^\s*\d+\s*\|/.test(lines[i]) // 行号标记的错误行
+    ) {
+      errorLineIndices.add(i)
+    }
+  }
+
+  // 第二遍：收集错误行及其上下文（前后各1行）
+  for (const idx of errorLineIndices) {
+    if (idx > 0) errorLines.push(lines[idx - 1])
+    errorLines.push(lines[idx])
+    if (idx < lines.length - 1) errorLines.push(lines[idx + 1])
+  }
+
+  // 若无错误行匹配，取末尾内容
+  if (errorLines.length === 0) {
+    const tailStart = Math.max(0, lines.length - 10)
+    errorLines.push(...lines.slice(tailStart))
+  }
+
+  // 拼接并截断
+  let summary = errorLines.join('\n')
+  if (summary.length > maxChars) {
+    summary = summary.slice(0, maxChars) + '\n... (截断)'
+  }
+
+  return summary
+}
+
 // ─── Runner ───────────────────────────────────────────────────────────────────
 
 export async function runAttempt(params: RunAttemptParams): Promise<RunAttemptResult> {
@@ -324,6 +430,7 @@ export async function runAttempt(params: RunAttemptParams): Promise<RunAttemptRe
   const loopDetector = new LoopDetector(maxToolCalls)
   const executedToolNames = new Set<string>()
   let forcedToolRetryUsed = false
+  let compileRetryUsed = false
 
   // Stream Decorator 管道（Phase 9）
   const decorators = buildDecoratorPipeline(provider)
@@ -343,10 +450,17 @@ export async function runAttempt(params: RunAttemptParams): Promise<RunAttemptRe
       let currentText = ''
       let finishReason: string | null = null
 
+      // ── Schema 清洗（Phase A.3）──────────────────────────────
+      // 根据 provider 的兼容性需求清洗 tool schema
+      let cleanedToolSchemas = toolSchemas
+      if (toolSchemas && toolSchemas.length > 0) {
+        cleanedToolSchemas = cleanToolSchemas(toolSchemas, provider.providerId)
+      }
+
       const streamParams = {
         messages,
         abortSignal: abort.signal,
-        ...(hasTools ? { tools: toolSchemas } : {}),
+        ...(cleanedToolSchemas ? { tools: cleanedToolSchemas } : {}),
       }
       console.log(`[runner] streamChat: loop=${loopCount}, toolsInParams=${streamParams.tools?.length ?? 0}`)
 
@@ -574,6 +688,47 @@ export async function runAttempt(params: RunAttemptParams): Promise<RunAttemptRe
           breakerTriggered = true
           // 不 break——继续让其余工具结果也写入 messages（保持 tool_call / tool_result 配对完整）
         }
+      }
+
+      // ── 编译错误检测与自动重试（Phase A.1）──────────────────
+      // 遍历所有工具结果，检测编译/测试错误
+      let compileErrorDetected = false
+      for (const settledItem of settled) {
+        if (settledItem.status !== 'fulfilled') continue
+        const execResult = settledItem.value
+        const { tc, resultContent, isError } = execResult
+
+        if (isError && isCompileOrTestError(tc.name, resultContent)) {
+          compileErrorDetected = true
+          const errorSummary = extractCompileErrors(resultContent, 2000)
+          console.warn(`[runner] ⚠️ [编译错误] ${tc.name} 输出包含编译/测试错误`)
+
+          // 检查是否已用过重试配额
+          if (!compileRetryUsed) {
+            compileRetryUsed = true
+            console.warn(`[runner] 🔧 [编译重试] 检测到编译错误，自动注入修复提示并重试…`)
+            onDelta?.('\n\n🔧 检测到编译错误，正在自动重试…\n\n')
+
+            // 注入修复提示到消息列表
+            const fixPrompt = `⚠️ 上面的工具执行报告中包含编译/测试错误。\n\n${errorSummary}\n\n请分析这个错误并修复代码，然后重新执行。`
+            messages.push({
+              role: 'user',
+              content: fixPrompt,
+            })
+
+            // 继续 toolLoop 而不是中断
+            continue toolLoop
+          } else {
+            console.warn(`[runner] ℹ️ [编译重试] 已使用过编译错误重试配额，不再自动重试`)
+          }
+          break // 只处理第一个编译错误
+        }
+      }
+
+      // 若已注入修复提示并继续 toolLoop，此处不会执行
+      if (compileErrorDetected && compileRetryUsed) {
+        // 不应该到达这里（已通过 continue 跳到下一轮）
+        continue toolLoop
       }
 
       // 断路器触发后让 LLM 再说一轮总结
