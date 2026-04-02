@@ -304,19 +304,36 @@ Unix: workspaceDir = "/home/user/myproject"
 
 ### 与现有代码的关系
 
-**升级目标**：`policy.ts` 的 `applyToolPolicy()`（~45 行，仅全局级别）。
+**现有代码审计结果：**
 
+| 文件 | 现状 | C3 影响 |
+|------|------|---------|
+| `policy.ts` | `applyToolPolicy(tools, policy?)` 导出但**未被任何地方调用** | 内部委托 policy-pipeline |
+| `types.ts` | `ToolPolicy { allow, deny, scope }` — scope 预留字段未生效 | 保留接口，scope 字段生效 |
+| `tools/index.ts` | 导出 `applyToolPolicy` 和 `ToolPolicy` 类型 | 新增 policy-pipeline 导出 |
+| `runner.ts` | 有 `allowedTools?: string[]`（`#工具名` UI 白名单过滤） | 保持不变，C3 是独立层 |
+| `runner.ts` | 有 `beforeToolCall?` hook（可拦截工具执行） | 保持不变，C3 不通过 hook |
+| `index.ts` | `runAttempt({ toolRegistry, workspaceDir, ... })` | **不改动**，C3 在 policy.ts 层面工作 |
+
+**关键发现**：`applyToolPolicy()` 目前完全没有被 runner.ts 或 index.ts 调用。它是 Phase 2 预留的接口。因此 C3 的升级对现有运行时**零影响**——是纯新增功能。
+
+**设计策略**：
 ```
-现有: policy.ts → applyToolPolicy(tools, singlePolicy) → filtered tools
-升级: policy-pipeline.ts → resolvePolicyForTool(name, multiLayerCtx) → { allowed, requiresApproval, risk }
+现有（未使用）:  policy.ts → applyToolPolicy(tools, policy?) → filtered tools
+                                                    ↑ 单层 ToolPolicy
+
+C3 升级:         policy-pipeline.ts → resolvePolicyForTool(name, ctx) → PolicyDecision
+                                                              ↑ 多层 PolicyContext
+                 policy.ts → applyToolPolicy(tools, policy?) → 内部委托 resolvePolicyForTool
+                                                    ↑ 单层 ToolPolicy 映射为 ctx.profile
 ```
 
-**兼容策略**：
-- `policy.ts` 保留，`applyToolPolicy()` 内部改为委托 `policy-pipeline.ts`
-- `ToolPolicy` 接口不变，`scope` 字段生效
-- 对外 API 不变，runner.ts 中只需新增 per-tool 策略检查
+- `policy.ts` 保留签名不变（向后兼容），内部改为委托 policy-pipeline
+- 旧的 `ToolPolicy` 单层接口映射为 `PolicyContext.profile`
+- 新的多层策略通过新 API `resolvePolicyForTool()` 直接调用
+- runner.ts 现有的 `allowedTools`（`#工具名`）和 `beforeToolCall` hook **不受影响**
 
-### 层级结构
+### 核心数据结构
 
 ```typescript
 /** 单层策略 */
@@ -332,8 +349,8 @@ export interface PolicyLevel {
 /** 多层策略上下文 */
 export interface PolicyContext {
   profile?: PolicyLevel       // 全局基础策略
-  providerProfile?: PolicyLevel  // Provider 特定策略
-  agentProfile?: PolicyLevel    // Agent 特定策略
+  providerProfile?: PolicyLevel  // Provider 特定策略（如 OpenAI 禁用某些工具）
+  agentProfile?: PolicyLevel    // Agent 特定策略（最高优先级）
 }
 
 /** 策略决策结果 */
@@ -343,66 +360,106 @@ export interface PolicyDecision {
   risk: 'low' | 'medium' | 'high'
   decidedBy: string    // 哪个层级做出的决策（audit 用）
 }
-
-export function resolvePolicyForTool(toolName: string, ctx: PolicyContext): PolicyDecision
 ```
 
-**合并规则：**
-1. 遍历 profile → providerProfile → agentProfile
-2. denied 白名单优先：任一层有 deniedTools 包含，结果为 denied
-3. 最深层覆盖浅层：agentProfile.allowedTools > providerProfile > profile
-4. 返回最终结果 + 审批标记
+### 合并规则
 
-**与 C1/C2 的关系：**
-- C1 确定 `toolMeta.risk = 'write' | 'read' | 'exec'`
-- C3 查询 `toolMeta.requiresApproval`（高危工具需审批）
-- C2 路径沙箱检查之前被 C3 的策略检查拦截（双保险）
+```
+resolvePolicyForTool(toolName, ctx):
+  1. 初始化: allowed = true, risk = 'low', decidedBy = 'default'
+  
+  2. 遍历层级 [profile, providerProfile, agentProfile]:
+     对每层:
+     a. 若 deniedTools 包含 toolName → allowed=false, decidedBy=层名 (立即返回)
+     b. 若 allowedTools 非空且不包含 toolName → allowed=false, decidedBy=层名
+     c. 若 toolOptions[toolName] 有配置 → 合并 requiresApproval/risk
+  
+  3. deny 优先：任一层 deny 即拒绝（不可被更深层覆盖）
+  4. allow 覆盖：更深层的 allowedTools 覆盖浅层（agentProfile > providerProfile > profile）
+  5. 与 C1 整合：若 classifyMutation(toolName) = WRITE → 自动标记 risk='high'
+```
+
+### 与 C1/C2 的关系
+
+```
+C3 策略 (policy-pipeline)     ← 用户配置：全局/Provider/Agent 级别
+  ↓ if allowed=false → 拦截
+C1 分类 (mutation)            ← 自动：READ/WRITE/EXEC
+  ↓ 标记 risk + requiresApproval
+C2 沙箱 (bash-sandbox)        ← 自动：路径边界检查
+  ↓ if !allowed → 拦截
+执行工具
+```
+
+### 与 ToolPolicy 的向后兼容
+
+```typescript
+// 旧 API（保持签名不变）：
+applyToolPolicy(tools, policy?: ToolPolicy) → ToolDefinition[]
+
+// 内部实现改为：
+function applyToolPolicy(tools, policy?) {
+  if (!policy) return tools
+  // 将旧 ToolPolicy 映射为 PolicyContext.profile
+  const ctx: PolicyContext = {
+    profile: {
+      allowedTools: policy.allow,
+      deniedTools: policy.deny,
+    }
+  }
+  return tools.filter(t => resolvePolicyForTool(t.name, ctx).allowed)
+}
+```
 
 ---
 
 ## 集成点
 
-### Runner 调用序列
+### 现有工具执行流
 
-```typescript
-// packages/core/src/agent/runner.ts — toolLoop 中调用工具前
-
-async function executeToolWithGuards(tool, params, ctx) {
-  // Step 1: C3 策略检查
-  const decision = resolvePolicyForTool(tool.name, policyCtx)
-  if (!decision.allowed) {
-    audit.denied(tool.name, decision.decidedBy)
-    return { content: `❌ 工具 ${tool.name} 被策略禁用 (${decision.decidedBy})`, isError: true }
-  }
-
-  // Step 2: C1 操作分类
-  const mutation = classifyMutation(tool.name, params)
-
-  // Step 3: C2 bash 沙箱（仅 bash 工具）
-  if (tool.name === 'bash') {
-    const sandbox = validateBashCommand(params.command, {
-      workspaceDir: ctx.workspaceDir,
-      allowSystemTemp: true,
-    })
-    if (!sandbox.allowed) {
-      audit.sandboxViolation(tool.name, sandbox)
-      return { content: `❌ 沙箱拦截: ${sandbox.reason}`, isError: true }
-    }
-  }
-
-  // Step 4: 审计（写操作 + 需审批）
-  if (mutation.type === MutationType.WRITE) {
-    const fingerprint = extractFingerprint(tool.name, params)
-    audit.writeOperation(tool.name, mutation, fingerprint)
-  }
-
-  // Step 5: 执行
-  return await tool.execute(params, ctx)
-}
+```
+index.ts
+  → runAttempt({ toolRegistry, workspaceDir, allowedTools, beforeToolCall, ... })
+    → runner.ts toolLoop:
+      1. allowedTools (#工具名 UI 白名单) → 过滤 toolSchemas
+      2. LLM 返回 tool_calls
+      3. beforeToolCall hook → 可拦截
+      4. toolRegistry.resolve(name) → tool.execute(args, toolCtx)
 ```
 
-### 迁移步骤
+### C3 的集成位置
 
+C3 **不改动 runner.ts 的执行流**。C3 作为 `policy.ts` 的内部升级：
+
+```
+外部调用者:
+  applyToolPolicy(tools, policy?)          ← 签名不变，向后兼容
+    ↓ 内部委托
+  resolvePolicyForTool(name, ctx)          ← 新多层策略引擎
+    ↓ 返回 PolicyDecision { allowed, requiresApproval, risk }
+```
+
+未来当 runner.ts 需要 per-tool 策略检查时，可以：
+```typescript
+// 方案 A：通过现有 beforeToolCall hook 注入
+params.beforeToolCall = async (info) => {
+  const decision = resolvePolicyForTool(info.name, policyCtx)
+  if (!decision.allowed) return { block: true, reason: `策略禁用 (${decision.decidedBy})` }
+}
+
+// 方案 B：直接在 runner toolLoop 中调用（Phase D）
+// 暂不在 C3 中实施，保持最小影响范围
+```
+
+### 迁移步骤（C3 实际改动范围）
+
+```
+1. 新增 policy-pipeline.ts  → 纯函数模块，无副作用
+2. 修改 policy.ts           → applyToolPolicy() 内部委托 resolvePolicyForTool()
+3. 修改 tools/index.ts      → 导出新模块 API
+4. 不改动 runner.ts         → 零风险
+5. 不改动 index.ts          → 零风险
+6. 不改动 types.ts          → ToolPolicy 接口保留
 ```
 1. 新增 mutation.ts        → C1 纯函数，无副作用，可独立测试
 2. 新增 bash-sandbox.ts    → C2 纯函数，仅 path 验证

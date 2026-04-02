@@ -174,55 +174,74 @@
 
 ---
 
-### Requirement: 七层工具策略管道
+### Requirement: 多层工具策略管道
 
-系统 SHALL 支持多级权限策略，从 Profile 到 Agent 的细粒度工具授权管理。
+系统 SHALL 支持多级权限策略（profile → providerProfile → agentProfile），提供细粒度工具授权管理。策略通过 `policy.ts` 的 `applyToolPolicy()` 向后兼容接入。
+
+> 现有代码关系：
+> - `applyToolPolicy()` 已导出但未被 runner.ts 调用（Phase 2 预留接口）
+> - runner.ts 已有 `allowedTools`（`#工具名` UI 白名单）和 `beforeToolCall` hook
+> - C3 不改动 runner.ts，在 policy.ts 层面内部升级
 
 #### Scenario: 全局策略生效
 
 - GIVEN Profile.allowedTools = ['bash', 'read_file', 'lsp_hover']
-- WHEN Agent 尝试调用 'grep' 工具
-- THEN 系统 SHALL 检查 'grep' 不在 allowedTools 中
-- AND 返回 allowed = false，隐藏该工具
+- WHEN 调用 `resolvePolicyForTool('grep', ctx)` 
+- THEN 系统 SHALL 检查 'grep' 不在 profile.allowedTools 中
+- AND 返回 { allowed: false, decidedBy: 'profile' }
 
 #### Scenario: 黑名单优先
 
-- GIVEN Profile.allowedTools = ['*']（全允许）
+- GIVEN Profile.allowedTools = ['*']（全允许语义：allowedTools 为空）
 - AND Profile.deniedTools = ['write_file', 'apply_patch']
-- WHEN Agent 尝试调用 'write_file'
-- THEN 系统 SHALL 检查 deniedTools，返回 allowed = false
-- AND 黑名单优先级高于白名单
+- WHEN 调用 `resolvePolicyForTool('write_file', ctx)`
+- THEN 系统 SHALL 检查 deniedTools 包含 'write_file'
+- AND 返回 { allowed: false, decidedBy: 'profile.deny' }
+- AND 黑名单不可被更深层级的 allowedTools 覆盖
 
 #### Scenario: Agent 级覆盖
 
-- GIVEN Profile.allowedTools = ['bash', 'read_file', ...]
-- AND Agent.allowedTools = ['lsp_hover', 'grep']  （Agent 级限制更严格）
-- WHEN Agent 尝试调用 'bash'
-- THEN 系统 SHALL 使用 Agent 级策略，返回 allowed = false
-- AND 最深层级覆盖浅层
+- GIVEN Profile.deniedTools 不包含 'bash'
+- AND ProviderProfile.allowedTools 包含 'bash'
+- AND AgentProfile.deniedTools = ['bash']
+- WHEN 调用 `resolvePolicyForTool('bash', ctx)`
+- THEN 系统 SHALL 检查 agentProfile.deniedTools 包含 'bash'
+- AND 返回 { allowed: false, decidedBy: 'agentProfile.deny' }
 
-#### Scenario: 高危工具标记
-
-- GIVEN 工具 'write_file' 的 mutationType = WRITE
-- AND Policy 配置 writeOperations.requiresApproval = true
-- WHEN Agent 调用 'write_file'
-- THEN 系统 SHALL 返回 { allowed: true, requiresApproval: true }
-- AND 生成审计日志 "[AUDIT] write operation: write_file"
-
-#### Scenario: Provider 级策略
+#### Scenario: Provider 级策略隔离
 
 - GIVEN Profile.allowedTools 中包含 'web_fetch'
-- AND ProviderProfile (OpenAI).deniedTools = ['web_fetch']  （OpenAI provider 禁用）
-- WHEN 使用 OpenAI Provider 的 Agent 尝试调用 'web_fetch'
-- THEN 系统 SHALL 检查 Provider 级策略，返回 allowed = false
-- AND 其他 Provider 仍允许 'web_fetch'
+- AND ProviderProfile(OpenAI).deniedTools = ['web_fetch']
+- WHEN 使用 OpenAI Provider 的上下文调用 `resolvePolicyForTool('web_fetch', ctx)`
+- THEN 系统 SHALL 返回 { allowed: false, decidedBy: 'providerProfile.deny' }
+- AND 其他 Provider 的 ctx 中无此 deny → 仍允许 web_fetch
 
-#### Scenario: 策略缓存一致性
+#### Scenario: 高危工具标记（与 C1 整合）
+
+- GIVEN 工具 'write_file' 的 classifyMutation() → MutationType.WRITE
+- AND Policy 配置 toolOptions.write_file.requiresApproval = true
+- WHEN 调用 `resolvePolicyForTool('write_file', ctx)`
+- THEN 系统 SHALL 返回 { allowed: true, requiresApproval: true, risk: 'high' }
+
+#### Scenario: 无策略 → 全部放行（向后兼容）
+
+- GIVEN PolicyContext 为空（{}）
+- WHEN 调用 `resolvePolicyForTool('bash', {})`
+- THEN 系统 SHALL 返回 { allowed: true, requiresApproval: false, risk: 'low' }
+- AND 行为等同于当前未调用策略时的默认行为
+
+#### Scenario: 旧 ToolPolicy 向后兼容
+
+- GIVEN 旧接口调用 `applyToolPolicy(tools, { allow: ['bash'], deny: ['write_file'] })`
+- WHEN policy.ts 内部将 ToolPolicy 映射为 PolicyContext.profile
+- THEN 系统 SHALL 保留原有过滤行为
+- AND bash 保留，write_file 被过滤掉
+
+#### Scenario: 缓存一致性
 
 - GIVEN 第一次查询 'write_file' 的策略返回 { allowed: true, requiresApproval: true }
-- WHEN 第二次查询相同工具（未改变配置）
-- THEN 系统 SHALL 返回相同结果
-- AND 避免重复计算，使用缓存
+- WHEN 第二次查询相同工具（相同 ctx）
+- THEN 系统 SHALL 返回完全相同的结果
 
 ---
 

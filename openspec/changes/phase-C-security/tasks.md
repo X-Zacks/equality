@@ -142,6 +142,16 @@
 
 ## 3. C3 多层工具策略管道
 
+> 影响范围：
+> - `policy-pipeline.ts` — 新增纯函数模块
+> - `policy.ts` — 内部委托升级（签名不变）
+> - `tools/index.ts` — 新增导出
+> - **不改动 runner.ts** — 零运行时风险
+> - **不改动 index.ts** — 零集成风险
+> - **不改动 types.ts** — ToolPolicy 接口保留
+>
+> 关键发现：`applyToolPolicy()` 已导出但目前未被调用（Phase 2 预留），C3 是纯新增功能
+
 ### 3.1 核心实现（`packages/core/src/tools/policy-pipeline.ts`）
 
 - [ ] 3.1.1 定义 `PolicyLevel` 接口（allowedTools/deniedTools/toolOptions）
@@ -150,29 +160,34 @@
 
 - [ ] 3.1.4 实现 `resolvePolicyForTool(toolName, ctx)` 函数
   - 遍历 profile → providerProfile → agentProfile
-  - 黑名单优先：任一层 deniedTools 包含 → denied
-  - 白名单最深层覆盖
+  - 黑名单优先：任一层 deniedTools 包含 → denied（不可被更深层覆盖）
+  - 白名单：allowedTools 非空且不包含 → denied
+  - toolOptions 合并：更深层覆盖浅层的 requiresApproval/risk
   - 返回 PolicyDecision
 
-- [ ] 3.1.5 与 C1 整合：自动标记高危操作
-  - mutationType='write' 的工具 → risk='high'
-  - 可配置 writeRequiresApproval（默认 false，用户可开启）
+- [ ] 3.1.5 与 C1 整合：写操作自动标记高危
+  - 调用 classifyMutation(toolName) 
+  - mutationType = WRITE → risk 自动提升为 'high'
+  - 可通过 toolOptions 覆盖
 
 ### 3.2 升级现有代码
 
 - [ ] 3.2.1 修改 `policy.ts`：`applyToolPolicy()` 内部委托 `resolvePolicyForTool()`
-- [ ] 3.2.2 保持 `ToolPolicy` 接口向后兼容（allow/deny/scope）
-- [ ] 3.2.3 修改 `tools/index.ts`：导出 `PolicyPipeline`, `PolicyContext`, `PolicyDecision`
+  - 将旧 ToolPolicy.allow → ctx.profile.allowedTools
+  - 将旧 ToolPolicy.deny → ctx.profile.deniedTools
+  - 签名和返回类型不变（向后兼容）
+- [ ] 3.2.2 保持 `ToolPolicy` 接口不变（types.ts 不改动）
+- [ ] 3.2.3 修改 `tools/index.ts`：导出 `resolvePolicyForTool`, `PolicyContext`, `PolicyDecision`, `PolicyLevel`
 
 ### 3.3 单元测试（`packages/core/src/__tests__/policy-pipeline.test.ts`）
 
-- [ ] 3.3.1 T25 — 全局策略生效（profile.allowedTools 限制）
-- [ ] 3.3.2 T26 — 黑名单优先（deniedTools > allowedTools）
+- [ ] 3.3.1 T25 — 全局策略生效（profile.allowedTools 限制 → allowed=false）
+- [ ] 3.3.2 T26 — 黑名单优先（deniedTools 优先于 allowedTools）
 - [ ] 3.3.3 T27 — Agent 级覆盖（agentProfile.denied > providerProfile.allowed）
-- [ ] 3.3.4 T28 — Provider 级策略隔离（OpenAI 禁用，其他不受影响）
-- [ ] 3.3.5 T29 — 高危工具标记（write 工具 → requiresApproval）
-- [ ] 3.3.6 T30 — 无策略 → 全部放行（兼容性）
-- [ ] 3.3.7 T31 — 缓存一致性（多次查询相同结果）
+- [ ] 3.3.4 T28 — Provider 级策略隔离（OpenAI deny, 其他不受影响）
+- [ ] 3.3.5 T29 — 高危工具标记（write 工具 + toolOptions → requiresApproval）
+- [ ] 3.3.6 T30 — 无策略 → 全部放行（空 ctx → allowed=true，向后兼容）
+- [ ] 3.3.7 T31 — 旧 ToolPolicy 向后兼容（applyToolPolicy 保持原有行为）
 
 ### 3.4 编译验证
 
