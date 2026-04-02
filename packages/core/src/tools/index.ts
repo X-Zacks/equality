@@ -7,6 +7,8 @@ export { truncateToolResult, calcMaxToolResultChars, HARD_MAX_TOOL_RESULT_CHARS,
 export { applyToolPolicy } from './policy.js'
 export { classifyMutation, isMutatingOperation, extractFingerprint, extractCommandWords, MutationType } from './mutation.js'
 export type { MutationClassification, OperationFingerprint } from './mutation.js'
+export { validateBashCommand, validatePath, detectInjection, extractPathArgs, normalizePath } from './bash-sandbox.js'
+export type { SandboxConfig, SandboxResult } from './bash-sandbox.js'
 export { LoopDetector, computeArgsHash, computeResultHash } from './loop-detector.js'
 export type { DetectorVerdict, DetectorAction } from './loop-detector.js'
 export { cleanToolSchemas, resolveProviderFamily } from './schema-compat.js'

@@ -91,70 +91,86 @@
 
 ### Requirement: Bash 沙箱路径隔离
 
-系统 SHALL 限制 bash 工具的文件访问范围不超出 workspaceDir，并防止符号链接等手段的越权访问。
+系统 SHALL 限制 bash 工具的文件访问范围不超出 `ToolContext.workspaceDir`（来自设置页「工作目录」配置），并防止符号链接、路径遍历等手段的越权访问。
 
-#### Scenario: 允许工作区内路径
+> workspaceDir 来源链路：
+> 用户在设置页配置「工作目录」→ 保存为 WORKSPACE_DIR secret
+> → index.ts getWorkspaceDir() 读取 → ToolContext.workspaceDir → 传入 bash-sandbox
 
-- GIVEN workspaceDir = `/home/user/myproject`
-- WHEN Agent 调用 `bash(command='cat ./src/index.ts')`
-- THEN 系统 SHALL 解析路径为 `/home/user/myproject/src/index.ts`
-- AND 检查路径在 workspaceDir 内，返回 allowed = true
+#### Scenario: 允许工作区内相对路径
 
-#### Scenario: 拦截工作区外路径
+- GIVEN workspaceDir = `C:\software\equality`（Windows）
+- WHEN Agent 调用 `bash(command='cat .\src\index.ts')`
+- THEN 系统 SHALL 解析路径为 `C:\software\equality\src\index.ts`
+- AND normalize 后在 workspaceDir 内，返回 allowed = true
 
-- GIVEN workspaceDir = `/home/user/myproject`
-- WHEN Agent 调用 `bash(command='cat /etc/passwd')`
-- THEN 系统 SHALL 检查路径 `/etc/passwd` 超出 workspaceDir
-- AND 返回 allowed = false，reason = "路径 /etc/passwd 超出沙箱范围"
+#### Scenario: 拦截工作区外绝对路径
+
+- GIVEN workspaceDir = `C:\software\equality`
+- WHEN Agent 调用 `bash(command='Get-Content C:\Users\secret.txt')`
+- THEN 系统 SHALL normalize 路径，检查不以 workspaceDir 开头
+- AND 返回 allowed = false，reason 包含路径超出范围信息
 - AND 不执行命令
 
 #### Scenario: 多层路径遍历
 
-- GIVEN workspaceDir = `/home/user/myproject`
-- WHEN Agent 调用 `bash(command='cat ../../etc/passwd')`
-- THEN 系统 SHALL 使用 `path.resolve()` 将 `../../etc/passwd` 解析为 `/home/etc/passwd`
+- GIVEN workspaceDir = `C:\software\equality`
+- WHEN Agent 调用 `bash(command='cat ..\..\Windows\system32\config\SAM')`
+- THEN 系统 SHALL 使用 `path.resolve()` 解析为绝对路径
 - AND 检查解析后的路径超出 workspaceDir
 - AND 返回 allowed = false
 
 #### Scenario: 符号链接逃逸防御
 
-- GIVEN workspaceDir = `/home/user/myproject`
-- AND 存在符号链接 `./link → /etc/passwd`
+- GIVEN workspaceDir 内存在符号链接 `./link → C:\Users\secret.txt`
 - WHEN Agent 调用 `bash(command='cat ./link')`
-- THEN 系统 SHALL 执行 realpath 追踪链接真实指向
-- AND 检查实际指向 `/etc/passwd` 超出范围
-- AND 返回 allowed = false，reason = "符号链接指向范围外"
+- THEN 系统 SHALL 执行 fs.realpathSync 追踪链接真实指向
+- AND 检查实际指向超出 workspaceDir 范围
+- AND 返回 allowed = false
 
 #### Scenario: Unicode 空格注入检测
 
-- GIVEN Agent 调用 `bash(command="cat ./test\u00A0cd /etc/file")`
-- WHEN 系统执行注入检测
+- GIVEN Agent 调用 `bash(command="cat ./test\u00A0cd C:\\secret")`
+- WHEN 系统执行注入检测（Step 1）
 - THEN 系统 SHALL 检测到 Unicode 不可见空格 U+00A0
-- AND 立即返回 allowed = false，reason = "检测到 Unicode 不可见字符注入"
-- AND 不进行后续路径解析
+- AND 立即返回 allowed = false，不进行后续路径解析
 
 #### Scenario: 允许系统临时目录
 
-- GIVEN sandboxConfig.allowSystemTemp = true
-- WHEN Agent 调用 `bash(command='mkdir /tmp/test')`
-- THEN 系统 SHALL 检查路径 `/tmp/test` 在系统临时目录白名单中
+- GIVEN sandboxConfig.allowSystemTemp = true（默认）
+- WHEN Agent 调用 `bash(command='mkdir $env:TEMP\test')` (Windows)
+- OR Agent 调用 `bash(command='mkdir /tmp/test')` (Unix)
+- THEN 系统 SHALL 检查路径在 os.tmpdir() 目录内
 - AND 返回 allowed = true
 
-#### Scenario: Windows 路径处理
+#### Scenario: Windows 路径大小写不敏感
 
-- GIVEN Windows 环境 workspaceDir = `C:\Users\zz\projects\equality`
-- WHEN Agent 调用 `bash(command='Get-Content C:\Users\zz\Documents\secret.txt')`
-- THEN 系统 SHALL 标准化路径分隔符为 `/`，不区分大小写
-- AND 检查 `c:/users/zz/documents/secret.txt` 不以 `c:/users/zz/projects/equality` 开头
+- GIVEN Windows 环境 workspaceDir = `C:\Software\Equality`
+- WHEN Agent 调用 `bash(command='cat c:\software\equality\src\index.ts')`
+- THEN 系统 SHALL toLowerCase() 后比较
+- AND 返回 allowed = true（大小写不应影响判断）
+
+#### Scenario: 跨驱动器拦截
+
+- GIVEN Windows 环境 workspaceDir = `C:\software\equality`
+- WHEN Agent 调用 `bash(command='cat D:\secrets\data.txt')`
+- THEN 系统 SHALL 检查驱动器不同（normalize 后 d:/ ≠ c:/）
 - AND 返回 allowed = false
 
 #### Scenario: 管道命令路径检查
 
-- GIVEN workspaceDir = `/home/user/myproject`
-- WHEN Agent 调用 `bash(command='cat ./src/index.ts | grep import && rm /etc/hosts')`
+- GIVEN workspaceDir = `C:\software\equality`
+- WHEN Agent 调用 `bash(command='cat .\src\index.ts | grep import && rm C:\Windows\hosts')`
 - THEN 系统 SHALL 按 `&&` 分割子命令
-- AND 检测 `rm /etc/hosts` 中路径 `/etc/hosts` 超出范围
+- AND 检测 `rm C:\Windows\hosts` 中路径超出范围
 - AND 返回 allowed = false
+
+#### Scenario: 无路径参数的命令
+
+- GIVEN 任意 workspaceDir
+- WHEN Agent 调用 `bash(command='echo hello')`
+- THEN 系统 SHALL 未提取到路径参数
+- AND 返回 allowed = true（无路径越界风险）
 
 ---
 

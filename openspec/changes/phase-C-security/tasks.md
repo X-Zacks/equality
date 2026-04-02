@@ -75,52 +75,63 @@
 
 ## 2. C2 Bash 沙箱路径隔离
 
+> workspaceDir 来源：ToolContext.workspaceDir ← index.ts getWorkspaceDir() ← WORKSPACE_DIR 配置
+> 注入点：bash.ts execute() 中，spawn() 之前
+> 范围：仅 bash 工具，其他写工具（edit_file/write_file）后续改进
+
 ### 2.1 核心实现（`packages/core/src/tools/bash-sandbox.ts`）
 
-- [ ] 2.1.1 定义 `SandboxConfig` 接口
+- [ ] 2.1.1 定义 `SandboxConfig` 接口（workspaceDir + allowSystemTemp + allowedExternalPaths）
 - [ ] 2.1.2 定义 `SandboxResult` 接口（allowed/reason/paths）
+- [ ] 2.1.3 实现 `normalizePath(p)` 函数
+  - `\` → `/` 统一
+  - Windows 下 `.toLowerCase()`
+  - 用于所有路径比较的基础
 
-- [ ] 2.1.3 实现 `detectInjection(command)` 函数
+- [ ] 2.1.4 实现 `detectInjection(command)` 函数
   - Unicode 不可见空格检测（U+00A0, U+2000-U+200B, U+3000, U+FEFF）
   - NULL 字节检测（\x00）
   - 原始回车注入（\r 不跟 \n）
 
-- [ ] 2.1.4 实现路径提取逻辑
-  - 按 `&&`, `;`, `|`, `\n` 分割子命令
-  - 对每个子命令识别命令类型和路径参数位置
-  - 提取 cd/cat/rm/mkdir/touch 等的路径参数
+- [ ] 2.1.5 实现 `extractPathArgs(command)` 路径提取
+  - 按 `&&`, `||`, `;`, `|`, `\n` 分割子命令
+  - 对每个子命令取命令词，查 PATH_COMMANDS 表确定哪些位置是路径参数
+  - 提取 cat/rm/mkdir/touch/cd/cp/mv 等的路径参数
+  - 未知命令 → 不提取（不拦截，交给 C1 分类）
 
-- [ ] 2.1.5 实现 `validatePath(inputPath, config)` 函数
-  - `path.resolve(workspaceDir, inputPath)` → 绝对路径
-  - 尝试 `fs.realpathSync()` → 追踪符号链接（路径不存在时用 resolve 结果）
-  - 标准化路径分隔符（Windows: `\` → `/`）
-  - 不区分大小写比较（Windows only）
-  - 检查 `startsWith(normalizedWorkspace)`
-  - 检查 allowedExternalPaths 白名单
-  - 检查系统临时目录（如 allowSystemTemp=true）
+- [ ] 2.1.6 实现 `validatePath(inputPath, config)` 函数
+  - `path.resolve(config.workspaceDir, inputPath)` → 绝对路径
+  - 尝试 `fs.realpathSync()` → 追踪符号链接（不存在时用 resolve 结果）
+  - `normalizePath()` 后检查 `startsWith(normalizedWorkspace + '/')`
+  - 检查 `allowSystemTemp`（对照 `os.tmpdir()`）
+  - 检查 `allowedExternalPaths` 白名单
 
-- [ ] 2.1.6 实现 `validateBashCommand(command, config)` 主函数
-  - 先调用 `detectInjection()` → 有注入直接返回 false
-  - 提取所有路径参数
-  - 对每个路径调用 `validatePath()`
-  - 任一路径违规 → 返回 false + 原因
+- [ ] 2.1.7 实现 `validateBashCommand(command, config)` 主函数
+  - Step 1: `detectInjection()` → 有注入直接返回 false
+  - Step 2: `extractPathArgs()` → 提取路径列表
+  - Step 3: 对每个路径 `validatePath()` → 任一违规返回 false + reason
+  - 无路径参数 → 返回 allowed=true
 
 ### 2.2 集成到 bash 工具
 
-- [ ] 2.2.1 修改 `builtins/bash.ts`：在 execute() 函数 spawn 前注入沙箱检查
-- [ ] 2.2.2 修改 `tools/index.ts`：导出 `validateBashCommand`, `SandboxConfig`
+- [ ] 2.2.1 修改 `builtins/bash.ts`：在 execute() 的 `spawn()` 前注入沙箱检查
+  - 前台模式 + 后台模式都要检查
+  - config: `{ workspaceDir: ctx.workspaceDir, allowSystemTemp: true }`
+- [ ] 2.2.2 修改 `tools/index.ts`：导出 `validateBashCommand`, `SandboxConfig`, `SandboxResult`
 
 ### 2.3 单元测试（`packages/core/src/__tests__/bash-sandbox.test.ts`）
 
-- [ ] 2.3.1 T14 — 相对路径在范围内（./src → 允许）
-- [ ] 2.3.2 T15 — 绝对路径超出范围（/etc/passwd → 拦截）
-- [ ] 2.3.3 T16 — 多层路径遍历（../../etc → 解析后拦截）
-- [ ] 2.3.4 T17 — 符号链接跳出（symlink → /etc/passwd → 拦截）
-- [ ] 2.3.5 T18 — Unicode 空格注入（\u00A0 → 拦截）
-- [ ] 2.3.6 T19 — 允许系统临时目录（/tmp/* → 允许，需 allowSystemTemp=true）
-- [ ] 2.3.7 T20 — 管道命令路径检查（cat ./ok && rm /etc/hosts → 拦截）
-- [ ] 2.3.8 T21 — Windows 路径格式（C:\Users\...\secret.txt → 拦截）
-- [ ] 2.3.9 T22 — 无路径参数的命令（echo "hello" → 允许，不检查）
+- [ ] 2.3.1 T14 — 相对路径在范围内（`cat .\src\index.ts` → 允许）
+- [ ] 2.3.2 T15 — 绝对路径超出范围（`cat C:\Users\secret.txt`，workspaceDir=`C:\proj` → 拦截）
+- [ ] 2.3.3 T16 — 多层路径遍历（`cat ..\..\Windows\system32\hosts` → 解析后拦截）
+- [ ] 2.3.4 T17 — 符号链接跳出（mock realpathSync 返回范围外路径 → 拦截）
+- [ ] 2.3.5 T18 — Unicode 空格注入（`\u00A0` → 拦截，Step 1 直接返回）
+- [ ] 2.3.6 T19 — 允许系统临时目录（os.tmpdir() 下路径 → 允许）
+- [ ] 2.3.7 T20 — 管道命令路径检查（`cat ./ok && rm C:\Windows\hosts` → 拦截）
+- [ ] 2.3.8 T21 — Windows 大小写不敏感（`c:\proj` vs `C:\Proj` → 允许）
+- [ ] 2.3.9 T22 — 无路径参数的命令（`echo hello` → 允许）
+- [ ] 2.3.10 T23 — 跨驱动器拦截（workspaceDir=`C:\proj`，路径=`D:\secret` → 拦截）
+- [ ] 2.3.11 T24 — NULL 字节注入（`\x00` → 拦截）
 
 ### 2.4 编译验证
 
@@ -155,13 +166,13 @@
 
 ### 3.3 单元测试（`packages/core/src/__tests__/policy-pipeline.test.ts`）
 
-- [ ] 3.3.1 T23 — 全局策略生效（profile.allowedTools 限制）
-- [ ] 3.3.2 T24 — 黑名单优先（deniedTools > allowedTools）
-- [ ] 3.3.3 T25 — Agent 级覆盖（agentProfile.denied > providerProfile.allowed）
-- [ ] 3.3.4 T26 — Provider 级策略隔离（OpenAI 禁用，其他不受影响）
-- [ ] 3.3.5 T27 — 高危工具标记（write 工具 → requiresApproval）
-- [ ] 3.3.6 T28 — 无策略 → 全部放行（兼容性）
-- [ ] 3.3.7 T29 — 缓存一致性（多次查询相同结果）
+- [ ] 3.3.1 T25 — 全局策略生效（profile.allowedTools 限制）
+- [ ] 3.3.2 T26 — 黑名单优先（deniedTools > allowedTools）
+- [ ] 3.3.3 T27 — Agent 级覆盖（agentProfile.denied > providerProfile.allowed）
+- [ ] 3.3.4 T28 — Provider 级策略隔离（OpenAI 禁用，其他不受影响）
+- [ ] 3.3.5 T29 — 高危工具标记（write 工具 → requiresApproval）
+- [ ] 3.3.6 T30 — 无策略 → 全部放行（兼容性）
+- [ ] 3.3.7 T31 — 缓存一致性（多次查询相同结果）
 
 ### 3.4 编译验证
 
@@ -174,9 +185,9 @@
 
 - [ ] 4.1 所有新增测试合计通过数
   - C1: 13 tests (T1-T13)
-  - C2: 9 tests (T14-T22)
-  - C3: 7 tests (T23-T29)
-  - **合计: 29 tests** ✓
+  - C2: 11 tests (T14-T24)
+  - C3: 7 tests (T25-T31)
+  - **合计: 31 tests** ✓
 
 - [ ] 4.2 Phase A 回归：原有 18 个测试仍通过
 - [ ] 4.3 Phase B 回归：原有 26 个 LSP 测试仍通过

@@ -175,87 +175,125 @@ export function extractFingerprint(toolName: string, params: Record<string, unkn
 
 ### 与现有代码的关系
 
-**注入位置**：`builtins/bash.ts` 的 `execute()` 函数顶部，在 `spawn()` 之前。
+**已有的 workspaceDir 机制**：
+
+系统已有完整的 workspaceDir 传递链路：
+```
+index.ts: getWorkspaceDir()            ← 读 WORKSPACE_DIR 环境变量或 fallback ~/Equality/workspace
+  → 传入 ToolContext.workspaceDir      ← 类型定义在 types.ts
+    → bash.ts: spawn({ cwd: ctx.workspaceDir })     ← cwd 已设置
+    → edit-file.ts: path.resolve(ctx.workspaceDir, filePath)
+    → apply-patch.ts: absPath.startsWith(ctx.workspaceDir)  ← ⚠️ 已有检查但未处理 Windows 大小写
+```
+
+设置页面（截图所示「工作目录」配置项）让用户手动指定 workspaceDir，保存为 `WORKSPACE_DIR` secret。
+
+**现有检查的问题**：
+| 工具 | 现状 | C2 改进 |
+|------|------|--------|
+| `apply_patch` | ✅ 有 startsWith 检查 | 修复 Windows 大小写 bug |
+| `edit_file` | ❌ 无边界检查 | — (Phase C2 不改动，后续改进) |
+| `write_file` | ❌ 无边界检查 | — (Phase C2 不改动，后续改进) |
+| **`bash`** | ❌ 完全没有 | **C2 重点：命令路径分析 + 验证** |
+
+C2 仅关注 bash 工具的沙箱（影响范围最大、最难控制），其他写工具的边界统一放后续。
+
+### 注入位置
+
+`builtins/bash.ts` 的 `execute()` 函数，在构造 shell 命令后、`spawn()` 之前。
 
 ```typescript
 // bash.ts execute() 中：
 const command = String(input.command ?? '')
 // ▶ 新增：沙箱检查
-const sandbox = validateBashCommand(command, { workspaceDir: ctx.workspaceDir, allowSystemTemp: true })
+const sandbox = validateBashCommand(command, { workspaceDir: ctx.workspaceDir })
 if (!sandbox.allowed) {
   return { content: `❌ 沙箱拦截: ${sandbox.reason}`, isError: true }
 }
-// ... 原有 spawn 逻辑
+// ... 原有 spawn 逻辑（cwd 已经是 ctx.workspaceDir）
 ```
 
-### 核心验证流程
+### 核心数据结构
 
 ```typescript
 export interface SandboxConfig {
+  /** 工作区根目录（来自 ToolContext.workspaceDir） */
   workspaceDir: string
-  allowSystemTemp?: boolean  // 允许 /tmp, %TEMP% 等
-  allowedExternalPaths?: string[]  // 额外白名单路径
-  denyPatterns?: RegExp[]    // 黑名单正则（如 /etc, /root）
+  /** 允许访问系统临时目录（默认 true） */
+  allowSystemTemp?: boolean
+  /** 额外白名单路径（绝对路径） */
+  allowedExternalPaths?: string[]
 }
 
 export interface SandboxResult {
   allowed: boolean
   reason?: string
-  paths?: string[]     // 检测到的路径列表（用于审计）
+  /** 提取到的路径列表（用于审计） */
+  paths?: string[]
 }
 
 export function validateBashCommand(command: string, config: SandboxConfig): SandboxResult
 ```
 
-### 路径提取策略
+### 验证流程（3 步）
 
-**第一步**：注入检测（在解析路径之前拦截攻击）
+**Step 1**：注入检测（在解析路径之前拦截攻击向量）
 
 ```typescript
-function detectInjection(command: string): string | null
+export function detectInjection(command: string): string | null
 ```
 
 - Unicode 不可见空格：`\u00A0`, `\u2000`-`\u200B`, `\u3000`, `\uFEFF`
 - NULL 字节：`\x00`
 - 原始回车注入：`\r` 不跟 `\n`
 
-**第二步**：提取路径参数
+**Step 2**：提取路径参数
 
 ```
 "cd /tmp && rm -rf ./build" 
   ↓ 按 && ; | \n 分割
 ["cd /tmp", "rm -rf ./build"]
-  ↓ 对每个子命令提取路径参数
+  ↓ 对每个子命令提取路径参数（跳过 flags）
 ["/tmp", "./build"]
 ```
 
-注意：只提取明确的路径参数（文件/目录参数位置），不对所有 token 做路径检查。对于无法识别参数位置的命令，保守跳过（不拦截也不放行，交给后续审计）。
+注意：只提取命令中明确的路径参数位置。对于无法识别参数位置的未知命令（如 `python3 script.py`），跳过路径检查（不拦截也不放行路径维度，C1 已将其分类为 EXEC）。
 
-**第三步**：路径验证
+**Step 3**：路径验证（跨平台标准化）
 
 ```typescript
-function validatePath(inputPath: string, config: SandboxConfig): SandboxResult
+export function validatePath(inputPath: string, config: SandboxConfig): SandboxResult
 ```
 
+核心逻辑：
 1. `path.resolve(config.workspaceDir, inputPath)` → 绝对路径
-2. 尝试 `fs.realpathSync(resolved)` → 追踪符号链接
-3. 检查 `normalizedPath.startsWith(normalizedWorkspace)` 或在白名单中
-4. Windows 路径标准化：`\` → `/`，不区分大小写
+2. 尝试 `fs.realpathSync(resolved)` → 追踪符号链接（路径不存在时用 resolve 结果）
+3. 跨平台标准化比较：
+   ```typescript
+   function normalizePath(p: string): string {
+     let normalized = p.replace(/\\/g, '/')
+     if (process.platform === 'win32') normalized = normalized.toLowerCase()
+     return normalized
+   }
+   ```
+4. 检查 `normalizedPath.startsWith(normalizedWorkspace + '/')` 或等于 normalizedWorkspace
+5. 若 `allowSystemTemp=true`，检查临时目录白名单
 
 ### Windows 特殊处理
 
 ```
 Windows: workspaceDir = "C:\\Users\\zz\\projects\\equality"
-  bash 实际执行: powershell.exe -Command "..."
-  路径分隔符: \ 和 / 混用
-  大小写: 不敏感（c:\ == C:\）
-  临时目录: %TEMP% → C:\Users\zz\AppData\Local\Temp
+  bash 实际执行: powershell.exe -NoProfile -NonInteractive -Command "..."
+  路径分隔符: \\ 和 / 混用 → normalize 统一为 /
+  大小写: 不敏感 → toLowerCase() 后比较
+  临时目录: os.tmpdir() → 如 C:\Users\zz\AppData\Local\Temp
+  驱动器跨盘: D:\secret → normalize 后 d:/ ≠ c:/ → 拦截
 
 Unix: workspaceDir = "/home/user/myproject"
   bash 实际执行: /bin/sh -c "..."
   路径分隔符: 仅 /
   大小写: 敏感
-  临时目录: /tmp, /var/tmp
+  临时目录: os.tmpdir() → 如 /tmp
 ```
 
 ---
