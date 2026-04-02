@@ -13,10 +13,11 @@ import { resolveFilePath, toLspPosition, getClientOrError } from '../lsp/helpers
 export const lspHoverTool: ToolDefinition = {
   name: 'lsp_hover',
   description:
-    '获取代码中指定位置符号的类型信息和文档注释。' +
-    '需要提供文件路径、行号和列号（均为 1-based）。' +
-    '适用于了解变量类型、函数签名、接口定义等。' +
-    '支持 TypeScript/JavaScript、Python、Go。',
+    '获取代码中指定位置符号的类型信息和文档注释（TypeScript/JavaScript/Python/Go）。' +
+    '返回类型签名、函数参数、JSDoc 注释等。' +
+    'Use when: 需要确认某个符号的精确类型、理解函数签名、阅读陌生 API 的参数含义。' +
+    'NOT for: 查找定义位置（用 lsp_definition）、查找所有使用处（用 lsp_references）。' +
+    '需要提供文件路径、行号和列号（均为 1-based）。',
 
   inputSchema: {
     type: 'object',

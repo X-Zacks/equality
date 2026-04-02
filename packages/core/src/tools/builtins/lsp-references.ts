@@ -15,10 +15,10 @@ const MAX_REFERENCES = 50
 export const lspReferencesTool: ToolDefinition = {
   name: 'lsp_references',
   description:
-    '查找符号的所有引用位置。' +
-    '给定文件路径、行号和列号（1-based），返回该符号在整个项目中的所有使用位置。' +
-    '适用于重构前评估影响范围、查找函数调用方等。' +
-    '支持 TypeScript/JavaScript、Python、Go。',
+    '查找符号（函数、类、变量）在整个项目中的所有引用位置（TypeScript/JavaScript/Python/Go）。' +
+    'Use when: 重构函数/变量前评估影响范围；需要了解一个函数被哪些地方调用；多文件修改前确认所有调用点。' +
+    'NOT for: 找定义位置（用 lsp_definition）；文本字符串搜索（用 grep）；列举文件（用 glob）。' +
+    '需要提供文件路径、行号和列号（均为 1-based）。',
 
   inputSchema: {
     type: 'object',

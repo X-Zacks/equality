@@ -226,8 +226,10 @@ export class LspLifecycle {
         cwd: workspaceDir,
         stdio: ['pipe', 'pipe', 'pipe'],
         env: { ...process.env, ...cmdInfo.env },
-        // Windows 下 .cmd 文件需要 shell=true
-        shell: process.platform === 'win32' && cmdInfo.cmd.endsWith('.cmd'),
+        // Windows 下需要 shell=true：
+        // 1. .cmd 文件（npm 全局包的 shim）必须通过 shell 启动
+        // 2. 全局 PATH 中的命令（如 npx）在 spawn 中找不到，也需要 shell
+        shell: process.platform === 'win32',
       })
     } catch (err: any) {
       return this.handleSpawnError(err, config, workspaceDir, language)

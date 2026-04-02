@@ -193,7 +193,7 @@ export class LspClient {
    */
   private parseFrames(): void {
     while (true) {
-      const separatorIdx = bufferIndexOf(this.rawBuffer, HEADER_SEPARATOR_BUF)
+      const separatorIdx = this.rawBuffer.indexOf(HEADER_SEPARATOR_BUF)
       if (separatorIdx < 0) break
 
       // 解析 header
@@ -273,8 +273,9 @@ export class LspClient {
     const body = JSON.stringify(message)
     const bodyBuf = Buffer.from(body, 'utf-8')
     const header = `Content-Length: ${bodyBuf.length}${HEADER_SEPARATOR}`
-    this.process.stdin.write(header)
-    this.process.stdin.write(bodyBuf)
+    // 合并为一次写入，避免 header/body 被进程分片读取
+    const headerBuf = Buffer.from(header, 'ascii')
+    this.process.stdin.write(Buffer.concat([headerBuf, bodyBuf]))
   }
 
   /**
@@ -289,16 +290,3 @@ export class LspClient {
   }
 }
 
-// ─── 工具函数 ─────────────────────────────────────────────────────────────────
-
-/** Buffer 中查找子序列的位置（类似 indexOf） */
-function bufferIndexOf(buf: Buffer, search: Buffer): number {
-  for (let i = 0; i <= buf.length - search.length; i++) {
-    let found = true
-    for (let j = 0; j < search.length; j++) {
-      if (buf[i + j] !== search[j]) { found = false; break }
-    }
-    if (found) return i
-  }
-  return -1
-}

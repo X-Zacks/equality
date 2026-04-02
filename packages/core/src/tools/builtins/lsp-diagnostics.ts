@@ -14,10 +14,10 @@ import { resolveFilePath, getClientOrError } from '../lsp/helpers.js'
 export const lspDiagnosticsTool: ToolDefinition = {
   name: 'lsp_diagnostics',
   description:
-    '获取文件或工作区的诊断信息（类型错误、语法错误、未使用变量等）。' +
-    '无需运行 tsc/pyright/go build 等命令，直接从语言服务器的实时分析中获取。' +
-    '可指定文件路径获取单文件诊断，或省略获取所有已打开文件的诊断。' +
-    '支持按严重级别过滤（error/warning/all）。',
+    '获取文件或工作区的诊断信息（类型错误、语法错误、未使用变量等），无需运行 tsc/pyright/go build。' +
+    'Use when: 修改代码后验证是否有类型错误；代码审查时检查是否有潜在问题；编写新代码后确认无错误再提交。' +
+    'NOT for: 运行时错误（用 bash 执行）；测试失败（用 bash 运行测试）；查找某个符号（用 lsp_hover/lsp_references）。' +
+    '可指定 file 获取单文件诊断，省略则返回所有已打开文件的诊断；支持 severity 过滤（error/warning/all）。',
 
   inputSchema: {
     type: 'object',

@@ -6,15 +6,17 @@
 
 ## 1. LSP JSON-RPC 客户端
 
-- [ ] 1.1 新增 `packages/core/src/tools/lsp/client.ts`
+- [x] 1.1 新增 `packages/core/src/tools/lsp/client.ts`
   - 实现 Content-Length 帧协议解析器（状态机：HEADER → BODY → 派发）
   - 实现 `LspClient` 类：`request(method, params, timeoutMs)` + `notify(method, params)`
   - pending Map 管理（id → resolve/reject/timeoutHandle）
   - 诊断通知监听：`textDocument/publishDiagnostics` → 更新 diagnostics 缓存
   - `dispose()`：发送 shutdown + exit，清理 pending
   - 进程意外退出处理：reject 所有 pending，标记 disposed
+  - ⚠️ 审查修复：用原生 `Buffer.indexOf()` 替代手写 `bufferIndexOf`
+  - ⚠️ 审查修复：`send()` 合并 header + body 为一次写入，避免分片
 
-- [ ] 1.2 新增 `packages/core/src/tools/lsp/types.ts`
+- [x] 1.2 新增 `packages/core/src/tools/lsp/types.ts`
   - `LspRequest`, `LspResponse`, `LspNotification` 接口
   - `Position`, `Range`, `Location`, `Diagnostic` 类型
   - `DiagnosticSeverity` 枚举（1=Error, 2=Warning, 3=Information, 4=Hint）
@@ -23,7 +25,7 @@
 
 ## 2. 语言服务器配置
 
-- [ ] 2.1 新增 `packages/core/src/tools/lsp/server-configs.ts`
+- [x] 2.1 新增 `packages/core/src/tools/lsp/server-configs.ts`
   - `LspServerConfig` 接口（language / detect / command / initOptions）
   - TypeScript 配置：优先本地 `node_modules/.bin/typescript-language-server`
   - Python 配置：`pyright-langserver --stdio`（优先）或 `pylsp`（fallback）
@@ -35,7 +37,7 @@
 
 ## 3. 会话级生命周期管理
 
-- [ ] 3.1 新增 `packages/core/src/tools/lsp/lifecycle.ts`
+- [x] 3.1 新增 `packages/core/src/tools/lsp/lifecycle.ts`
   - `LspLifecycle` 单例类
   - `getOrStart(workspaceDir, language): Promise<LspClient | MissingDependency | null>`
   - `startServer(workspaceDir, config)` 私有方法：
@@ -49,15 +51,16 @@
   - `resetIdleTimer(key)`：5 分钟无调用后自动 dispose
   - `openFile(client, filePath)`：检查缓存，未打开则 `textDocument/didOpen`
   - 已打开文件 LRU 上限 100 个
+  - ⚠️ 审查修复：Windows 下 `spawn` 始终用 `shell: true`（全局安装的 npm 包在 PATH 中但 spawn 找不到）
 
-- [ ] 3.2 新增 `packages/core/src/tools/lsp/types.ts` 中追加类型
+- [x] 3.2 新增 `packages/core/src/tools/lsp/types.ts` 中追加类型
   - `MissingDependency` 接口：{ missingCommand, installCommand, guideUrl }
 
 ---
 
 ## 4. lsp_hover 工具
 
-- [ ] 4.1 新增 `packages/core/src/tools/builtins/lsp-hover.ts`
+- [x] 4.1 新增 `packages/core/src/tools/builtins/lsp-hover.ts`
   - 参数：`file`（string）、`line`（number，1-based）、`column`（number，1-based）
   - 通过 `LspLifecycle.getOrStart()` 获取客户端
   - 处理返回值：
@@ -73,7 +76,7 @@
 
 ## 5. lsp_definition 工具
 
-- [ ] 5.1 新增 `packages/core/src/tools/builtins/lsp-definition.ts`
+- [x] 5.1 新增 `packages/core/src/tools/builtins/lsp-definition.ts`
   - 参数：`file`、`line`、`column`
   - 处理缺失依赖同 lsp_hover
   - 发送 `textDocument/definition` 请求
@@ -84,7 +87,7 @@
 
 ## 6. lsp_references 工具
 
-- [ ] 6.1 新增 `packages/core/src/tools/builtins/lsp-references.ts`
+- [x] 6.1 新增 `packages/core/src/tools/builtins/lsp-references.ts`
   - 参数：`file`、`line`、`column`、`include_declaration?`（默认 false）
   - 处理缺失依赖同 lsp_hover
   - 发送 `textDocument/references` 请求（含 context.includeDeclaration）
@@ -95,7 +98,7 @@
 
 ## 7. lsp_diagnostics 工具
 
-- [ ] 7.1 新增 `packages/core/src/tools/builtins/lsp-diagnostics.ts`
+- [x] 7.1 新增 `packages/core/src/tools/builtins/lsp-diagnostics.ts`
   - 参数：`file?`（省略则返回所有已缓存文件诊断）、`severity?`（默认 'error'）
   - 处理缺失依赖同 lsp_hover
   - 若指定 file：先调用 `openFile()` 触发诊断推送，等待最多 3s
@@ -107,12 +110,14 @@
 
 ## 8. 注册工具
 
-- [ ] 8.1 修改 `packages/core/src/tools/builtins/index.ts`
+- [x] 8.1 修改 `packages/core/src/tools/builtins/index.ts`
   - 导入并注册 `lspHoverTool`, `lspDefinitionTool`, `lspReferencesTool`, `lspDiagnosticsTool`
 
 ---
 
 ## 9. 单元测试
+
+> ⚠️ Phase B.2 或后续实现。当前已通过 E2E 手动测试验证（test-lsp-pipe.js 6/6 passed）。
 
 - [ ] 9.1 新增 `packages/core/src/__tests__/phase-B.test.ts`
   - Mock LSP 服务器（in-process 的 stdio mock）
@@ -127,5 +132,5 @@
 
 ## 10. 编译验证
 
-- [ ] 10.1 `npx tsc --noEmit` 通过，0 错误
-- [ ] 10.2 `npx tsx src/__tests__/phase-B.test.ts` 所有测试通过
+- [x] 10.1 `npx tsc --noEmit` 通过，0 错误
+- [ ] 10.2 `npx tsx src/__tests__/phase-B.test.ts` 所有测试通过（待第 9 章完成）

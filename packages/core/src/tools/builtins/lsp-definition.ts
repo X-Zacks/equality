@@ -13,10 +13,11 @@ import { resolveFilePath, toLspPosition, getClientOrError, readLineFromFile } fr
 export const lspDefinitionTool: ToolDefinition = {
   name: 'lsp_definition',
   description:
-    '跳转到符号的定义位置。' +
-    '给定文件路径、行号和列号（1-based），返回该符号的定义所在文件和行号。' +
-    '适用于查找函数实现、类定义、变量声明等。' +
-    '支持 TypeScript/JavaScript、Python、Go。',
+    '跳转到符号的定义位置（TypeScript/JavaScript/Python/Go）。' +
+    '返回定义所在文件路径和行号，支持跨文件。' +
+    'Use when: 在阅读代码时遇到函数调用、类名、变量引用，需要找到其实现或声明位置；重构前确认实现位置。' +
+    'NOT for: 获取类型签名（用 lsp_hover）、查所有使用处（用 lsp_references）、grep 搜索字符串。' +
+    '需要提供文件路径、行号和列号（均为 1-based）。',
 
   inputSchema: {
     type: 'object',

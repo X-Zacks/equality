@@ -656,3 +656,212 @@ async getOrStart(workspaceDir: string, language: string, forceRetry = false): Pr
   // ...
 }
 ```
+
+---
+
+## B10. Agent 集成与触发时机
+
+> Phase B 的工具已通过 `builtinTools` 注册，Equality Agent 会自动接收并向 LLM 暴露这 4 个工具。
+> 但 **Agent 主动使用工具的前提是 tool schema 的 description 能让 LLM 判断何时调用**。
+
+### 集成路径（已完成）
+
+```
+builtins/index.ts         ← lspHoverTool / lspDefinitionTool / lspReferencesTool / lspDiagnosticsTool
+    ↓
+tools/registry.ts         ← builtinTools 自动注册
+    ↓
+agent/runner.ts           ← toolRegistry.getToolSchemas() → 传给 LLM
+    ↓
+LLM（gpt-4o 等）          ← 读取 schema description，决定何时调用
+    ↓
+runner.ts tool loop       ← 执行 tool.execute(args, ctx)
+    ↓
+lsp/lifecycle.ts          ← getOrStart → LspClient → JSON-RPC
+    ↓
+typescript-language-server / pyright-langserver / gopls
+```
+
+### description 设计原则（`Use when` / `NOT for`）
+
+Equality 过去总结了一个关键教训：**system prompt 不要重复工具用途，让 tool schema 的 description 自己说话**（见 [DEVELOPMENT_INSIGHTS.md §4.2](../../DEVELOPMENT_INSIGHTS.md)）。
+
+因此 4 个 LSP 工具的 description 均遵循以下格式：
+
+```
+[一句话功能描述]。
+Use when: [触发场景1]；[触发场景2]；[触发场景3]。
+NOT for: [排除场景1]（用 [替代工具]）；[排除场景2]。
+[参数说明]。
+```
+
+| 工具 | 核心触发场景 |
+|------|-------------|
+| `lsp_hover` | 阅读陌生代码时需要确认某个符号的类型 |
+| `lsp_definition` | 遇到函数调用/类名引用，需要找到实现或声明 |
+| `lsp_references` | 重构前确认某个符号的全部使用位置 |
+| `lsp_diagnostics` | 修改代码后验证是否引入类型错误 |
+
+### 典型 Agent 工作流（write → check → fix）
+
+```
+用户：帮我给 createUser 加一个 age 参数
+
+Agent:
+  1. read_file(src/user.ts)           ← 读取当前实现
+  2. lsp_references(file, line, col)  ← 确认 createUser 被哪些地方调用
+  3. edit_file(src/user.ts, ...)      ← 修改函数签名
+  4. lsp_diagnostics(file=src/user.ts) ← 验证修改是否引入类型错误
+  5. 根据 diagnostics 输出，逐一修复调用处
+```
+
+```
+用户：解释一下这段代码里 processItems 的参数含义
+
+Agent:
+  1. lsp_hover(file, line, col)       ← 获取 processItems 的完整类型签名
+  2. lsp_definition(file, line, col)  ← 跳转到定义，查看实现逻辑
+  3. 综合以上信息回答用户
+```
+
+### 工具未被调用的常见原因排查
+
+| 现象 | 原因 | 解决 |
+|------|------|------|
+| Agent 直接用 grep 搜索而不是 lsp_references | description 的 `Use when` 不够清晰 | 检查 description 是否包含该场景 |
+| Agent 提示"无法获取类型信息" | LSP 服务器未安装 | 见 actionable 流程（B8节）|
+| lsp_hover 返回空 | 光标位置不在符号上（line/col 有偏差） | Agent 需在调用前先 read_file 确认准确位置 |
+| lsp_diagnostics 返回 0 个错误但实际有 | 服务器尚未完成索引（冷启动）| ensureFileOpen 内置了 3s 等待，一般够用 |
+
+### 注意：LSP 工具不是搜索替代品
+
+- `grep` / `glob` 仍是文本搜索的最佳工具（速度快、无依赖）
+- LSP 工具的价值在于**语义**：能区分同名不同符号、能理解类型继承关系、能准确找到接口与实现的对应
+- Agent 应该先用文本工具定位代码位置，再用 LSP 工具理解语义
+
+---
+
+## B11. 扩展支持新的编程语言
+
+> Phase B 当前支持 TypeScript/JavaScript、Python、Go。未来可通过配置扩展。
+
+### 当前架构（硬编码）
+
+```typescript
+// tools/lsp/server-configs.ts
+const serverConfigs = {
+  typescript: { detect: '...', command: 'typescript-language-server', ... },
+  python: { detect: '...', command: 'pyright-langserver', ... },
+  go: { detect: '...', command: 'gopls', ... },
+}
+```
+
+### 扩展方案（Future）
+
+类似 OpenClaw 的插件模式，可在 `equality-config.json` 中声明自定义 LSP 服务器：
+
+```json
+{
+  "lspServers": {
+    "rust": {
+      "detect": "Cargo.toml",
+      "command": "rust-analyzer",
+      "installCommand": "npm install -g rust-analyzer"
+    },
+    "java": {
+      "detect": "pom.xml",
+      "command": "java-language-server",
+      "installCommand": "..."
+    }
+  }
+}
+```
+
+实现方式：
+1. `tools/lsp/config-loader.ts` — 新增函数 `loadCustomLspConfig(configPath)` 读取用户配置
+2. `tools/lsp/server-configs.ts` — 在 `getConfigByLanguage()` 中合并用户配置与默认配置
+3. `tools/lsp/helpers.ts` — `detectLanguage()` 兼容用户自定义的 detect pattern
+
+**优先级**：Phase C 或后续需求驱动。当前硬编码 3 种语言足够覆盖大部分场景。
+
+---
+
+## B12. 与 OpenClaw LSP 架构对比
+
+> 为了从 OpenClaw 学习，这里对比两个系统的 LSP 设计差异。
+
+### 启动时机
+
+| 系统 | 启动时间 | 特点 |
+|------|--------|------|
+| **OpenClaw** | 运行开始时 | 每次 `runEmbeddedAttempt()` 调用 `createBundleLspToolRuntime()`，一次性启动所有配置的服务器 |
+| **Equality** | 首次工具调用时 | `lifecycle.getOrStart()` 懒启动，仅当 Agent 实际调用 lsp_hover/lsp_definition 等工具时才 spawn 进程 |
+
+### 工具注册方式
+
+| 系统 | 方式 | 影响 |
+|------|-----|------|
+| **OpenClaw** | 先启动服务器，再根据 `capabilities` 动态生成工具 | 如果服务器启动失败，工具不会加入 effectiveTools，LLM 看不见就不会调用 |
+| **Equality** | 工具始终在 builtinTools，调用时才检查依赖 | LLM 看到工具后调用，若服务器未装则返回 actionable 提示引导用户安装 |
+
+### 工具命名
+
+| 系统 | 命名 | 用意 |
+|------|-----|------|
+| **OpenClaw** | `lsp_hover_typescript`, `lsp_hover_python` 等（带服务器后缀） | 明确指示哪个服务器提供，支持多服务器共存 |
+| **Equality** | `lsp_hover`, `lsp_definition` 等（无后缀） | 简洁，自动按文件扩展名选服务器 |
+
+### 设计权衡
+
+**OpenClaw 的优势**：
+- ✅ 启动时一次性加载所有依赖，运行期间稳定
+- ✅ 支持多服务器并行运行（如同时 hover TypeScript 和 Python 代码）
+- ✅ 工具不可用时 LLM 完全看不见（避免调用失败）
+
+**Equality Phase B 的优势**：
+- ✅ 轻量级：无需预启动，用户装包后直接用
+- ✅ 降低冷启动延迟（首次调用工具时才 spawn）
+- ✅ 简化工具名称和参数（自动语言检测，无需指定服务器）
+
+**Equality 的缺点及缓解**：
+- ⚠️ LLM 可能调用不可用的工具 → 通过 `actionable=true` 和 `suggestedCommand` 引导用户安装
+- ⚠️ 不支持多服务器 → Phase C 或后续版本考虑
+
+**选择 Equality 方案的理由**：
+1. 目标是 **Agent 辅助编码**，不是完整的语言服务器集成
+2. 大多数 Equality 用户用单一技术栈（全 TS、全 Python 等），多服务器需求少
+3. 懒启动符合 **Web 应用 (desktop/浏览器)** 的冷启动优化原则
+4. 通过 `actionable` 缓解依赖缺失问题，用户体验可接受
+
+---
+
+## B13. 审查修复记录（2026-04-02）
+
+> 以下是代码审查中发现并修复的问题。
+
+### 修复 1：Windows `spawn` 始终需要 `shell: true`
+
+**问题**：原代码只在 `cmdInfo.cmd.endsWith('.cmd')` 时设置 `shell: true`。但 E2E 测试发现全局安装的 npm 包（如 `typescript-language-server`）在 Windows 上通过 `spawn` 不带 shell 时报 `ENOENT`，因为 Windows 的 `CreateProcess` 不搜索 PATH 中的 `.cmd` shim。
+
+**修复**：Windows 下始终 `shell: process.platform === 'win32'`。
+
+### 修复 2：用原生 `Buffer.indexOf` 替代手写实现
+
+**问题**：`client.ts` 中的 `bufferIndexOf()` 手动逐字节比较，时间复杂度 O(n*m)。Node.js 的 `Buffer.prototype.indexOf(Buffer)` 是 C++ 原生实现，快得多。
+
+**修复**：删除 `bufferIndexOf`，改为 `this.rawBuffer.indexOf(HEADER_SEPARATOR_BUF)`。
+
+### 修复 3：`send()` 合并为单次写入
+
+**问题**：原代码先 `write(header)` 再 `write(bodyBuf)`，两次写入可能被 Node.js 拆分为两个 chunk，导致接收方解析不稳定。
+
+**修复**：`Buffer.concat([headerBuf, bodyBuf])` 合并后一次写入。
+
+### 待改进项（Phase B.2）
+
+| 项目 | 说明 | 优先级 |
+|------|------|--------|
+| 单元测试 | Mock LSP 服务器测试帧解析、超时、诊断缓存 | P1 |
+| 语言扩展配置 | 支持通过 `equality-config.json` 添加自定义语言服务器（见 B11） | P2 |
+| `lsp_rename` 工具 | 语义重命名（跨文件安全修改）| P2 |
+| 动态工具注册 | 类似 OpenClaw，服务器启动失败则从工具列表中移除 | P3 |
