@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit",
     "test": "tsx src/__tests__/phase-A.test.ts",
     "test:phase-A": "tsx src/__tests__/phase-A.test.ts",
+    "test:mutation": "tsx src/__tests__/mutation.test.ts",
     "test:lsp": "tsx src/__tests__/lsp/frame-parser.test.ts && tsx src/__tests__/lsp/client.test.ts && tsx src/__tests__/lsp/types.test.ts && tsx src/__tests__/lsp/tools.test.ts"
   },
   "dependencies": {
