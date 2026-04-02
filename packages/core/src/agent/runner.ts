@@ -16,6 +16,7 @@ async function logToolCall(
   result: string,
   isError: boolean,
   durationMs: number,
+  audit?: { mutationType?: string; mutationConfidence?: string; risk?: string },
 ): Promise<void> {
   try {
     if (!_logDirReady) {
@@ -25,6 +26,9 @@ async function logToolCall(
     const date = new Date()
     const filename = `tool-${date.toISOString().slice(0, 10)}.log`
     const ts = date.toISOString()
+    const auditLine = audit
+      ? `\n── AUDIT ──\nmutation=${audit.mutationType ?? '?'}/${audit.mutationConfidence ?? '?'}, risk=${audit.risk ?? '?'}`
+      : ''
     const entry = [
       `\n${'═'.repeat(80)}`,
       `[${ts}] ${isError ? '❌' : '✅'} ${toolName} (${durationMs}ms)`,
@@ -32,6 +36,7 @@ async function logToolCall(
       typeof args === 'string' ? args : JSON.stringify(args, null, 2),
       `── OUTPUT (${result.length} chars) ──`,
       result,
+      auditLine,
       `${'═'.repeat(80)}`,
     ].join('\n')
     await appendFile(join(LOG_DIR, filename), entry, 'utf-8')
@@ -140,7 +145,7 @@ export interface RunAttemptResult {
 
 // ─── 累积的完整 tool call ─────────────────────────────────────────────────────
 
-import { isMutatingOperation } from '../tools/mutation.js'
+import { isMutatingOperation, classifyMutation } from '../tools/mutation.js'
 
 interface AccumulatedToolCall {
   id: string
@@ -589,8 +594,13 @@ export async function runAttempt(params: RunAttemptParams): Promise<RunAttemptRe
 
           const durationMs = Date.now() - t0
 
-          // 持久化日志（异步，不阻塞）
-          logToolCall(tc.name, args, resultContent!, isError, durationMs).catch(() => {})
+          // C1 变异分类审计（Phase D1：写入日志，不阻塞执行）
+          const mutation = classifyMutation(tc.name, args)
+          logToolCall(tc.name, args, resultContent!, isError, durationMs, {
+            mutationType: mutation.type,
+            mutationConfidence: mutation.confidence,
+            risk: mutation.type === 'write' ? 'high' : 'low',
+          }).catch(() => {})
 
           // 通知：工具完成（使用原始结果）
           onToolResult?.({ toolCallId: tc.id, name: tc.name, content: resultContent!, isError })

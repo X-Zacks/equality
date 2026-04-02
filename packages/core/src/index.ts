@@ -15,7 +15,9 @@ import { initProxy, setProxyUrl } from './config/proxy.js'
 import { dailySummary, sessionCostSummary, allSessionsCostSummary, globalCostSummary } from './cost/ledger.js'
 import { startDeviceFlow, pollForToken, clearCopilotAuth, isCopilotLoggedIn, getPollingInterval } from './providers/copilot-auth.js'
 import { COPILOT_MODELS, fetchCopilotModels } from './providers/copilot.js'
-import { ToolRegistry, builtinTools } from './tools/index.js'
+import { ToolRegistry, builtinTools, resolvePolicyForTool, classifyMutation } from './tools/index.js'
+import type { PolicyContext } from './tools/index.js'
+import type { BeforeToolCallInfo } from './agent/runner.js'
 import { closeSessionBrowser } from './tools/builtins/browser.js'
 import { SkillsWatcher } from './skills/index.js'
 import { fetchGallery, installSkill, uninstallSkill, scanSkillContent, TRUSTED_REPOS } from './skills/gallery.js'
@@ -46,6 +48,38 @@ function getWorkspaceDir(): string {
   const defaultDir = path.join(os.homedir(), 'Equality', 'workspace')
   try { fs.mkdirSync(defaultDir, { recursive: true }) } catch { /* ignore */ }
   return defaultDir
+}
+
+// ─── D1: 安全管道集成（Phase D.1）────────────────────────────────────────────
+
+/**
+ * 构建策略上下文（D1 阶段返回空 = 全部放行，后续从 settings 读取）
+ */
+function buildPolicyContext(): PolicyContext {
+  // TODO D1+: 从 settings.json 读取用户配置的 deny/allow 规则
+  return {}
+}
+
+/**
+ * 工具执行前拦截回调：C3 策略检查 + C1 变异审计
+ *
+ * 接入 runner.ts 的 beforeToolCall hook（Phase B 设计），
+ * 让 Phase C 的安全模块从"库函数"变为"运行时保护"。
+ */
+async function securityBeforeToolCall(info: BeforeToolCallInfo): Promise<{ block: true; reason: string } | undefined> {
+  const { name, args } = info
+
+  // 1. C3 策略管道检查
+  const decision = resolvePolicyForTool(name, buildPolicyContext())
+  if (!decision.allowed) {
+    return { block: true, reason: `策略拒绝: ${decision.decidedBy}` }
+  }
+
+  // 2. C1 变异分类（审计日志，不阻塞执行）
+  const mutation = classifyMutation(name, args)
+  console.log(`[security] ${name}: mutation=${mutation.type}/${mutation.confidence}, risk=${decision.risk}, decidedBy=${decision.decidedBy}`)
+
+  return undefined // 允许执行
 }
 
 // 初始化代理（从 settings.json 或环境变量读取）
@@ -93,6 +127,7 @@ const cronScheduler = new CronScheduler({
       toolRegistry,
         workspaceDir: getWorkspaceDir(),
         skills: skillsWatcher.getSkills().map(e => e.skill),
+        beforeToolCall: securityBeforeToolCall,
     }))
     return result.text.slice(0, 500)
   },
@@ -242,6 +277,7 @@ app.post<{ Body: ChatBody }>('/chat/stream', async (req, reply) => {
         activeSkillName,
         allowedTools,
         steeringQueue,
+        beforeToolCall: securityBeforeToolCall,
         ...(provider ? { provider } : {}),
         onDelta: (chunk) => send({ type: 'delta', content: chunk }),
         onToolStart: (info) => send({ type: 'tool_start', name: info.name, args: info.args, toolCallId: info.toolCallId }),

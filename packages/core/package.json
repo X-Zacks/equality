@@ -14,6 +14,7 @@
     "test:mutation": "tsx src/__tests__/mutation.test.ts",
     "test:sandbox": "tsx src/__tests__/bash-sandbox.test.ts",
     "test:policy": "tsx src/__tests__/policy-pipeline.test.ts",
+    "test:d1": "tsx src/__tests__/d1-integration.test.ts",
     "test:lsp": "tsx src/__tests__/lsp/frame-parser.test.ts && tsx src/__tests__/lsp/client.test.ts && tsx src/__tests__/lsp/types.test.ts && tsx src/__tests__/lsp/tools.test.ts"
   },
   "dependencies": {
