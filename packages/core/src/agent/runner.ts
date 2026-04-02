@@ -140,20 +140,13 @@ export interface RunAttemptResult {
 
 // ─── 累积的完整 tool call ─────────────────────────────────────────────────────
 
+import { isMutatingOperation } from '../tools/mutation.js'
+
 interface AccumulatedToolCall {
   id: string
   name: string
   arguments: string
 }
-
-const MUTATING_TOOL_NAMES = new Set([
-  'write_file',
-  'bash',
-  'apply_patch',
-  'delete_file',
-  'move_file',
-  'rename_file',
-])
 
 function containsExecutionSuccessClaim(text: string): boolean {
   const patterns = [
@@ -220,7 +213,7 @@ function guardUnsupportedSuccessClaims(text: string, executedToolNames: Set<stri
   if (!trimmed) return text
 
   const toolNames = [...executedToolNames]
-  const hasMutatingTool = toolNames.some(name => MUTATING_TOOL_NAMES.has(name))
+  const hasMutatingTool = toolNames.some(name => isMutatingOperation(name))
   const hasBashTool = toolNames.includes('bash')
 
   if (toolNames.length === 0 && containsExecutionSuccessClaim(trimmed)) {

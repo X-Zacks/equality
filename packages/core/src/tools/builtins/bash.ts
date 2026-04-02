@@ -12,6 +12,7 @@ import type { ToolDefinition, ToolResult, ToolContext } from '../types.js'
 import { processManager } from './process-manager.js'
 import { hasSecret, getSecret } from '../../config/secrets.js'
 import type { SecretKey } from '../../config/secrets.js'
+import { validateBashCommand } from '../bash-sandbox.js'
 
 // ─── 默认值 ──────────────────────────────────────────────────────────────────
 const DEFAULT_TIMEOUT_MS = 300_000       // 默认总超时 5 分钟
@@ -88,6 +89,12 @@ export const bashTool: ToolDefinition = {
         http_proxy: ctx.proxyUrl,
       } : {}),
       ...ctx.env,
+    }
+
+    // ── 沙箱路径隔离（Phase C.2）────────────
+    const sandbox = validateBashCommand(command, { workspaceDir: ctx.workspaceDir })
+    if (!sandbox.allowed) {
+      return { content: `❌ 沙箱拦截: ${sandbox.reason}`, isError: true }
     }
 
     // ── 後台模式 ─────────────────────────────────
