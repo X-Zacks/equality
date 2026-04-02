@@ -117,20 +117,38 @@
 
 ## 9. 单元测试
 
-> ⚠️ Phase B.2 或后续实现。当前已通过 E2E 手动测试验证（test-lsp-pipe.js 6/6 passed）。
+> 测试策略：使用 in-process `PassThrough` stream mock，无需真实语言服务器。详见 [design.md B14 节](./design.md#b14-单元测试设计)。
 
-- [ ] 9.1 新增 `packages/core/src/__tests__/phase-B.test.ts`
-  - Mock LSP 服务器（in-process 的 stdio mock）
-  - 测试 Content-Length 帧协议解析（完整帧、分片帧、多帧粘包）
-  - 测试 `request` 超时（mock 服务器不响应）
-  - 测试 `detectLanguage`（ts 文件 → typescript；py 文件 → python）
-  - 测试 lsp_hover 输出格式（mock hover 响应）
-  - 测试 lsp_diagnostics 从缓存读取
-  - 测试 LSP 不可用时返回安装指引（命令不存在）
+### 9.1 帧解析测试（`src/__tests__/lsp/frame-parser.test.ts`）
+
+- [x] 9.1.1 T1 — 完整帧解析：单次 push 完整帧，resolve value 正确
+- [x] 9.1.2 T2 — body 分片（chunkSize=1 字节逐字节 push），最终 resolve 正确
+- [x] 9.1.3 T3 — body 分片（chunkSize=10 字节），最终 resolve 正确
+- [x] 9.1.4 T4 — 多帧粘包（2 条消息 concat 后一次 push），两个 Promise 均 resolve
+- [x] 9.1.5 T5 — 多帧粘包（3 条消息 concat 后一次 push），三个 Promise 均 resolve
+- [x] 9.1.6 T6 — 跨边界分隔符（`\r\n\r\n` 拆为两个 chunk），正确识别 header 边界
+- [x] 9.1.7 T7 — 超大消息体（128KB body，分 4KB chunk push），解析结果与原始一致
+- [x] 9.1.8 T8 — 并发请求有序响应（id=3,1,2 顺序到达），每个 Promise 拿到自己的响应
+
+### 9.2 客户端行为测试（`src/__tests__/lsp/client.test.ts`）
+
+- [x] 9.2.1 T9 — request 超时（timeout=100ms，mock 不回复），Promise reject 含 'timeout'
+- [x] 9.2.2 T10 — 进程意外退出后所有 pending Promise 均被 reject
+
+### 9.3 类型工具测试（`src/__tests__/lsp/types.test.ts`）
+
+- [x] 9.3.1 T11 — `detectLanguageId('foo.ts')` → `'typescript'`
+- [x] 9.3.2 T12 — `detectLanguageId('bar.py')` → `'python'`
+- [x] 9.3.3 T13 — `detectLanguageId('foo.xyz')` → `'plaintext'`
+
+### 9.4 工具层行为测试（`src/__tests__/lsp/tools.test.ts`）
+
+- [x] 9.4.1 T14 — lsp_hover：`getOrStart` 返回 `MissingDependency` 时，result 含 `suggestedCommand`，`metadata.actionable=true`
+- [x] 9.4.2 T15 — lsp_diagnostics：预填 `client.diagnostics` Map，工具返回预填的诊断信息
 
 ---
 
 ## 10. 编译验证
 
 - [x] 10.1 `npx tsc --noEmit` 通过，0 错误
-- [ ] 10.2 `npx tsx src/__tests__/phase-B.test.ts` 所有测试通过（待第 9 章完成）
+- [x] 10.2 `pnpm --filter @equality/core test:lsp` 全部 26 个测试通过（T1-T15 + 附加，4 个测试文件）

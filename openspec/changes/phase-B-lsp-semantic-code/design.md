@@ -857,11 +857,94 @@ const serverConfigs = {
 
 **修复**：`Buffer.concat([headerBuf, bodyBuf])` 合并后一次写入。
 
-### 待改进项（Phase B.2）
+### 待改进项（后续）
 
 | 项目 | 说明 | 优先级 |
 |------|------|--------|
-| 单元测试 | Mock LSP 服务器测试帧解析、超时、诊断缓存 | P1 |
 | 语言扩展配置 | 支持通过 `equality-config.json` 添加自定义语言服务器（见 B11） | P2 |
 | `lsp_rename` 工具 | 语义重命名（跨文件安全修改）| P2 |
 | 动态工具注册 | 类似 OpenClaw，服务器启动失败则从工具列表中移除 | P3 |
+
+---
+
+## B14. 单元测试设计
+
+### 测试策略
+
+不依赖真实语言服务器进程，使用 **in-process stdio mock**：构造一对 `PassThrough` stream（`mockStdin` / `mockStdout`），直接向 `mockStdout` 写入 LSP 帧，验证 `LspClient` 的解析和派发行为。
+
+```
+测试代码
+  │  new LspClient(mockStdout /* as process.stdout */, mockStdin)
+  │  向 mockStdout.push(frameBytes)
+  ▼
+LspClient.onData()  ←── 解析帧 ──► 派发 response / notification
+  │
+  ▼
+  assert(resolvedValue)
+```
+
+### Mock 工具函数
+
+```typescript
+// 构造 LSP 帧（Buffer）
+function buildFrame(obj: object): Buffer {
+  const body = Buffer.from(JSON.stringify(obj), 'utf8')
+  const header = Buffer.from(`Content-Length: ${body.length}\r\n\r\n`, 'ascii')
+  return Buffer.concat([header, body])
+}
+
+// 分片发送（模拟 TCP 拆包）
+function sendInChunks(stream: PassThrough, buf: Buffer, chunkSize: number) {
+  for (let i = 0; i < buf.length; i += chunkSize) {
+    stream.push(buf.subarray(i, i + chunkSize))
+  }
+}
+```
+
+### 帧解析测试用例
+
+| 编号 | 用例名称 | 测试方法 | 断言 |
+|------|----------|---------|------|
+| T1 | 完整帧解析 | 一次 push 完整帧 | resolve value 正确 |
+| T2 | body 分片（chunkSize=1 字节） | 逐字节 push | 最终 resolve 正确 |
+| T3 | body 分片（chunkSize=10 字节） | 每 10 字节 push | 最终 resolve 正确 |
+| T4 | 多帧粘包（2 条消息一次 push） | concat 两帧后一次 push | 两个 Promise 均 resolve |
+| T5 | 多帧粘包（3 条消息一次 push） | concat 三帧后一次 push | 三个 Promise 均 resolve |
+| T6 | 跨边界分隔符（`\r\n\r\n` 拆为 2 chunk） | header 末尾 `\r\n` 单独一个 chunk | 正确识别 header 边界后 resolve |
+| T7 | 超大消息体（128KB body） | 分 4KB chunk push | 正确解析，resolve value 与原始一致 |
+| T8 | 并发请求有序响应（id=3,1,2 顺序到达） | 先发 3 请求，按 3,1,2 顺序 push 响应帧 | 每个 Promise 拿到自己的响应 |
+
+### 其他测试用例
+
+| 编号 | 用例名称 | 测试方法 | 断言 |
+|------|----------|---------|------|
+| T9 | request 超时 | mock 服务器不回复，timeout=100ms | Promise reject，错误消息含 'timeout' |
+| T10 | 进程意外退出后 pending 全部 reject | 触发 `process.emit('close')` | 所有 pending Promise reject |
+| T11 | `detectLanguage` — .ts 文件 | 调用 `detectLanguageId('foo.ts')` | 返回 `'typescript'` |
+| T12 | `detectLanguage` — .py 文件 | 调用 `detectLanguageId('bar.py')` | 返回 `'python'` |
+| T13 | `detectLanguage` — 未知扩展 | 调用 `detectLanguageId('foo.xyz')` | 返回 `undefined` |
+| T14 | lsp_hover — LSP 不可用时返回 actionable 提示 | mock `getOrStart` 返回 `MissingDependency` | result 含 `suggestedCommand`，`metadata.actionable=true` |
+| T15 | lsp_diagnostics — 从缓存读取 | 预填 `client.diagnostics` Map，调用工具 | 返回预填的诊断信息 |
+
+### 测试文件位置
+
+```
+packages/core/src/__tests__/lsp/
+├── frame-parser.test.ts   ← T1-T8（帧解析，纯 LspClient 内部逻辑）
+├── client.test.ts         ← T9-T10（超时 + 进程退出）
+├── types.test.ts          ← T11-T13（detectLanguageId）
+└── tools.test.ts          ← T14-T15（工具层行为）
+```
+
+### 运行方式
+
+```bash
+# 运行所有 LSP 单元测试
+pnpm --filter @equality/core test src/__tests__/lsp
+
+# 仅运行帧解析测试
+pnpm --filter @equality/core test src/__tests__/lsp/frame-parser.test.ts
+```
+
+> **注意**：不需要安装 typescript-language-server 即可运行这些测试（全部 mock）。

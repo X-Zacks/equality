@@ -10,7 +10,8 @@
     "build:sea": "node scripts/build-sea.mjs",
     "typecheck": "tsc --noEmit",
     "test": "tsx src/__tests__/phase-A.test.ts",
-    "test:phase-A": "tsx src/__tests__/phase-A.test.ts"
+    "test:phase-A": "tsx src/__tests__/phase-A.test.ts",
+    "test:lsp": "tsx src/__tests__/lsp/frame-parser.test.ts && tsx src/__tests__/lsp/client.test.ts && tsx src/__tests__/lsp/types.test.ts && tsx src/__tests__/lsp/tools.test.ts"
   },
   "dependencies": {
     "@fastify/cors": "^10.0.2",

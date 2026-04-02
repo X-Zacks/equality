@@ -144,8 +144,44 @@ Content-Length: <N>\r\n
 - THEN 系统 SHALL reject 该请求（返回超时错误）
 - AND 客户端 **不** 关闭（其他进行中的请求不受影响）
 
-#### Scenario: 分片数据粘包
+#### Scenario: 完整帧解析
 
-- GIVEN stdout 数据分多个 chunk 到达（TCP 分片）
-- WHEN 解析器接收到不完整帧
-- THEN 系统 SHALL 缓冲数据，等待完整 Content-Length 字节到齐后再解析
+- GIVEN 一个完整的 LSP 消息（header + body）在单次 `data` 事件中到达
+- WHEN 解析器处理该 chunk
+- THEN 系统 SHALL 正确提取 Content-Length 值，读取对应字节数的 body
+- AND 将 body 解析为 JSON-RPC 对象并派发
+
+#### Scenario: 分片帧 — body 跨多个 chunk
+
+- GIVEN stdout 数据分多个 chunk 到达（body 被拆分）
+- WHEN 解析器依次接收到各个不完整的 chunk
+- THEN 系统 SHALL 将数据缓冲到 `rawBuffer`，等待 `rawBuffer.length >= Content-Length` 后再解析
+- AND 解析后将消费的字节从缓冲区移除，剩余数据保留
+
+#### Scenario: 多帧粘包 — 单次 chunk 含多条完整消息
+
+- GIVEN 两条或更多完整的 LSP 消息在同一次 `data` 事件中连续到达（粘包）
+- WHEN 解析器处理该 chunk
+- THEN 系统 SHALL 解析并派发第一条消息后，**继续**解析缓冲区剩余数据
+- AND 所有消息均被正确解析，无消息丢失、无消息重复
+
+#### Scenario: 跨边界分隔符 — `\r\n\r\n` 被拆分到两个 chunk
+
+- GIVEN header 中的 `\r\n\r\n` 分隔符前两字节（`\r\n`）在第一个 chunk，后两字节（`\r\n`）在第二个 chunk
+- WHEN 解析器依次处理这两个 chunk
+- THEN 系统 SHALL 在第二个 chunk 到达后正确识别出完整 header 边界
+- AND 继续等待 body 数据，不产生误解析
+
+#### Scenario: 超大消息体（>64KB）
+
+- GIVEN 一条 LSP 消息的 body 超过 64KB（如大型文件的 `didOpen` 通知）
+- WHEN 消息被分成若干个 chunk 到达
+- THEN 系统 SHALL 正确累积所有 chunk 直到 Content-Length 满足
+- AND 解析结果与完整消息一致
+
+#### Scenario: 并发请求有序响应
+
+- GIVEN 连续发出 3 个 LSP 请求（id=1, id=2, id=3）
+- WHEN 响应以不同顺序到达（如 id=3, id=1, id=2）
+- THEN 系统 SHALL 通过 pending Map 将每个响应路由到对应的 Promise
+- AND 每个 `request()` 调用收到其对应的响应，互不干扰
