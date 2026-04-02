@@ -8,8 +8,9 @@
 
 **现状问题：**
 - bash 工具可访问工作区之外的任意目录（`cd /etc` → 修改系统文件）
-- 无写操作检测：无法区分"读文件"与"删文件"
-- 无权限管理：所有工具对所有 Agent 可见，无差异化授权
+- 写操作检测仅为硬编码集合：`runner.ts` 中的 `MUTATING_TOOL_NAMES`（6 个工具名），无法检测 bash 内的 `rm`/`mv` 等实际修改操作
+- 权限管理仅全局白名单/黑名单：`policy.ts` 的 `applyToolPolicy()` 约 45 行，无 Agent/Provider 级别差异化
+- `ToolPolicy` 接口已预留 `scope` 字段但未使用
 
 **目标收益：**
 - ✅ 路径隔离：Agent 被限制在工作区内，符号链接不越权
@@ -44,6 +45,8 @@ mutating = true  ← 修改进程状态
 - 工具分类：write/edit/exec 总是 mutating；process/message/bash 按 action 判断
 - 操作指纹：提取 path/processId/messageId 等稳定标识，用于重复检测
 - 代码位置：`packages/core/src/tools/mutation.ts` (~150 行)
+- **迁移**：替代 `runner.ts` 中硬编码的 `MUTATING_TOOL_NAMES` 集合（6 个静态工具名 → 动态分类）
+- **Windows 适配**：bash 工具在 Windows 下实际执行 PowerShell，需同时识别 PowerShell cmdlet（`Remove-Item`, `Set-Content`）和 Unix 命令词（`rm`, `cat`）
 
 ### C2. Bash 沙箱路径隔离（GAP-5, P1）
 
@@ -63,6 +66,8 @@ workspaceDir: /home/user/myproject
 - 符号链接防御：realpath 检查是否跳出边界
 - Unicode 空格检测：防止 `\u00A0 cd /etc` 等注入
 - 白名单临时目录：`/tmp` 等系统临时目录允许访问
+- **Windows 适配**：`bash.ts` 在 Windows 下 spawn PowerShell（`-NoProfile -NonInteractive -Command`），路径格式为反斜杠 + 盘符（`C:\Users\...`），需同时处理 `/` 和 `\` 两种分隔符
+- **限制说明**：沙箱仅检测命令字符串中的显式路径；通过 `node -e "fs.readFileSync('/etc/passwd')"` 等间接访问暂不检测（见后续改进）
 - 代码位置：`packages/core/src/tools/bash-sandbox.ts` (~250 行)
 
 ### C3. 七层工具策略管道（GAP-10, P2）
@@ -91,6 +96,9 @@ Tool (最终)
 
 **实施范围：**
 - 策略引擎：`packages/core/src/tools/policy-pipeline.ts` (~300 行)
+- **升级路径**：从现有 `policy.ts` 的 `applyToolPolicy()` 升级为多层管道
+  - 保留现有 `ToolPolicy` 接口（`allow/deny/scope`），扩展 `scope` 字段生效
+  - `policy.ts` 保留为兼容层，内部委托 `policy-pipeline.ts`
 - 与 C1 整合：写操作工具可标记为 `requiresApproval`
 - 与 C2 整合：bash 调用前检查路径沙箱策略
 - 代码位置：同上

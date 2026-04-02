@@ -25,12 +25,60 @@
 - THEN 系统 SHALL 返回 mutationType = WRITE
 - AND 生成操作指纹（hash）用于循环检测
 
-#### Scenario: Bash 动态分类
+#### Scenario: Bash 动态分类 — Unix 命令词
 
 - GIVEN Agent 调用 `bash(command='ls -la')`
 - WHEN 系统执行操作分类
-- THEN 系统 SHALL 分析命令词 'ls'，返回 mutationType = READ
-- AND 若命令词为 'rm', 返回 mutationType = WRITE
+- THEN 系统 SHALL 提取命令词 'ls'，匹配只读命令集
+- AND 返回 mutationType = READ，confidence = heuristic
+
+#### Scenario: Bash 动态分类 — 写命令词
+
+- GIVEN Agent 调用 `bash(command='rm -rf ./build')`
+- WHEN 系统执行操作分类
+- THEN 系统 SHALL 提取命令词 'rm'，匹配写操作命令集
+- AND 返回 mutationType = WRITE，confidence = heuristic
+
+#### Scenario: Bash 动态分类 — PowerShell cmdlet
+
+- GIVEN Windows 环境下 Agent 调用 `bash(command='Remove-Item ./temp -Recurse')`
+- WHEN 系统执行操作分类
+- THEN 系统 SHALL 识别 PowerShell cmdlet 'remove-item'（不区分大小写）
+- AND 返回 mutationType = WRITE，confidence = heuristic
+
+#### Scenario: Bash 动态分类 — 管道/复合命令
+
+- GIVEN Agent 调用 `bash(command='cat file.txt | grep foo && rm temp.log')`
+- WHEN 系统执行操作分类
+- THEN 系统 SHALL 按 `&&`、`;`、`|` 分割子命令
+- AND 提取所有命令词 ['cat', 'grep', 'rm']
+- AND 取最危险的分类（rm → WRITE），返回 mutationType = WRITE
+
+#### Scenario: Bash 动态分类 — 包管理器
+
+- GIVEN Agent 调用 `bash(command='npm install lodash')`
+- WHEN 系统执行操作分类
+- THEN 系统 SHALL 识别 'npm' 为包管理器（修改 node_modules）
+- AND 返回 mutationType = WRITE，confidence = heuristic
+
+#### Scenario: Bash 动态分类 — 不确定命令
+
+- GIVEN Agent 调用 `bash(command='python3 my_script.py')`
+- WHEN 系统执行操作分类，无法确定脚本内容
+- THEN 系统 SHALL 保守分类为 mutationType = EXEC（可能有副作用）
+- AND confidence = heuristic
+
+#### Scenario: Process 动态分类
+
+- GIVEN Agent 调用 `process(action='list')`
+- WHEN 系统执行操作分类
+- THEN 系统 SHALL 识别 action='list' 在只读动作白名单中
+- AND 返回 mutationType = READ
+
+- GIVEN Agent 调用 `process(action='kill', id='abc')`
+- WHEN 系统执行操作分类
+- THEN 系统 SHALL 识别 action='kill' 不在只读白名单
+- AND 返回 mutationType = WRITE
 
 #### Scenario: 操作指纹一致性
 
@@ -57,30 +105,56 @@
 - GIVEN workspaceDir = `/home/user/myproject`
 - WHEN Agent 调用 `bash(command='cat /etc/passwd')`
 - THEN 系统 SHALL 检查路径 `/etc/passwd` 超出 workspaceDir
-- AND 返回 allowed = false，reason = "路径超出沙箱范围"
+- AND 返回 allowed = false，reason = "路径 /etc/passwd 超出沙箱范围"
 - AND 不执行命令
+
+#### Scenario: 多层路径遍历
+
+- GIVEN workspaceDir = `/home/user/myproject`
+- WHEN Agent 调用 `bash(command='cat ../../etc/passwd')`
+- THEN 系统 SHALL 使用 `path.resolve()` 将 `../../etc/passwd` 解析为 `/home/etc/passwd`
+- AND 检查解析后的路径超出 workspaceDir
+- AND 返回 allowed = false
 
 #### Scenario: 符号链接逃逸防御
 
 - GIVEN workspaceDir = `/home/user/myproject`
-- WHEN Agent 调用 `bash(command='ln -s /etc/passwd ./link && cat ./link')`
+- AND 存在符号链接 `./link → /etc/passwd`
+- WHEN Agent 调用 `bash(command='cat ./link')`
 - THEN 系统 SHALL 执行 realpath 追踪链接真实指向
 - AND 检查实际指向 `/etc/passwd` 超出范围
 - AND 返回 allowed = false，reason = "符号链接指向范围外"
 
 #### Scenario: Unicode 空格注入检测
 
-- GIVEN workspaceDir = `/home/user/myproject`
-- WHEN Agent 调用 `bash(command="cat ./test\u00A0cd /etc/file")`  （\u00A0 = 不可见空格）
-- THEN 系统 SHALL 检测 Unicode 空格，识别为注入尝试
-- AND 返回 allowed = false，reason = "检测到注入尝试"
+- GIVEN Agent 调用 `bash(command="cat ./test\u00A0cd /etc/file")`
+- WHEN 系统执行注入检测
+- THEN 系统 SHALL 检测到 Unicode 不可见空格 U+00A0
+- AND 立即返回 allowed = false，reason = "检测到 Unicode 不可见字符注入"
+- AND 不进行后续路径解析
 
 #### Scenario: 允许系统临时目录
 
 - GIVEN sandboxConfig.allowSystemTemp = true
 - WHEN Agent 调用 `bash(command='mkdir /tmp/test')`
-- THEN 系统 SHALL 检查路径 `/tmp/test` 在允许列表中
+- THEN 系统 SHALL 检查路径 `/tmp/test` 在系统临时目录白名单中
 - AND 返回 allowed = true
+
+#### Scenario: Windows 路径处理
+
+- GIVEN Windows 环境 workspaceDir = `C:\Users\zz\projects\equality`
+- WHEN Agent 调用 `bash(command='Get-Content C:\Users\zz\Documents\secret.txt')`
+- THEN 系统 SHALL 标准化路径分隔符为 `/`，不区分大小写
+- AND 检查 `c:/users/zz/documents/secret.txt` 不以 `c:/users/zz/projects/equality` 开头
+- AND 返回 allowed = false
+
+#### Scenario: 管道命令路径检查
+
+- GIVEN workspaceDir = `/home/user/myproject`
+- WHEN Agent 调用 `bash(command='cat ./src/index.ts | grep import && rm /etc/hosts')`
+- THEN 系统 SHALL 按 `&&` 分割子命令
+- AND 检测 `rm /etc/hosts` 中路径 `/etc/hosts` 超出范围
+- AND 返回 allowed = false
 
 ---
 
