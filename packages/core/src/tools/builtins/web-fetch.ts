@@ -7,6 +7,7 @@
 import type { ToolDefinition, ToolResult, ToolContext } from '../types.js'
 import { ProxyAgent } from 'undici'
 import * as cheerio from 'cheerio'
+import { wrapExternalContent } from '../../security/external-content.js'
 
 const DEFAULT_MAX_CHARS = 50_000
 const FETCH_TIMEOUT_MS = 15_000
@@ -93,8 +94,14 @@ export const webFetchTool: ToolDefinition = {
         text = text.slice(0, maxChars) + `\n\n[...内容已截断，原始 ${text.length} 字符，显示前 ${maxChars} 字符]`
       }
 
+      // 安全包装（Phase G2）
+      const { content: wrappedText } = wrapExternalContent(
+        `URL: ${url}\nContent-Type: ${contentType}\n\n${text}`,
+        'web_fetch',
+      )
+
       return {
-        content: `URL: ${url}\nContent-Type: ${contentType}\n\n${text}`,
+        content: wrappedText,
         metadata: { durationMs },
       }
     } catch (err) {

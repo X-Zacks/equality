@@ -12,6 +12,8 @@ export interface SystemPromptOptions {
   modelName?: string
   /** 用户通过 @ 指定的高优先级 Skill */
   activeSkill?: Skill
+  /** 工作区引导文件已格式化的文本块（Phase G1） */
+  bootstrapBlock?: string
 }
 
 // ─── 主构建函数 ───────────────────────────────────────────────────────────────
@@ -50,6 +52,11 @@ ${sk.body}
 
 ---
 `
+  }
+
+  // ─── 工作区引导文件（Phase G1）──────────────────────────────────────────
+  if (options?.bootstrapBlock) {
+    prompt += options.bootstrapBlock
   }
 
   // 任务感知规则

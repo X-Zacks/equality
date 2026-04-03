@@ -19,6 +19,8 @@ import { memorySearch } from '../memory/index.js'
 import { getOrCreate } from '../session/store.js'
 import { persist } from '../session/persist.js'
 import { calcMaxToolResultChars } from '../tools/index.js'
+import { resolveContextWindow } from '../providers/context-window.js'
+import { loadWorkspaceBootstrapFiles, formatBootstrapBlock } from '../agent/workspace-bootstrap.js'
 
 // ─── 常量 ─────────────────────────────────────────────────────────────────────
 
@@ -94,12 +96,27 @@ export class DefaultContextEngine implements ContextEngine {
     // 1. 获取 session
     const session = await getOrCreate(sessionKey)
 
+    // 1.5 加载工作区引导文件（Phase G1）
+    let bootstrapBlock: string | undefined
+    if (workspaceDir) {
+      try {
+        const { files } = await loadWorkspaceBootstrapFiles(workspaceDir)
+        if (files.length > 0) {
+          bootstrapBlock = formatBootstrapBlock(files)
+          console.log(`[context-engine] 加载 ${files.length} 个引导文件: ${files.map(f => f.name).join(', ')}`)
+        }
+      } catch (err) {
+        console.warn('[context-engine] 引导文件加载失败:', err)
+      }
+    }
+
     // 2. 构造 system prompt
     let systemContent = buildSystemPrompt({
       workspaceDir,
       skills,
       modelName: provider.modelId,
       activeSkill,
+      bootstrapBlock,
     })
 
     // 3. Memory Recall：用用户消息检索 top-3 记忆
@@ -129,8 +146,13 @@ export class DefaultContextEngine implements ContextEngine {
     // 5. [NEW] Tool result 预算压缩（阶段C，对齐 OpenClaw）
     //    在 compaction 之前，先从 tool result 层面降低 context 压力。
     //    只替换 tool result 内容，不删除消息条目，LLM 仍能看到工具调用记录。
+    //    Phase G3: 使用 resolveContextWindow 动态解析 context window 大小
+    const cwInfo = resolveContextWindow({
+      modelId: provider.modelId,
+      providerReported: provider.getCapabilities().contextWindow,
+    })
+    const contextWindowTokens = cwInfo.tokens
     try {
-      const contextWindowTokens = provider.getCapabilities().contextWindow
       enforceToolResultBudget(messages, contextWindowTokens)
     } catch (err) {
       console.warn('[context-engine] tool result budget enforce 失败:', err)
@@ -153,7 +175,7 @@ export class DefaultContextEngine implements ContextEngine {
 
     // 7. 暴力截断兜底（极端情况，正常不触发）
     const contextBudgetChars = Math.floor(
-      provider.getCapabilities().contextWindow * CHARS_PER_TOKEN * CONTEXT_INPUT_HEADROOM_RATIO,
+      contextWindowTokens * CHARS_PER_TOKEN * CONTEXT_INPUT_HEADROOM_RATIO,
     )
     trimMessages(messages, contextBudgetChars)
 

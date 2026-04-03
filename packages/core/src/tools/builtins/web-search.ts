@@ -13,6 +13,7 @@
 
 import type { ToolDefinition, ToolResult, ToolContext } from '../types.js'
 import { ProxyAgent } from 'undici'
+import { wrapExternalContent } from '../../security/external-content.js'
 
 const SEARCH_TIMEOUT_MS = 15_000
 const MAX_RESULTS = 10
@@ -81,7 +82,8 @@ export const webSearchTool: ToolDefinition = {
     const braveApiKey = process.env.BRAVE_SEARCH_API_KEY
     if (braveApiKey) {
       try {
-        const result = await searchBrave(query, count, language, braveApiKey, ctx)
+        const rawResult = await searchBrave(query, count, language, braveApiKey, ctx)
+        const { content: result } = wrapExternalContent(rawResult, 'web_search')
         cache.set(cacheKey, { data: result, ts: Date.now() })
         return { content: result, metadata: { durationMs: Date.now() - startMs } }
       } catch (err) {
@@ -92,7 +94,8 @@ export const webSearchTool: ToolDefinition = {
 
     // 回退：DuckDuckGo HTML 抓取
     try {
-      const result = await searchDuckDuckGo(query, count, ctx)
+      const rawResult = await searchDuckDuckGo(query, count, ctx)
+      const { content: result } = wrapExternalContent(rawResult, 'web_search')
       cache.set(cacheKey, { data: result, ts: Date.now() })
       return { content: result, metadata: { durationMs: Date.now() - startMs } }
     } catch (err) {
