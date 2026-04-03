@@ -4,10 +4,10 @@
  * 实现 LLMProvider 接口，内部维护有序的 Provider 列表。
  * streamChat/chat 失败时，自动切到下一个可用 Provider。
  *
- * 错误分类：
- *   abort   — AbortError / 用户取消 → 不降级，直接抛出
- *   fatal   — context_length_exceeded / 401 / 403 → 不降级
- *   fallback — 429 / 5xx / 网络错误 / 超时 → 冷却 + 降级
+ * Phase E2: 接入 FailoverPolicy 进行精细化错误分类与冷却管理。
+ *   abort / context_overflow / fatal → 不降级，直接抛出
+ *   model_not_found → 跳过，不冷却
+ *   rate_limit / overloaded / network / timeout / auth / billing → 按策略冷却 + 降级
  */
 
 import type {
@@ -17,98 +17,29 @@ import type {
   ChatResponse,
   ProviderCapabilities,
 } from './types.js'
-
-// ─── 错误分类 ──────────────────────────────────────────────────────────────────
-
-type ErrorClass = 'abort' | 'fatal' | 'fallback' | 'skip'
-
-function classifyError(err: unknown): ErrorClass {
-  if (!err || typeof err !== 'object') return 'fallback'
-
-  const e = err as Record<string, unknown>
-
-  // 1. 用户取消
-  if (e.name === 'AbortError') return 'abort'
-
-  // 2. OpenAI SDK 错误
-  const status = typeof e.status === 'number' ? e.status : 0
-  const code = typeof e.code === 'string' ? e.code : ''
-  const message = typeof e.message === 'string' ? e.message : ''
-
-  // 401/403 — API Key 无效
-  if (status === 401 || status === 403) return 'fatal'
-
-  // 400 模型不支持 — 跳过该模型但不冷却 provider
-  if (status === 400 && (
-    message.includes('not supported') ||
-    message.includes('does not exist') ||
-    message.includes('model_not_found') ||
-    code === 'model_not_found'
-  )) return 'skip'
-
-  // 其他 400 — 请求本身有问题，直接报错
-  if (status === 400) return 'fatal'
-
-  // Context overflow
-  if (code === 'context_length_exceeded' || message.includes('context_length_exceeded')) {
-    return 'fatal'
-  }
-
-  // 429 限流、5xx 服务错误 → 降级
-  if (status === 429 || status >= 500) return 'fallback'
-
-  // 网络错误
-  if (
-    code === 'ECONNREFUSED' ||
-    code === 'ETIMEDOUT' ||
-    code === 'ENOTFOUND' ||
-    code === 'UND_ERR_CONNECT_TIMEOUT' ||
-    message.includes('fetch failed') ||
-    message.includes('network') ||
-    message.includes('ECONNRESET')
-  ) {
-    return 'fallback'
-  }
-
-  // 未知错误 → 尝试降级（保守策略）
-  return 'fallback'
-}
-
-// ─── 冷却管理 ──────────────────────────────────────────────────────────────────
-
-const COOLDOWN_SHORT = 30_000   // 429 / 5xx / 网络: 30s
-const COOLDOWN_LONG = 300_000   // 401 / 403: 5min (标记在 fatal 分支不会触发降级，但备用)
-
-/** providerId → cooldownUntil (epoch ms) */
-const cooldownMap = new Map<string, number>()
-
-function setCooldown(providerId: string, durationMs: number): void {
-  cooldownMap.set(providerId, Date.now() + durationMs)
-}
-
-function isInCooldown(providerId: string): boolean {
-  const until = cooldownMap.get(providerId)
-  if (!until) return false
-  if (Date.now() >= until) {
-    cooldownMap.delete(providerId)
-    return false
-  }
-  return true
-}
+import { FailoverPolicy } from './failover-policy.js'
+import type { FailoverDecision, FailoverReason } from './failover-policy.js'
 
 // ─── FallbackProvider ──────────────────────────────────────────────────────────
+
+/** Callback for when a model switch occurs */
+export type OnModelSwitch = (info: { fromProvider: string; toProvider: string; reason: FailoverReason }) => void
 
 export class FallbackProvider implements LLMProvider {
   readonly providerId: string
   readonly modelId: string
 
   private readonly providers: LLMProvider[]
+  private readonly policy: FailoverPolicy
+  private readonly onModelSwitch?: OnModelSwitch
 
-  constructor(providers: LLMProvider[]) {
+  constructor(providers: LLMProvider[], opts?: { policy?: FailoverPolicy; onModelSwitch?: OnModelSwitch }) {
     if (providers.length === 0) {
       throw new Error('No LLM provider configured. Please set an API key in Settings.')
     }
     this.providers = providers
+    this.policy = opts?.policy ?? new FailoverPolicy()
+    this.onModelSwitch = opts?.onModelSwitch
     // 对外暴露第一个 provider 的 ID（逻辑主 Provider）
     this.providerId = providers[0].providerId
     this.modelId = providers[0].modelId
@@ -125,11 +56,12 @@ export class FallbackProvider implements LLMProvider {
   // ─── streamChat：首次 yield 前失败 → 降级 ──────────────────────────────────
 
   async *streamChat(params: StreamChatParams): AsyncGenerator<ChatDelta> {
-    const errors: Array<{ providerId: string; error: unknown }> = []
+    const errors: Array<{ providerId: string; error: unknown; reason: FailoverReason }> = []
+    let lastProvider: string | undefined
 
     for (const provider of this.providers) {
       // 跳过冷却中的 Provider
-      if (isInCooldown(provider.providerId)) {
+      if (!this.policy.isAvailable(provider.providerId)) {
         console.log(`[fallback] 跳过冷却中的 ${provider.providerId}`)
         continue
       }
@@ -146,30 +78,45 @@ export class FallbackProvider implements LLMProvider {
         // 成功完成，直接返回
         return
       } catch (err) {
-        const cls = classifyError(err)
+        const decision = this.policy.evaluate(err)
 
         // 不可降级 → 直接抛出
-        if (cls === 'abort' || cls === 'fatal') {
+        if (!decision.shouldFailover) {
           throw err
         }
 
-        // 模型不支持（如 400 model not supported）→ 跳过该模型，不冷却整个 provider
-        if (cls === 'skip') {
+        // 模型不支持 → 跳过，不冷却
+        if (decision.reason === 'model_not_found') {
           console.warn(
             `[fallback] ${provider.providerId}/${provider.modelId} 模型不支持, 跳过`,
             err instanceof Error ? err.message : err,
           )
+          errors.push({ providerId: provider.providerId, error: err, reason: decision.reason })
           continue
         }
 
         // 可降级：记录 + 冷却
         console.warn(
-          `[fallback] ${provider.providerId}/${provider.modelId} 失败 (${cls}), 切换到下一个`,
+          `[fallback] ${provider.providerId}/${provider.modelId} 失败 (${decision.reason}), 冷却 ${decision.cooldownMs}ms, 切换到下一个`,
           err instanceof Error ? err.message : err,
         )
-        setCooldown(provider.providerId, COOLDOWN_SHORT)
-        errors.push({ providerId: provider.providerId, error: err })
-        // 继续尝试下一个 Provider
+        this.policy.applyCooldown(provider.providerId, decision)
+        lastProvider = provider.providerId
+        errors.push({ providerId: provider.providerId, error: err, reason: decision.reason })
+
+        // 通知模型切换
+        if (this.onModelSwitch) {
+          const nextProvider = this.providers.find(
+            p => p.providerId !== provider.providerId && this.policy.isAvailable(p.providerId),
+          )
+          if (nextProvider) {
+            this.onModelSwitch({
+              fromProvider: `${provider.providerId}/${provider.modelId}`,
+              toProvider: `${nextProvider.providerId}/${nextProvider.modelId}`,
+              reason: decision.reason,
+            })
+          }
+        }
       }
     }
 
@@ -177,11 +124,10 @@ export class FallbackProvider implements LLMProvider {
     if (errors.length === 0) {
       // 所有 provider 均在冷却期，一个都没尝试
       const cooling = this.providers.map(p => p.providerId).join(', ')
-      throw new Error(`所有模型均处于冷却期 (${cooling})，请稍候 30 秒后重试。`)
+      throw new Error(`所有模型均处于冷却期 (${cooling})，请稍候重试。`)
     }
-    // 把每个 provider 的真实错误一并暴露出来，方便排查
     const detail = errors
-      .map(e => `${e.providerId}: ${e.error instanceof Error ? e.error.message : String(e.error)}`)
+      .map(e => `${e.providerId} [${e.reason}]: ${e.error instanceof Error ? e.error.message : String(e.error)}`)
       .join(' | ')
     throw new Error(`所有模型均不可用。\n${detail}`)
   }
@@ -189,10 +135,10 @@ export class FallbackProvider implements LLMProvider {
   // ─── chat：非流式，逐个尝试 ────────────────────────────────────────────────
 
   async chat(params: StreamChatParams): Promise<ChatResponse> {
-    const errors: Array<{ providerId: string; error: unknown }> = []
+    const errors: Array<{ providerId: string; error: unknown; reason: FailoverReason }> = []
 
     for (const provider of this.providers) {
-      if (isInCooldown(provider.providerId)) {
+      if (!this.policy.isAvailable(provider.providerId)) {
         console.log(`[fallback] 跳过冷却中的 ${provider.providerId}`)
         continue
       }
@@ -200,35 +146,36 @@ export class FallbackProvider implements LLMProvider {
       try {
         return await provider.chat(params)
       } catch (err) {
-        const cls = classifyError(err)
+        const decision = this.policy.evaluate(err)
 
-        if (cls === 'abort' || cls === 'fatal') {
+        if (!decision.shouldFailover) {
           throw err
         }
 
-        if (cls === 'skip') {
+        if (decision.reason === 'model_not_found') {
           console.warn(
             `[fallback] ${provider.providerId}/${provider.modelId} 模型不支持 (chat), 跳过`,
             err instanceof Error ? err.message : err,
           )
+          errors.push({ providerId: provider.providerId, error: err, reason: decision.reason })
           continue
         }
 
         console.warn(
-          `[fallback] ${provider.providerId}/${provider.modelId} chat 失败 (${cls}), 切换到下一个`,
+          `[fallback] ${provider.providerId}/${provider.modelId} chat 失败 (${decision.reason}), 冷却 ${decision.cooldownMs}ms, 切换到下一个`,
           err instanceof Error ? err.message : err,
         )
-        setCooldown(provider.providerId, COOLDOWN_SHORT)
-        errors.push({ providerId: provider.providerId, error: err })
+        this.policy.applyCooldown(provider.providerId, decision)
+        errors.push({ providerId: provider.providerId, error: err, reason: decision.reason })
       }
     }
 
     if (errors.length === 0) {
       const cooling = this.providers.map(p => p.providerId).join(', ')
-      throw new Error(`所有模型均处于冷却期 (${cooling})，请稍候 30 秒后重试。`)
+      throw new Error(`所有模型均处于冷却期 (${cooling})，请稍候重试。`)
     }
     const detail = errors
-      .map(e => `${e.providerId}: ${e.error instanceof Error ? e.error.message : String(e.error)}`)
+      .map(e => `${e.providerId} [${e.reason}]: ${e.error instanceof Error ? e.error.message : String(e.error)}`)
       .join(' | ')
     throw new Error(`所有模型均不可用。\n${detail}`)
   }
