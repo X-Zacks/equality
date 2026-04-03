@@ -15,7 +15,7 @@ import { initProxy, setProxyUrl } from './config/proxy.js'
 import { dailySummary, sessionCostSummary, allSessionsCostSummary, globalCostSummary } from './cost/ledger.js'
 import { startDeviceFlow, pollForToken, clearCopilotAuth, isCopilotLoggedIn, getPollingInterval } from './providers/copilot-auth.js'
 import { COPILOT_MODELS, fetchCopilotModels } from './providers/copilot.js'
-import { ToolRegistry, builtinTools, resolvePolicyForTool, classifyMutation } from './tools/index.js'
+import { ToolRegistry, builtinTools, resolvePolicyForTool, classifyMutation, McpClientManager, parseMcpServersConfig } from './tools/index.js'
 import type { PolicyContext } from './tools/index.js'
 import type { BeforeToolCallInfo } from './agent/runner.js'
 import { DefaultContextEngine } from './context/index.js'
@@ -92,6 +92,28 @@ for (const tool of builtinTools) {
   toolRegistry.register(tool)
 }
 console.log(`[equality-core] 已注册 ${toolRegistry.size} 个工具: ${toolRegistry.list().join(', ')}`)
+
+// ── MCP 客户端初始化（Phase D.2）───────────────────────────────────────────
+const mcpManager = new McpClientManager(toolRegistry)
+;(async () => {
+  try {
+    if (hasSecret('MCP_SERVERS')) {
+      const json = getSecret('MCP_SERVERS')
+      if (json.trim()) {
+        const configs = parseMcpServersConfig(json)
+        if (configs.length > 0) {
+          console.log(`[equality-core] MCP: 发现 ${configs.length} 个服务器配置，正在连接...`)
+          await mcpManager.start(configs)
+          const status = mcpManager.getStatus()
+          const readyCount = status.filter(s => s.status === 'ready').length
+          console.log(`[equality-core] MCP: ${readyCount}/${configs.length} 个服务器已就绪`)
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[equality-core] MCP 初始化失败（不影响启动）:', (err as Error).message)
+  }
+})()
 
 // 初始化 Skills 热加载
 const skillsWatcher = new SkillsWatcher({
@@ -733,6 +755,19 @@ app.get('/copilot/models', async (_req, reply) => {
 })
 
 // ─── Startup + reap timer ────────────────────────────────────────────────────
+
+// Graceful shutdown: 关闭 MCP 连接
+process.on('SIGINT', async () => {
+  console.log('[equality-core] SIGINT received, shutting down...')
+  await mcpManager.stop()
+  process.exit(0)
+})
+process.on('SIGTERM', async () => {
+  console.log('[equality-core] SIGTERM received, shutting down...')
+  await mcpManager.stop()
+  process.exit(0)
+})
+
 try {
   await app.listen({ port: PORT, host: HOST })
   console.log(`[equality-core] v${VERSION} listening on ${HOST}:${PORT}`)

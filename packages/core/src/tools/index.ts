@@ -24,3 +24,7 @@ export type {
   ToolInputSchema,
   OpenAIToolSchema,
 } from './types.js'
+
+// ── MCP (Phase D.2) ──────────────────────────────────────────────────────────
+export { McpClientManager, McpClient, mcpToolToDefinition, parseMcpServersConfig, mcpToolName } from './mcp/index.js'
+export type { McpServerConfig, McpServerState, McpServerStatus } from './mcp/index.js'

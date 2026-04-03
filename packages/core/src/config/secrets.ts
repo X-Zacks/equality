@@ -37,6 +37,7 @@ const KEY_NAMES = [
   'CHROME_PATH',
   'MINIMAX_API_KEY',
   'WORKSPACE_DIR',
+  'MCP_SERVERS',
 ] as const
 export type SecretKey = (typeof KEY_NAMES)[number]
 
