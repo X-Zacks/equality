@@ -20,6 +20,7 @@
     "test:d2": "tsx src/__tests__/mcp-client.test.ts",
     "test:e1": "tsx src/__tests__/task-registry.test.ts",
     "test:e2": "tsx src/__tests__/failover-policy.test.ts",
+    "test:e3": "tsx src/__tests__/subagent.test.ts",
     "test:lsp": "tsx src/__tests__/lsp/frame-parser.test.ts && tsx src/__tests__/lsp/client.test.ts && tsx src/__tests__/lsp/types.test.ts && tsx src/__tests__/lsp/tools.test.ts"
   },
   "dependencies": {
