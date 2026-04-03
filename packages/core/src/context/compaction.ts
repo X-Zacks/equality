@@ -1,14 +1,21 @@
 /**
- * compaction.ts — 上下文压缩引擎
+ * compaction.ts — 上下文压缩引擎（Phase D.3 增强）
  *
  * 当对话历史超过模型上下文窗口的 50% 时，调用 LLM 生成摘要，
  * 用摘要替换旧历史，释放 token 空间。
  *
+ * Phase D.3 新增：
+ * - 分段压缩：大历史先分块再逐块摘要再合并
+ * - 标识符保护：UUID/路径/URL/Git hash 不被 LLM 改写
+ * - 重试与降级：3 次指数退避重试 + trimMessages 兜底
+ *
  * 流程：
  * 1. estimateMessagesTokens → 判断是否超阈值
  * 2. 划分保护区（system + 最近 4 轮）和压缩区（其余）
- * 3. 调用 LLM 生成压缩区的摘要
- * 4. 用摘要消息替换压缩区
+ * 3. 压缩区 < CHUNK_TOKEN_THRESHOLD → 单次摘要（原有逻辑）
+ *    压缩区 ≥ CHUNK_TOKEN_THRESHOLD → 分段摘要
+ * 4. 标识符验证 + 缺失标识符追加
+ * 5. 用摘要消息替换压缩区
  *
  * 失败时回退到 trimMessages 暴力截断。
  */
@@ -16,10 +23,22 @@
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions'
 import type { LLMProvider } from '../providers/types.js'
 import { estimateMessagesTokens } from './token-estimator.js'
+import { extractIdentifiers, validateIdentifiers, buildProtectionPrompt } from './identifier-shield.js'
+
+// ─── 常量 ─────────────────────────────────────────────────────────────────────
 
 const COMPACTION_THRESHOLD = 0.5   // 超过上下文窗口 50% 触发
-const COMPACTION_TIMEOUT = 60_000  // 60 秒超时
+const COMPACTION_TIMEOUT = 60_000  // 60 秒超时（单次 LLM 调用）
 const KEEP_RECENT_TURNS = 4       // 保留最近 N 轮（user+assistant 对）
+
+/** 分段压缩阈值（tokens）：超过此值使用分段模式 */
+export const CHUNK_TOKEN_THRESHOLD = 4000
+
+/** 最大重试次数 */
+export const MAX_RETRIES = 3
+
+/** 重试基础延迟（毫秒） */
+const RETRY_BASE_MS = 1000
 
 const SUMMARY_PROMPT = `请将以下对话历史压缩为简洁摘要。
 
@@ -67,15 +86,27 @@ export async function compactIfNeeded(
 
   console.log(`[compaction] 触发: ${estimatedTokens} tokens / ${contextWindow} context window (${(estimatedTokens / contextWindow * 100).toFixed(1)}%)`)
 
-  try {
-    return await compactWithTimeout(messages, provider, opts)
-  } catch (err) {
-    console.warn(`[compaction] 失败，跳过:`, err instanceof Error ? err.message : err)
-    return { compacted: false, removedCount: 0, summaryTokens: 0 }
+  // ── Phase D.3: 带重试的压缩 ──────────────────────────────────
+  let lastError: unknown
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    try {
+      return await compactCore(messages, provider, opts)
+    } catch (err) {
+      lastError = err
+      const delayMs = RETRY_BASE_MS * Math.pow(2, attempt) + Math.random() * 500
+      console.warn(`[compaction] 第 ${attempt + 1} 次失败 (${err instanceof Error ? err.message : err})，${attempt < MAX_RETRIES - 1 ? `${Math.round(delayMs)}ms 后重试` : '已达上限'}`)
+      if (attempt < MAX_RETRIES - 1) {
+        await sleep(delayMs)
+      }
+    }
   }
+
+  console.warn(`[compaction] ${MAX_RETRIES} 次全部失败，降级跳过:`, lastError instanceof Error ? lastError.message : lastError)
+  return { compacted: false, removedCount: 0, summaryTokens: 0 }
 }
 
-async function compactWithTimeout(
+/** 核心压缩逻辑（单次尝试） */
+async function compactCore(
   messages: ChatCompletionMessageParam[],
   provider: LLMProvider,
   opts?: {
@@ -94,8 +125,6 @@ async function compactWithTimeout(
 
   try {
     // ── 1. 划分保护区和压缩区 ──────────────────────────────────
-    // 保护区：messages[0]（system）+ 最后 KEEP_RECENT_TURNS*2 条消息
-    // 压缩区：中间的所有消息
     const keepTailCount = findKeepTailCount(messages)
     const compressEndIndex = messages.length - keepTailCount
 
@@ -106,25 +135,41 @@ async function compactWithTimeout(
 
     const compressRegion = messages.slice(1, compressEndIndex) // 跳过 system[0]
 
-    // ── 2. 序列化压缩区为文本 ──────────────────────────────────
-    const historyText = serializeMessages(compressRegion)
+    // ── 2. 标识符提取（D3）──────────────────────────────────────
+    const regionText = serializeMessages(compressRegion)
+    const identifiers = extractIdentifiers(regionText)
+    const protectionPrompt = buildProtectionPrompt(identifiers)
 
-    // ── 3. 调用 LLM 生成摘要 ──────────────────────────────────
-    const summaryResponse = await provider.chat({
-      messages: [
-        { role: 'system', content: SUMMARY_PROMPT },
-        { role: 'user', content: historyText },
-      ],
-      abortSignal: signal,
-    })
+    // ── 3. 选择压缩模式 ────────────────────────────────────────
+    const regionTokens = estimateMessagesTokens(
+      compressRegion as Array<{ role?: string; content?: unknown; tool_calls?: unknown }>,
+    )
 
-    const summary = summaryResponse.content.trim()
+    let summary: string
+    if (regionTokens >= CHUNK_TOKEN_THRESHOLD) {
+      // 分段压缩
+      summary = await compactChunked(compressRegion, provider, signal, protectionPrompt)
+      console.log(`[compaction] 分段模式: ${regionTokens} tokens, ${identifiers.length} 个标识符`)
+    } else {
+      // 单次压缩（原有逻辑，加标识符保护）
+      summary = await compactSingle(regionText, provider, signal, protectionPrompt)
+    }
+
     if (!summary) {
       console.warn('[compaction] LLM 返回空摘要，跳过')
       return { compacted: false, removedCount: 0, summaryTokens: 0 }
     }
 
-    // ── 4. 替换：删除压缩区，插入摘要消息 ──────────────────────
+    // ── 4. 标识符验证 + 缺失追加（D3）─────────────────────────
+    if (identifiers.length > 0) {
+      const missing = validateIdentifiers(summary, identifiers)
+      if (missing.length > 0) {
+        console.log(`[compaction] 标识符验证: ${missing.length}/${identifiers.length} 缺失，追加到摘要`)
+        summary += `\n\n[保留标识符] ${missing.join(', ')}`
+      }
+    }
+
+    // ── 5. 替换：删除压缩区，插入摘要消息 ──────────────────────
     const removedCount = compressEndIndex - 1 // 不含 system[0]
     const summaryMessage: ChatCompletionMessageParam = {
       role: 'assistant',
@@ -143,6 +188,128 @@ async function compactWithTimeout(
   } finally {
     clearTimeout(timer)
   }
+}
+
+// ─── 单次压缩 ────────────────────────────────────────────────────────────────
+
+async function compactSingle(
+  historyText: string,
+  provider: LLMProvider,
+  signal: AbortSignal,
+  protectionPrompt: string,
+): Promise<string> {
+  const prompt = SUMMARY_PROMPT + protectionPrompt
+  const response = await provider.chat({
+    messages: [
+      { role: 'system', content: prompt },
+      { role: 'user', content: historyText },
+    ],
+    abortSignal: signal,
+  })
+  return response.content.trim()
+}
+
+// ─── 分段压缩（D3 核心）─────────────────────────────────────────────────────
+
+async function compactChunked(
+  compressRegion: ChatCompletionMessageParam[],
+  provider: LLMProvider,
+  signal: AbortSignal,
+  protectionPrompt: string,
+): Promise<string> {
+  // 1. 分块
+  const chunks = splitIntoChunks(compressRegion, CHUNK_TOKEN_THRESHOLD)
+  console.log(`[compaction] 分为 ${chunks.length} 个 chunk`)
+
+  // 2. 逐块摘要
+  const prompt = SUMMARY_PROMPT + protectionPrompt
+  const chunkSummaries: string[] = []
+
+  for (let i = 0; i < chunks.length; i++) {
+    const chunkText = serializeMessages(chunks[i])
+    const response = await provider.chat({
+      messages: [
+        { role: 'system', content: prompt },
+        { role: 'user', content: `[Part ${i + 1}/${chunks.length}]\n${chunkText}` },
+      ],
+      abortSignal: signal,
+    })
+    const chunkSummary = response.content.trim()
+    if (chunkSummary) {
+      chunkSummaries.push(chunkSummary)
+    }
+  }
+
+  // 3. 合并摘要
+  if (chunkSummaries.length === 0) return ''
+  if (chunkSummaries.length === 1) return chunkSummaries[0]
+
+  return chunkSummaries.join('\n\n---\n\n')
+}
+
+// ─── 分块策略 ────────────────────────────────────────────────────────────────
+
+/**
+ * 将消息列表分成多个 chunk，每个 chunk 不超过 chunkTokens。
+ * tool_call（assistant with tool_calls）和 tool result 不拆分。
+ */
+export function splitIntoChunks(
+  messages: ChatCompletionMessageParam[],
+  chunkTokens: number,
+): ChatCompletionMessageParam[][] {
+  if (messages.length === 0) return []
+
+  const chunks: ChatCompletionMessageParam[][] = []
+  let current: ChatCompletionMessageParam[] = []
+  let currentTokens = 0
+
+  for (let i = 0; i < messages.length; i++) {
+    const msg = messages[i]
+    const msgTokens = estimateMessagesTokens(
+      [msg as { role?: string; content?: unknown; tool_calls?: unknown }],
+    )
+
+    // 如果加入当前 msg 后超限，且 current 非空 → 切分
+    if (currentTokens + msgTokens > chunkTokens && current.length > 0) {
+      // 检查是否要回退：如果 current 末尾是 assistant(tool_calls)，
+      // 而当前 msg 是 tool result → 不拆分，把 assistant 也带到下一个 chunk
+      const lastMsg = current[current.length - 1]
+      const isToolCallAssistant = lastMsg.role === 'assistant' && 'tool_calls' in lastMsg && lastMsg.tool_calls
+      const isToolResult = msg.role === 'tool'
+
+      if (isToolCallAssistant && isToolResult) {
+        // 回退：把 assistant(tool_calls) 从 current 移到下一个 chunk
+        const popped = current.pop()!
+        if (current.length > 0) {
+          chunks.push(current)
+        }
+        current = [popped, msg]
+        currentTokens = estimateMessagesTokens(
+          current as Array<{ role?: string; content?: unknown; tool_calls?: unknown }>,
+        )
+        continue
+      }
+
+      chunks.push(current)
+      current = []
+      currentTokens = 0
+    }
+
+    current.push(msg)
+    currentTokens += msgTokens
+  }
+
+  if (current.length > 0) {
+    chunks.push(current)
+  }
+
+  return chunks
+}
+
+// ─── 工具函数 ─────────────────────────────────────────────────────────────────
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms))
 }
 
 /**
