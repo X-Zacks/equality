@@ -6,6 +6,7 @@
  */
 
 import { FallbackProvider } from './fallback.js'
+import type { OnModelSwitch } from './fallback.js'
 import type { LLMProvider } from './types.js'
 import {
   createCopilotProvider,
@@ -219,6 +220,7 @@ export function routeModel(
   userMessage: string,
   explicitProvider?: LLMProvider,
   historyLength = 0,
+  onModelSwitch?: OnModelSwitch,
 ): RouteResult {
   // 1. 测试注入 → 直接用
   if (explicitProvider) {
@@ -238,7 +240,7 @@ export function routeModel(
       console.log(`[router] @model 覆盖: ${override.provider}/${override.model}`)
       // 用 FallbackProvider 包装单个 provider 以享受错误处理
       return {
-        provider: new FallbackProvider([p]),
+        provider: new FallbackProvider([p], { onModelSwitch }),
         tier: 'standard',
         strippedMessage: override.strippedMessage,
         overridden: true,
@@ -261,7 +263,7 @@ export function routeModel(
   if (providers.length > 0) {
     console.log(`[router] tier=${tier}, 路由到 ${providers[0].providerId}/${providers[0].modelId} (${providers.length} providers in fallback)`)
     return {
-      provider: new FallbackProvider(providers),
+      provider: new FallbackProvider(providers, { onModelSwitch }),
       tier,
       strippedMessage: msg,
       overridden: false,
@@ -271,7 +273,7 @@ export function routeModel(
   // 4. 全部失败 → 回退
   console.warn(`[router] 路由表无可用 Provider, 回退到 getProviderWithFallback()`)
   return {
-    provider: getProviderWithFallback(),
+    provider: getProviderWithFallback({ onModelSwitch }),
     tier: 'standard',
     strippedMessage: msg,
     overridden: false,

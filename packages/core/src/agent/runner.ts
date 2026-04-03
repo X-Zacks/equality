@@ -131,6 +131,11 @@ export interface RunAttemptParams {
    */
   steeringQueue?: string[]
   /**
+   * FallbackProvider 模型切换回调（Phase E4）。
+   * 当 FallbackProvider 从主 Provider 降级到备用时触发。
+   */
+  onModelSwitch?: import('../providers/fallback.js').OnModelSwitch
+  /**
    * 可插拔上下文引擎（D4）。
    * 传入则在工具执行后调用 afterToolCall、Compaction 前调用 beforeCompaction。
    * 不传则跳过（no-op）——向后兼容。
@@ -368,7 +373,7 @@ export async function runAttempt(params: RunAttemptParams): Promise<RunAttemptRe
   session.runningAbort = abort
 
   // 3. 智能模型路由（Phase 10）
-  const route = routeModel(userMessage, params.provider, session.messages.length)
+  const route = routeModel(userMessage, params.provider, session.messages.length, params.onModelSwitch)
   const provider = route.provider
   const actualMessage = route.strippedMessage
   if (route.overridden) {

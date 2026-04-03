@@ -12,6 +12,7 @@
 import type { TaskRegistry } from '../tasks/index.js'
 import type { SpawnSubagentParams, SubagentInfo, SubagentResult } from './subagent-types.js'
 import type { RunAttemptParams, RunAttemptResult } from './runner.js'
+import type { ToolRegistry } from '../tools/index.js'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -33,6 +34,7 @@ export interface SubagentManagerDeps {
   /** 子 Agent 默认继承的参数 */
   defaults?: {
     workspaceDir?: string
+    toolRegistry?: ToolRegistry
     skills?: RunAttemptParams['skills']
     beforeToolCall?: RunAttemptParams['beforeToolCall']
     contextEngine?: RunAttemptParams['contextEngine']
@@ -136,6 +138,7 @@ export class SubagentManager {
         sessionKey: childSessionKey,
         userMessage: params.prompt,
         abortSignal: abortController.signal,
+        toolRegistry: this.deps.defaults?.toolRegistry,
         allowedTools: params.allowedTools,
         steeringQueue,
         workspaceDir: this.deps.defaults?.workspaceDir,

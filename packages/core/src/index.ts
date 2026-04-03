@@ -142,6 +142,10 @@ const subagentManager = new SubagentManager({
   runAttempt,
   defaults: {
     workspaceDir: getWorkspaceDir(),
+    toolRegistry,
+    skills: skillsWatcher.getSkills().map(e => e.skill),
+    beforeToolCall: securityBeforeToolCall,
+    contextEngine: new DefaultContextEngine(),
   },
 })
 setSubagentManagerForSpawn(subagentManager)
@@ -184,13 +188,19 @@ const sessionQueue = new SessionQueue()
 const cronScheduler = new CronScheduler({
   notifier: broadcastNotification,
   runAgentTurn: async (sessionKey, userMessage) => {
-    // E4.1: cron 任务注册到 TaskRegistry
-    const task = taskRegistry.register({
-      runtime: 'cron',
-      title: `cron: ${sessionKey}`,
-      sessionKey,
-    })
-    taskRegistry.transition(task.id, 'running')
+    // E4.1: cron 任务注册到 TaskRegistry（失败不影响执行）
+    let taskId: string | undefined
+    try {
+      const task = taskRegistry.register({
+        runtime: 'cron',
+        title: `cron: ${sessionKey}`,
+        sessionKey,
+      })
+      taskId = task.id
+      taskRegistry.transition(task.id, 'running')
+    } catch (e) {
+      console.warn('[cron] TaskRegistry 注册失败（不影响任务执行）:', e)
+    }
 
     try {
       const result = await sessionQueue.enqueue(sessionKey, () => runAttempt({
@@ -202,12 +212,18 @@ const cronScheduler = new CronScheduler({
         beforeToolCall: securityBeforeToolCall,
         contextEngine: new DefaultContextEngine(),
       }))
-      taskRegistry.transition(task.id, 'succeeded', result.text.slice(0, 200))
+      if (taskId) {
+        try { taskRegistry.transition(taskId, 'succeeded', result.text.slice(0, 200)) } catch { /* ignore */ }
+      }
       return result.text.slice(0, 500)
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      const isAbort = err instanceof Error && err.name === 'AbortError'
-      taskRegistry.transition(task.id, isAbort ? 'cancelled' : 'failed', msg)
+      if (taskId) {
+        try {
+          const msg = err instanceof Error ? err.message : String(err)
+          const isAbort = err instanceof Error && err.name === 'AbortError'
+          taskRegistry.transition(taskId, isAbort ? 'cancelled' : 'failed', msg)
+        } catch { /* ignore */ }
+      }
       throw err
     }
   },
@@ -394,6 +410,7 @@ app.post<{ Body: ChatBody }>('/chat/stream', async (req, reply) => {
         steeringQueue,
         beforeToolCall: securityBeforeToolCall,
         contextEngine: new DefaultContextEngine(),
+        onModelSwitch: (info) => send({ type: 'model_switch', from: info.fromProvider, to: info.toProvider, reason: info.reason }),
         ...(provider ? { provider } : {}),
         onDelta: (chunk) => send({ type: 'delta', content: chunk }),
         onToolStart: (info) => send({ type: 'tool_start', name: info.name, args: info.args, toolCallId: info.toolCallId }),
