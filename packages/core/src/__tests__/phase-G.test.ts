@@ -19,9 +19,12 @@ import {
   loadWorkspaceBootstrapFiles,
   formatBootstrapBlock,
   invalidateBootstrapCache,
+  ensureWorkspaceBootstrap,
   BOOTSTRAP_FILENAMES,
   type BootstrapFile,
 } from '../agent/workspace-bootstrap.js'
+import { existsSync } from 'node:fs'
+import { readFile as readFileAsync } from 'node:fs/promises'
 
 let tempDir: string
 
@@ -43,11 +46,11 @@ async function testG1NormalLoad() {
   const names = result.files.map(f => f.name).sort()
   assert.deepEqual(names, ['AGENTS.md', 'SOUL.md'], 'G1-T1b: correct file names')
   assert.ok(result.files.find(f => f.name === 'AGENTS.md')!.content.includes('TypeScript'), 'G1-T1c: AGENTS.md content correct')
+  assert.equal(result.isBootstrapping, false, 'G1-T1d: not bootstrapping (no BOOTSTRAP.md)')
 
   // 缺失的文件应在 errors 中
-  const missingNames = result.errors.filter(e => e.reason === 'missing').map(e => e.name).sort()
-  assert.ok(missingNames.includes('IDENTITY.md'), 'G1-T1d: IDENTITY.md marked as missing')
-  assert.ok(missingNames.includes('TOOLS.md'), 'G1-T1e: TOOLS.md marked as missing')
+  const missingNames = result.errors.filter(e => e.reason === 'missing').map(e => e.name)
+  assert.ok(missingNames.includes('IDENTITY.md'), 'G1-T1e: IDENTITY.md marked as missing')
 
   console.log('  ✅ G1-T1: 正常加载引导文件 (5 assertions)')
 }
@@ -105,6 +108,75 @@ async function testG1FormatBlock() {
   assert.equal(formatBootstrapBlock([]), '', 'G1-T4e: empty array → empty string')
 
   console.log('  ✅ G1-T4: formatBootstrapBlock (5 assertions)')
+}
+
+// ── G1-T5: ensureWorkspaceBootstrap — 新工作区自动种下模板 ──
+
+async function testG1EnsureSeed() {
+  tempDir = await setupTempDir()
+
+  const { seeded, isNewWorkspace } = await ensureWorkspaceBootstrap(tempDir)
+
+  assert.ok(isNewWorkspace, 'G1-T5a: detected as new workspace')
+  assert.ok(seeded.includes('BOOTSTRAP.md'), 'G1-T5b: BOOTSTRAP.md seeded')
+  assert.ok(seeded.includes('AGENTS.md'), 'G1-T5c: AGENTS.md seeded')
+  assert.ok(seeded.includes('IDENTITY.md'), 'G1-T5d: IDENTITY.md seeded')
+  assert.ok(seeded.includes('USER.md'), 'G1-T5e: USER.md seeded')
+  assert.ok(seeded.includes('SOUL.md'), 'G1-T5f: SOUL.md seeded')
+
+  // 验证文件确实存在
+  assert.ok(existsSync(join(tempDir, 'BOOTSTRAP.md')), 'G1-T5g: BOOTSTRAP.md file exists')
+  assert.ok(existsSync(join(tempDir, 'SOUL.md')), 'G1-T5h: SOUL.md file exists')
+
+  // 验证模板内容
+  const bootstrapContent = await readFileAsync(join(tempDir, 'BOOTSTRAP.md'), 'utf-8')
+  assert.ok(bootstrapContent.includes('首次认识'), 'G1-T5i: BOOTSTRAP.md has bootstrap content')
+
+  console.log('  ✅ G1-T5: ensureWorkspaceBootstrap 新工作区 (9 assertions)')
+}
+
+// ── G1-T6: ensureWorkspaceBootstrap — 已有工作区不种 BOOTSTRAP.md ──
+
+async function testG1EnsureExisting() {
+  tempDir = await setupTempDir()
+  // 预先放入一个文件，模拟已有工作区
+  await writeFile(join(tempDir, 'AGENTS.md'), '# My custom rules')
+
+  const { seeded, isNewWorkspace } = await ensureWorkspaceBootstrap(tempDir)
+
+  assert.equal(isNewWorkspace, false, 'G1-T6a: not a new workspace')
+  assert.ok(!seeded.includes('BOOTSTRAP.md'), 'G1-T6b: BOOTSTRAP.md NOT seeded')
+  assert.ok(!seeded.includes('AGENTS.md'), 'G1-T6c: AGENTS.md NOT seeded (already exists)')
+  // 但其他缺失的文件应该被补充
+  assert.ok(seeded.includes('IDENTITY.md'), 'G1-T6d: IDENTITY.md seeded (was missing)')
+
+  // 用户的 AGENTS.md 内容未被覆盖
+  const agentsContent = await readFileAsync(join(tempDir, 'AGENTS.md'), 'utf-8')
+  assert.ok(agentsContent.includes('My custom rules'), 'G1-T6e: existing AGENTS.md not overwritten')
+
+  console.log('  ✅ G1-T6: ensureWorkspaceBootstrap 已有工作区 (5 assertions)')
+}
+
+// ── G1-T7: BOOTSTRAP.md 触发首次引导流程 ──
+
+async function testG1BootstrapFlow() {
+  tempDir = await setupTempDir()
+  await ensureWorkspaceBootstrap(tempDir)  // 种下所有模板
+
+  invalidateBootstrapCache()
+  const result = await loadWorkspaceBootstrapFiles(tempDir)
+
+  // 应检测到 bootstrapping 状态
+  assert.ok(result.isBootstrapping, 'G1-T7a: isBootstrapping = true')
+
+  // formatBootstrapBlock 应生成引导脚本块
+  const block = formatBootstrapBlock(result.files)
+  assert.ok(block.includes('<bootstrap-script>'), 'G1-T7b: bootstrap-script tag present')
+  assert.ok(block.includes('首次引导'), 'G1-T7c: bootstrap header present')
+  assert.ok(block.includes('你主动开场'), 'G1-T7d: agent should initiate')
+  assert.ok(block.includes('<workspace-context name="SOUL.md">'), 'G1-T7e: SOUL.md also injected')
+
+  console.log('  ✅ G1-T7: BOOTSTRAP.md 触发首次引导 (5 assertions)')
 }
 
 // ─── G2: 外部内容安全包装 ──────────────────────────────────────────────────
@@ -292,7 +364,10 @@ async function run() {
   await testG1TooLarge()           // 2
   await testG1Cache()              // 2
   await testG1FormatBlock()        // 5
-  totalAssertions += 14
+  await testG1EnsureSeed()         // 9
+  await testG1EnsureExisting()     // 5
+  await testG1BootstrapFlow()      // 5
+  totalAssertions += 33
 
   console.log('\n── G2: 外部内容安全包装 ──')
   testG2NormalWrap()               // 6

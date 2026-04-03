@@ -16,6 +16,7 @@ import { dailySummary, sessionCostSummary, allSessionsCostSummary, globalCostSum
 import { startDeviceFlow, pollForToken, clearCopilotAuth, isCopilotLoggedIn, getPollingInterval } from './providers/copilot-auth.js'
 import { COPILOT_MODELS, fetchCopilotModels } from './providers/copilot.js'
 import { ToolRegistry, builtinTools, resolvePolicyForTool, classifyMutation, McpClientManager, parseMcpServersConfig, setSubagentManagerForSpawn, setSubagentManagerForList, setSubagentManagerForSteer, setSubagentManagerForKill } from './tools/index.js'
+import { ensureWorkspaceBootstrap } from './agent/workspace-bootstrap.js'
 import type { PolicyContext } from './tools/index.js'
 import type { BeforeToolCallInfo } from './agent/runner.js'
 import { SubagentManager } from './agent/subagent-manager.js'
@@ -117,6 +118,18 @@ const mcpManager = new McpClientManager(toolRegistry)
     console.warn('[equality-core] MCP 初始化失败（不影响启动）:', (err as Error).message)
   }
 })()
+
+// ─── G1: 确保工作区引导文件（首次运行时种下模板）────────────────────────────
+try {
+  const { seeded, isNewWorkspace } = await ensureWorkspaceBootstrap(getWorkspaceDir())
+  if (isNewWorkspace) {
+    console.log('[equality-core] 🚀 全新工作区，已种下引导模板（含 BOOTSTRAP.md 首次引导脚本）')
+  } else if (seeded.length > 0) {
+    console.log(`[equality-core] 已补充缺失的引导文件: ${seeded.join(', ')}`)
+  }
+} catch (err) {
+  console.warn('[equality-core] 引导文件初始化失败（不影响启动）:', (err as Error).message)
+}
 
 // 初始化 Skills 热加载
 const skillsWatcher = new SkillsWatcher({
