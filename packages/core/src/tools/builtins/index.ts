@@ -23,6 +23,10 @@ import { lspHoverTool } from './lsp-hover.js'
 import { lspDefinitionTool } from './lsp-definition.js'
 import { lspReferencesTool } from './lsp-references.js'
 import { lspDiagnosticsTool } from './lsp-diagnostics.js'
+import { subagentSpawnTool, setSubagentManagerForSpawn } from './subagent-spawn.js'
+import { subagentListTool, setSubagentManagerForList } from './subagent-list.js'
+import { subagentSteerTool, setSubagentManagerForSteer } from './subagent-steer.js'
+import { subagentKillTool, setSubagentManagerForKill } from './subagent-kill.js'
 
 /** 全部内置工具 */
 export const builtinTools: ToolDefinition[] = [
@@ -56,6 +60,11 @@ export const builtinTools: ToolDefinition[] = [
   lspDefinitionTool,
   lspReferencesTool,
   lspDiagnosticsTool,
+  // 子 Agent 管理 (Phase E3/E4)
+  subagentSpawnTool,
+  subagentListTool,
+  subagentSteerTool,
+  subagentKillTool,
 ]
 
 export {
@@ -80,4 +89,12 @@ export {
   lspDefinitionTool,
   lspReferencesTool,
   lspDiagnosticsTool,
+  subagentSpawnTool,
+  subagentListTool,
+  subagentSteerTool,
+  subagentKillTool,
+  setSubagentManagerForSpawn,
+  setSubagentManagerForList,
+  setSubagentManagerForSteer,
+  setSubagentManagerForKill,
 }

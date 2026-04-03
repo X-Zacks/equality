@@ -14,7 +14,7 @@ export type { SandboxConfig, SandboxResult } from './bash-sandbox.js'
 export { LoopDetector, computeArgsHash, computeResultHash } from './loop-detector.js'
 export type { DetectorVerdict, DetectorAction } from './loop-detector.js'
 export { cleanToolSchemas, resolveProviderFamily } from './schema-compat.js'
-export { builtinTools, bashTool, readFileTool, writeFileTool, globTool, webFetchTool } from './builtins/index.js'
+export { builtinTools, bashTool, readFileTool, writeFileTool, globTool, webFetchTool, setSubagentManagerForSpawn, setSubagentManagerForList, setSubagentManagerForSteer, setSubagentManagerForKill } from './builtins/index.js'
 export type {
   ToolDefinition,
   ToolResult,

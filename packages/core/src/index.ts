@@ -15,9 +15,10 @@ import { initProxy, setProxyUrl } from './config/proxy.js'
 import { dailySummary, sessionCostSummary, allSessionsCostSummary, globalCostSummary } from './cost/ledger.js'
 import { startDeviceFlow, pollForToken, clearCopilotAuth, isCopilotLoggedIn, getPollingInterval } from './providers/copilot-auth.js'
 import { COPILOT_MODELS, fetchCopilotModels } from './providers/copilot.js'
-import { ToolRegistry, builtinTools, resolvePolicyForTool, classifyMutation, McpClientManager, parseMcpServersConfig } from './tools/index.js'
+import { ToolRegistry, builtinTools, resolvePolicyForTool, classifyMutation, McpClientManager, parseMcpServersConfig, setSubagentManagerForSpawn, setSubagentManagerForList, setSubagentManagerForSteer, setSubagentManagerForKill } from './tools/index.js'
 import type { PolicyContext } from './tools/index.js'
 import type { BeforeToolCallInfo } from './agent/runner.js'
+import { SubagentManager } from './agent/subagent-manager.js'
 import { DefaultContextEngine } from './context/index.js'
 import { closeSessionBrowser } from './tools/builtins/browser.js'
 import { SkillsWatcher } from './skills/index.js'
@@ -29,6 +30,8 @@ import { getStorageMode } from './config/secrets.js'
 import { generateTitle } from './session/title-gen.js'
 import { CronScheduler } from './cron/index.js'
 import { setCronScheduler } from './tools/builtins/cron.js'
+import { TaskRegistry, JsonTaskStore, TERMINAL_STATES } from './tasks/index.js'
+import type { TaskRuntime } from './tasks/index.js'
 
 const PORT = Number(process.env.EQUALITY_PORT ?? 18790)
 const HOST = 'localhost'
@@ -125,6 +128,28 @@ const skillsWatcher = new SkillsWatcher({
 const initialSkills = await skillsWatcher.start()
 console.log(`[equality-core] 已加载 ${initialSkills.length} 个 Skills: ${initialSkills.map(e => e.skill.name).join(', ')}`)
 
+// ─── 初始化 TaskRegistry（Phase E4.1）──────────────────────────────────────
+const taskRegistry = new TaskRegistry({
+  store: new JsonTaskStore(),
+  flushDebounceMs: 500,
+})
+const restoredTaskCount = await taskRegistry.restore()
+console.log(`[equality-core] TaskRegistry 已恢复 ${restoredTaskCount} 个任务`)
+
+// ─── 初始化 SubagentManager（Phase E4.3）────────────────────────────────────
+const subagentManager = new SubagentManager({
+  taskRegistry,
+  runAttempt,
+  defaults: {
+    workspaceDir: getWorkspaceDir(),
+  },
+})
+setSubagentManagerForSpawn(subagentManager)
+setSubagentManagerForList(subagentManager)
+setSubagentManagerForSteer(subagentManager)
+setSubagentManagerForKill(subagentManager)
+console.log('[equality-core] SubagentManager 已初始化')
+
 // ─── 初始化 CronScheduler（Phase 4）────────────────────────────────────────
 const sseClients = new Set<import('node:http').ServerResponse>()
 
@@ -137,6 +162,21 @@ function broadcastNotification(title: string, body: string) {
   console.log(`[CronScheduler] 🔔 ${title}: ${body}`)
 }
 
+// ─── TaskEventBus → SSE 广播（Phase E4.1）──────────────────────────────────
+taskRegistry.events.on((event) => {
+  const data = JSON.stringify({
+    type: 'task_event',
+    taskId: event.taskId,
+    eventType: event.type,
+    state: event.state,
+    runtime: event.runtime,
+    timestamp: event.timestamp,
+  })
+  for (const client of sseClients) {
+    try { client.write(`data: ${data}\n\n`) } catch { sseClients.delete(client) }
+  }
+})
+
 // ─── Session 并发队列（Phase 11）────────────────────────────────────────
 
 const sessionQueue = new SessionQueue()
@@ -144,16 +184,32 @@ const sessionQueue = new SessionQueue()
 const cronScheduler = new CronScheduler({
   notifier: broadcastNotification,
   runAgentTurn: async (sessionKey, userMessage) => {
-    const result = await sessionQueue.enqueue(sessionKey, () => runAttempt({
+    // E4.1: cron 任务注册到 TaskRegistry
+    const task = taskRegistry.register({
+      runtime: 'cron',
+      title: `cron: ${sessionKey}`,
       sessionKey,
-      userMessage,
-      toolRegistry,
+    })
+    taskRegistry.transition(task.id, 'running')
+
+    try {
+      const result = await sessionQueue.enqueue(sessionKey, () => runAttempt({
+        sessionKey,
+        userMessage,
+        toolRegistry,
         workspaceDir: getWorkspaceDir(),
         skills: skillsWatcher.getSkills().map(e => e.skill),
         beforeToolCall: securityBeforeToolCall,
         contextEngine: new DefaultContextEngine(),
-    }))
-    return result.text.slice(0, 500)
+      }))
+      taskRegistry.transition(task.id, 'succeeded', result.text.slice(0, 200))
+      return result.text.slice(0, 500)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      const isAbort = err instanceof Error && err.name === 'AbortError'
+      taskRegistry.transition(task.id, isAbort ? 'cancelled' : 'failed', msg)
+      throw err
+    }
   },
 })
 setCronScheduler(cronScheduler)
@@ -223,6 +279,41 @@ app.post('/test/notify', async (req, reply) => {
   const { title, body } = req.body as { title?: string; body?: string }
   broadcastNotification(title ?? 'Equality 测试', body ?? '这是一条测试通知')
   return reply.send({ ok: true })
+})
+
+// ─── Tasks API（Phase E4.1）───────────────────────────────────────────────────
+app.get('/tasks', async (req, reply) => {
+  const { runtime } = req.query as { runtime?: string }
+  const filter = runtime ? { runtime: runtime as TaskRuntime } : undefined
+  return reply.send(taskRegistry.list(filter))
+})
+
+app.get<{ Params: { taskId: string } }>('/tasks/:taskId', async (req, reply) => {
+  const task = taskRegistry.get(req.params.taskId)
+  if (!task) return reply.status(404).send({ error: 'task not found' })
+  return reply.send(task)
+})
+
+app.post<{ Params: { taskId: string }; Body: { message?: string } }>('/tasks/:taskId/steer', async (req, reply) => {
+  const { message } = req.body ?? {}
+  if (!message?.trim()) return reply.status(400).send({ ok: false, reason: 'message required' })
+  const task = taskRegistry.get(req.params.taskId)
+  if (!task) return reply.status(404).send({ ok: false, reason: 'task not found' })
+  if (TERMINAL_STATES.has(task.state)) {
+    return reply.status(409).send({ ok: false, reason: `task is already ${task.state}` })
+  }
+  taskRegistry.steer(req.params.taskId, message.trim())
+  return reply.send({ ok: true })
+})
+
+app.delete<{ Params: { taskId: string } }>('/tasks/:taskId', async (req, reply) => {
+  try {
+    const task = taskRegistry.cancel(req.params.taskId)
+    return reply.send({ ok: true, state: task.state })
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    return reply.status(400).send({ ok: false, reason: msg })
+  }
 })
 
 // ─── Chat Abort Registry ──────────────────────────────────────────────────────
@@ -759,11 +850,13 @@ app.get('/copilot/models', async (_req, reply) => {
 // Graceful shutdown: 关闭 MCP 连接
 process.on('SIGINT', async () => {
   console.log('[equality-core] SIGINT received, shutting down...')
+  try { await taskRegistry.flush() } catch (e) { console.warn('[equality-core] taskRegistry.flush() failed:', e) }
   await mcpManager.stop()
   process.exit(0)
 })
 process.on('SIGTERM', async () => {
   console.log('[equality-core] SIGTERM received, shutting down...')
+  try { await taskRegistry.flush() } catch (e) { console.warn('[equality-core] taskRegistry.flush() failed:', e) }
   await mcpManager.stop()
   process.exit(0)
 })

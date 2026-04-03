@@ -2,9 +2,18 @@
  * tools/builtins/subagent-spawn.ts — subagent_spawn 工具
  *
  * Phase E3 (GAP-8): 让主 Agent 创建子 Agent 任务
+ * Phase E4: execute 通过延迟绑定接入 SubagentManager
  */
 
 import type { ToolDefinition } from '../types.js'
+import type { SubagentManager } from '../../agent/subagent-manager.js'
+
+let _manager: SubagentManager | null = null
+
+/** 延迟绑定：Gateway 创建 SubagentManager 后调用此函数注入引用 */
+export function setSubagentManagerForSpawn(manager: SubagentManager): void {
+  _manager = manager
+}
 
 export const subagentSpawnTool: ToolDefinition = {
   name: 'subagent_spawn',
@@ -33,12 +42,44 @@ export const subagentSpawnTool: ToolDefinition = {
     },
     required: ['prompt'],
   },
-  execute: async (_input, _ctx) => {
-    // 实际执行逻辑由 SubagentManager 通过注入完成
-    // 这里只是 schema 占位，真正的 execute 在注册时被覆盖
-    return {
-      content: 'subagent_spawn 需要通过 SubagentManager 执行',
-      isError: true,
+  execute: async (input, ctx) => {
+    if (!_manager) {
+      return { content: 'SubagentManager not initialized', isError: true }
+    }
+    const parentSessionKey = ctx.sessionKey
+    if (!parentSessionKey) {
+      return { content: 'sessionKey is required for subagent_spawn', isError: true }
+    }
+
+    const prompt = String(input.prompt ?? '')
+    const goal = input.goal ? String(input.goal) : undefined
+    const allowedTools = input.allowed_tools
+      ? String(input.allowed_tools).split(',').map(s => s.trim()).filter(Boolean)
+      : undefined
+    const timeoutMs = input.timeout_seconds
+      ? Number(input.timeout_seconds) * 1000
+      : undefined
+
+    try {
+      const result = await _manager.spawn(parentSessionKey, {
+        prompt,
+        goal,
+        allowedTools,
+        timeoutMs,
+      })
+      if (!result.success) {
+        return { content: result.summary, isError: true }
+      }
+      return {
+        content: JSON.stringify({
+          taskId: result.taskId,
+          success: result.success,
+          summary: result.summary,
+        }),
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      return { content: `subagent_spawn failed: ${msg}`, isError: true }
     }
   },
 }

@@ -1,6 +1,8 @@
 import { OpenAICompatProvider } from './base.js'
 import { CopilotProvider } from './copilot.js'
 import { FallbackProvider } from './fallback.js'
+import type { OnModelSwitch } from './fallback.js'
+export type { OnModelSwitch } from './fallback.js'
 import type { LLMProvider } from './types.js'
 import { getSecret, hasSecret } from '../config/secrets.js'
 import { isCopilotLoggedIn } from './copilot-auth.js'
@@ -249,7 +251,7 @@ export function getVisionProvider(currentProvider?: LLMProvider): LLMProvider {
 }
 
 /** 带降级的 Provider 获取：主 Provider 失败时自动切换到下一个 */
-export function getProviderWithFallback(): LLMProvider {
+export function getProviderWithFallback(opts?: { onModelSwitch?: OnModelSwitch }): LLMProvider {
   const configured: LLMProvider[] = []
   for (const entry of PROVIDER_ORDER) {
     try {
@@ -260,5 +262,5 @@ export function getProviderWithFallback(): LLMProvider {
       // factory 可能抛出（如 Copilot 未登录），跳过
     }
   }
-  return new FallbackProvider(configured) // configured 为空时 FallbackProvider 构造函数会抛错
+  return new FallbackProvider(configured, { onModelSwitch: opts?.onModelSwitch })
 }
