@@ -18,6 +18,7 @@ import { COPILOT_MODELS, fetchCopilotModels } from './providers/copilot.js'
 import { ToolRegistry, builtinTools, resolvePolicyForTool, classifyMutation } from './tools/index.js'
 import type { PolicyContext } from './tools/index.js'
 import type { BeforeToolCallInfo } from './agent/runner.js'
+import { DefaultContextEngine } from './context/index.js'
 import { closeSessionBrowser } from './tools/builtins/browser.js'
 import { SkillsWatcher } from './skills/index.js'
 import { fetchGallery, installSkill, uninstallSkill, scanSkillContent, TRUSTED_REPOS } from './skills/gallery.js'
@@ -128,6 +129,7 @@ const cronScheduler = new CronScheduler({
         workspaceDir: getWorkspaceDir(),
         skills: skillsWatcher.getSkills().map(e => e.skill),
         beforeToolCall: securityBeforeToolCall,
+        contextEngine: new DefaultContextEngine(),
     }))
     return result.text.slice(0, 500)
   },
@@ -278,6 +280,7 @@ app.post<{ Body: ChatBody }>('/chat/stream', async (req, reply) => {
         allowedTools,
         steeringQueue,
         beforeToolCall: securityBeforeToolCall,
+        contextEngine: new DefaultContextEngine(),
         ...(provider ? { provider } : {}),
         onDelta: (chunk) => send({ type: 'delta', content: chunk }),
         onToolStart: (info) => send({ type: 'tool_start', name: info.name, args: info.args, toolCallId: info.toolCallId }),

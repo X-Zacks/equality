@@ -65,4 +65,48 @@ export interface ContextEngine {
    * 资源清理（可选）
    */
   dispose?(): Promise<void>
+
+  // ── D4 新增（全部可选，不实现 = no-op，向后兼容）──────────────
+
+  /**
+   * LLM 调用前触发，用于注入上下文或预处理。
+   */
+  beforeTurn?(params: BeforeTurnParams): Promise<void>
+
+  /**
+   * 每次工具执行完毕后触发，含 C1 变异分类与 D1 风险等级。
+   */
+  afterToolCall?(params: AfterToolCallParams): Promise<void>
+
+  /**
+   * Compaction 执行前触发，可用于决定是否跳过或调整压缩行为。
+   */
+  beforeCompaction?(params: BeforeCompactionParams): Promise<void>
+}
+
+// ─── D4 生命周期参数 ─────────────────────────────────────────────────────────
+
+export interface BeforeTurnParams {
+  sessionKey: string
+  userMessage: string
+}
+
+export interface AfterToolCallParams {
+  sessionKey: string
+  toolName: string
+  args: Record<string, unknown>
+  result: string
+  isError: boolean
+  /** C1 变异分类 */
+  mutationType: 'read' | 'write' | 'exec'
+  /** D1 策略决策风险等级 */
+  risk: 'low' | 'medium' | 'high'
+}
+
+export interface BeforeCompactionParams {
+  sessionKey: string
+  /** 即将被压缩的消息数 */
+  compressCount: number
+  /** 当前 token 使用率（占上下文窗口的比例） */
+  tokenUsageRatio: number
 }

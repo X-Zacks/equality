@@ -52,6 +52,7 @@ import type { ToolRegistry, ToolContext, OpenAIToolSchema } from '../tools/index
 import { truncateToolResult, calcMaxToolResultChars, LoopDetector, computeArgsHash, computeResultHash, cleanToolSchemas } from '../tools/index.js'
 import { getProxyUrl } from '../config/proxy.js'
 import { DefaultContextEngine, trimMessages } from '../context/index.js'
+import type { ContextEngine } from '../context/index.js'
 import { memorySave } from '../memory/index.js'
 import { getSecret, hasSecret } from '../config/secrets.js'
 
@@ -129,6 +130,12 @@ export interface RunAttemptParams {
    * 不需要持久化，是纯运行时状态。
    */
   steeringQueue?: string[]
+  /**
+   * 可插拔上下文引擎（D4）。
+   * 传入则在工具执行后调用 afterToolCall、Compaction 前调用 beforeCompaction。
+   * 不传则跳过（no-op）——向后兼容。
+   */
+  contextEngine?: ContextEngine
 }
 
 export interface RunAttemptResult {
@@ -657,6 +664,24 @@ export async function runAttempt(params: RunAttemptParams): Promise<RunAttemptRe
           tool_call_id: tc.id,
           content: resultForMessages,
         })
+
+        // ── D4: contextEngine.afterToolCall ─────────────────────
+        if (params.contextEngine?.afterToolCall) {
+          try {
+            const mutation = classifyMutation(tc.name, args)
+            await params.contextEngine.afterToolCall({
+              sessionKey: params.sessionKey,
+              toolName: tc.name,
+              args,
+              result: resultForMessages,
+              isError,
+              mutationType: mutation.type,
+              risk: mutation.type === 'write' ? 'high' : mutation.type === 'exec' ? 'medium' : 'low',
+            })
+          } catch (ceErr) {
+            console.warn(`[runner] contextEngine.afterToolCall error for "${tc.name}":`, ceErr)
+          }
+        }
 
         // 提前持久化（覆盖写，幂等）
         await persist(session)

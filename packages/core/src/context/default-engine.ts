@@ -12,7 +12,7 @@
  */
 
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions'
-import type { ContextEngine, AssembleParams, AssembleResult, AfterTurnParams } from './types.js'
+import type { ContextEngine, AssembleParams, AssembleResult, AfterTurnParams, AfterToolCallParams, BeforeCompactionParams } from './types.js'
 import { compactIfNeeded } from './compaction.js'
 import { buildSystemPrompt } from '../agent/system-prompt.js'
 import { memorySearch } from '../memory/index.js'
@@ -175,6 +175,32 @@ export class DefaultContextEngine implements ContextEngine {
 
     // 持久化
     await persist(session)
+  }
+
+  // ── D4 生命周期方法 ────────────────────────────────────────────────────────
+
+  /**
+   * 工具执行后审计日志（D4）。
+   * DefaultContextEngine 仅输出审计日志，第三方引擎可覆盖做更多事。
+   */
+  async afterToolCall(params: AfterToolCallParams): Promise<void> {
+    const { sessionKey, toolName, mutationType, risk, isError } = params
+    console.log(
+      `[context-engine] afterToolCall: session=${sessionKey.slice(0, 8)} tool=${toolName} ` +
+      `mutation=${mutationType} risk=${risk} error=${isError}`,
+    )
+  }
+
+  /**
+   * Compaction 执行前日志（D4）。
+   * DefaultContextEngine 仅记录即将压缩的消息数和 token 使用率。
+   */
+  async beforeCompaction(params: BeforeCompactionParams): Promise<void> {
+    const { sessionKey, compressCount, tokenUsageRatio } = params
+    console.log(
+      `[context-engine] beforeCompaction: session=${sessionKey.slice(0, 8)} ` +
+      `compress=${compressCount} msgs, usage=${(tokenUsageRatio * 100).toFixed(1)}%`,
+    )
   }
 }
 

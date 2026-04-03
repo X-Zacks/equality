@@ -16,6 +16,7 @@
     "test:policy": "tsx src/__tests__/policy-pipeline.test.ts",
     "test:d1": "tsx src/__tests__/d1-integration.test.ts",
     "test:compaction": "tsx src/__tests__/compaction-v2.test.ts",
+    "test:d4": "tsx src/__tests__/context-engine-v2.test.ts",
     "test:lsp": "tsx src/__tests__/lsp/frame-parser.test.ts && tsx src/__tests__/lsp/client.test.ts && tsx src/__tests__/lsp/types.test.ts && tsx src/__tests__/lsp/tools.test.ts"
   },
   "dependencies": {
