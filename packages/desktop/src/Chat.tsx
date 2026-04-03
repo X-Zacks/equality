@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef, useCallback, KeyboardEvent } from 'react'
-import { useGateway, type ToolCallEvent } from './useGateway'
+import { useGateway, type ToolCallEvent, type InteractivePayload } from './useGateway'
 import { open } from '@tauri-apps/plugin-dialog'
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { invoke } from '@tauri-apps/api/core'
 import Markdown from './Markdown'
+import InteractiveBlock from './InteractiveBlock'
 import { MentionPicker } from './MentionPicker'
 import './Chat.css'
 import './MentionPicker.css'
@@ -80,6 +81,8 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
   const [activeToolCalls, setActiveToolCalls] = useState<ToolCallEvent[]>([])
   const [attachments, setAttachments] = useState<Attachment[]>([])
   const [dragOver, setDragOver] = useState(false)
+  // ─── Interactive Payload 状态（Phase F1）──────────────────────────────────
+  const [interactivePayloads, setInteractivePayloads] = useState<InteractivePayload[]>([])
 
   // ─── Mention Picker 状态 ────────────────────────────────────────────────
   const [mentionState, setMentionState] = useState<{
@@ -346,6 +349,7 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
     setStreamingText('')
     activeToolCallsRef.current = []
     setActiveToolCalls([])
+    setInteractivePayloads([])
 
     await sendMessage(
       finalText,
@@ -434,8 +438,48 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
         }
       },
       (s) => setStreaming(s),
+      (payload) => setInteractivePayloads(prev => [...prev, payload]),
     )
   }
+
+  // ─── Interactive 交互回传（Phase F1）───────────────────────────
+  const handleInteractiveAction = useCallback(async (actionId: string, value: string) => {
+    setInteractivePayloads([])
+    const reply = `__interactive_reply__:${actionId}:${value}`
+    // 当作用户消息发送
+    setMessages(prev => [...prev, { role: 'user', content: `选择了: ${actionId}` }])
+    streamingTextRef.current = ''
+    setStreamingText('')
+    activeToolCallsRef.current = []
+    setActiveToolCalls([])
+
+    await sendMessage(
+      reply,
+      (chunk) => { streamingTextRef.current += chunk; setStreamingText(streamingTextRef.current) },
+      () => {
+        const final = streamingTextRef.current
+        const tools = activeToolCallsRef.current
+        if (final || tools.length > 0) {
+          setMessages(msgs => [...msgs, { role: 'assistant', content: final, toolCalls: tools.length > 0 ? [...tools] : undefined }])
+        }
+        streamingTextRef.current = ''
+        setStreamingText('')
+        activeToolCallsRef.current = []
+        setActiveToolCalls([])
+      },
+      (err) => {
+        setMessages(prev => [...prev, { role: 'assistant', content: `⚠️ ${err}` }])
+        streamingTextRef.current = ''
+        setStreamingText('')
+      },
+      undefined,
+      sessionKey,
+      undefined,
+      undefined,
+      (s) => setStreaming(s),
+      (payload) => setInteractivePayloads(prev => [...prev, payload]),
+    )
+  }, [sendMessage, sessionKey, abort])
 
   // ─── 复制消息 ───────────────────────────────────────────────────
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null)
@@ -541,6 +585,7 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
         }
       },
       (s) => setStreaming(s),
+      (payload) => setInteractivePayloads(prev => [...prev, payload]),
     )
   }, [streaming, messages, sendMessage, sessionKey, abort, paused])
 
@@ -620,6 +665,14 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
             )}
             {streamingText && <span className="bubble-content"><Markdown content={streamingText} /></span>}
             <span className="cursor-blink">▌</span>
+          </div>
+        )}
+        {/* Interactive Blocks（Phase F1）*/}
+        {interactivePayloads.length > 0 && !streaming && (
+          <div className="interactive-payloads">
+            {interactivePayloads.map((payload, i) => (
+              <InteractiveBlock key={`ib-${i}`} payload={payload} onAction={handleInteractiveAction} />
+            ))}
           </div>
         )}
         <div ref={messagesEndRef} />

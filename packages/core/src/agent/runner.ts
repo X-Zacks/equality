@@ -136,6 +136,11 @@ export interface RunAttemptParams {
    */
   onModelSwitch?: import('../providers/fallback.js').OnModelSwitch
   /**
+   * 交互式 UI 载荷回调（Phase F1）。
+   * Agent 回复中检测到 :::interactive 块时触发。
+   */
+  onInteractive?: (payload: import('./interactive.js').InteractivePayload) => void
+  /**
    * 可插拔上下文引擎（D4）。
    * 传入则在工具执行后调用 afterToolCall、Compaction 前调用 beforeCompaction。
    * 不传则跳过（no-op）——向后兼容。
@@ -792,6 +797,18 @@ export async function runAttempt(params: RunAttemptParams): Promise<RunAttemptRe
   if (guardedText !== fullText) {
     console.warn(`[runner] ⚠️ 命中执行证据 Guard: tools=${[...executedToolNames].join(',') || 'none'}`)
     fullText = guardedText
+  }
+
+  // 9.5 Interactive Payload 检测（Phase F1）
+  if (params.onInteractive) {
+    const { parseInteractiveBlocks } = await import('./interactive.js')
+    const { cleaned, payloads } = parseInteractiveBlocks(fullText)
+    if (payloads.length > 0) {
+      fullText = cleaned
+      for (const payload of payloads) {
+        params.onInteractive(payload)
+      }
+    }
   }
 
   // 10. Context Engine: afterTurn（追加 assistant 回复 + costLine 持久化）

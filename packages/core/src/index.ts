@@ -411,6 +411,7 @@ app.post<{ Body: ChatBody }>('/chat/stream', async (req, reply) => {
         beforeToolCall: securityBeforeToolCall,
         contextEngine: new DefaultContextEngine(),
         onModelSwitch: (info) => send({ type: 'model_switch', from: info.fromProvider, to: info.toProvider, reason: info.reason }),
+        onInteractive: (payload) => send({ type: 'interactive', payload }),
         ...(provider ? { provider } : {}),
         onDelta: (chunk) => send({ type: 'delta', content: chunk }),
         onToolStart: (info) => send({ type: 'tool_start', name: info.name, args: info.args, toolCallId: info.toolCallId }),

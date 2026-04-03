@@ -2,6 +2,37 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 
+// ─── Interactive Payload 类型（Phase F1）──────────────────────────────────────
+
+export type ButtonStyle = 'primary' | 'secondary' | 'success' | 'danger'
+
+export interface InteractiveButton {
+  type: 'button'
+  actionId: string
+  label: string
+  style?: ButtonStyle
+}
+
+export interface InteractiveSelect {
+  type: 'select'
+  actionId: string
+  placeholder?: string
+  options: { label: string; value: string }[]
+}
+
+export interface InteractiveText {
+  type: 'text'
+  content: string
+}
+
+export type InteractiveElement = InteractiveButton | InteractiveSelect | InteractiveText
+
+export interface InteractivePayload {
+  elements: InteractiveElement[]
+}
+
+// ─── Secret / Settings ────────────────────────────────────────────────────────
+
 export type SecretKey =
   | 'DEEPSEEK_API_KEY' | 'QWEN_API_KEY' | 'VOLC_API_KEY'
   | 'CUSTOM_API_KEY' | 'CUSTOM_BASE_URL' | 'CUSTOM_MODEL'
@@ -29,7 +60,7 @@ export interface SettingsState {
 }
 
 interface DeltaEvent {
-  type: 'delta' | 'done' | 'error' | 'tool_start' | 'tool_result' | 'tool_update'
+  type: 'delta' | 'done' | 'error' | 'tool_start' | 'tool_result' | 'tool_update' | 'interactive' | 'model_switch'
   sessionKey?: string
   content?: string
   message?: string
@@ -40,6 +71,8 @@ interface DeltaEvent {
   toolCallId?: string
   // tool_result fields
   isError?: boolean
+  // interactive fields (Phase F1)
+  payload?: InteractivePayload
 }
 
 export interface ToolCallEvent {
@@ -78,6 +111,7 @@ export function useGateway() {
       model?: string,
       onAbort?: () => void,
       onStreamingChange?: (streaming: boolean) => void,
+      onInteractive?: (payload: InteractivePayload) => void,
     ): Promise<void> => {
       if (!message.trim()) return
       const sk = sessionKey ?? ''
@@ -156,6 +190,8 @@ export function useGateway() {
                 onStreamingChange?.(false)
                 onDone(evt.usage)
                 resolve()
+              } else if (evt.type === 'interactive' && evt.payload) {
+                onInteractive?.(evt.payload)
               } else if (evt.type === 'error') {
                 cleanup()
                 onStreamingChange?.(false)

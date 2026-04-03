@@ -1,0 +1,114 @@
+/* ─── InteractiveBlock.css — Phase F1 交互式 UI 样式 ─── */
+
+.interactive-block {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 0;
+  align-items: center;
+}
+
+/* ─── 文本 ─── */
+
+.ib-text {
+  width: 100%;
+  margin: 0 0 4px 0;
+  color: var(--text-secondary, #8b949e);
+  font-size: 0.9em;
+  line-height: 1.4;
+}
+
+/* ─── 按钮通用 ─── */
+
+.ib-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 16px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font-size: 0.85em;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s, opacity 0.15s;
+  white-space: nowrap;
+  min-height: 32px;
+}
+
+.ib-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ib-btn:focus-visible {
+  outline: 2px solid var(--accent, #58a6ff);
+  outline-offset: 2px;
+}
+
+/* ─── 按钮样式变体 ─── */
+
+.ib-btn-primary {
+  background: var(--accent, #58a6ff);
+  color: #fff;
+  border-color: var(--accent, #58a6ff);
+}
+.ib-btn-primary:hover:not(:disabled) {
+  background: var(--accent-hover, #4090e0);
+}
+
+.ib-btn-secondary {
+  background: transparent;
+  color: var(--text-primary, #e6edf3);
+  border-color: var(--border, #30363d);
+}
+.ib-btn-secondary:hover:not(:disabled) {
+  background: var(--hover-bg, rgba(255, 255, 255, 0.05));
+  border-color: var(--border-hover, #484f58);
+}
+
+.ib-btn-success {
+  background: #238636;
+  color: #fff;
+  border-color: #238636;
+}
+.ib-btn-success:hover:not(:disabled) {
+  background: #2ea043;
+}
+
+.ib-btn-danger {
+  background: transparent;
+  color: #f85149;
+  border-color: #f85149;
+}
+.ib-btn-danger:hover:not(:disabled) {
+  background: rgba(248, 81, 73, 0.1);
+}
+
+/* ─── 下拉选择器 ─── */
+
+.ib-select-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ib-select {
+  padding: 5px 10px;
+  border: 1px solid var(--border, #30363d);
+  border-radius: 6px;
+  background: var(--input-bg, #0d1117);
+  color: var(--text-primary, #e6edf3);
+  font-size: 0.85em;
+  min-height: 32px;
+  cursor: pointer;
+}
+
+.ib-select:focus-visible {
+  outline: 2px solid var(--accent, #58a6ff);
+  outline-offset: 2px;
+}
+
+.ib-select-confirm {
+  padding: 5px 12px;
+  font-size: 0.8em;
+}
