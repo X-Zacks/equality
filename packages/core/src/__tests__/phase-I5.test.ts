@@ -125,6 +125,7 @@ import {
   resolveAgentEffectiveModel,
 } from '../config/agent-scope.js'
 import { DEFAULT_AGENT_ID } from '../config/agent-types.js'
+import type { EqualityConfig } from '../config/agent-types.js'
 
 // T1: 普通 session key → default agent
 {
@@ -148,10 +149,10 @@ import { DEFAULT_AGENT_ID } from '../config/agent-types.js'
 
 // T3: resolveAgentConfig 从配置提取 per-agent 设置
 {
-  const cfg = {
+  const cfg: EqualityConfig = {
     agents: {
       list: [
-        { id: 'code', name: 'Coder', model: 'gpt-4o', workspace: '/projects', tools: { profile: 'coding' }, identity: 'You are a coder' },
+        { id: 'code', name: 'Coder', model: 'gpt-4o', workspace: '/projects', tools: { profile: 'coding' as const }, identity: 'You are a coder' },
         { id: 'chat', name: 'Chat', model: 'claude-3-haiku', default: true },
       ],
       defaults: { model: 'gpt-3.5-turbo', workspace: '/home' },
@@ -210,7 +211,7 @@ import { createCacheTrace, digest } from '../diagnostics/cache-trace.js'
   const events: string[] = []
   const mockWriter = {
     write(data: string) { events.push(data) },
-    flush() {},
+    close() {},
   }
   const trace = createCacheTrace({
     sessionKey: 'test-session',
