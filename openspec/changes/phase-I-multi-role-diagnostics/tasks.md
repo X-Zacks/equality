@@ -28,7 +28,7 @@
 - [x] T18: 新建 `security/audit-types.ts` — SecurityAuditFinding, SecurityAuditReport 类型
 - [x] T19: 新建 `security/audit.ts` — runSecurityAudit() 框架
 - [x] T20: 实现 6 类检查：sandbox/secrets/tools/content/proxy/workspace
-- [ ] T21: 修改 `index.ts` — GET /api/security-audit 路由
+- [x] T21: 修改 `index.ts` — GET /api/security-audit 路由
 - [x] T22: 测试 — ≥ 15 个断言 (实际 25)
 
 ## I4 — Cache Trace

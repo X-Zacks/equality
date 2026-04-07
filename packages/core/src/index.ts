@@ -858,6 +858,21 @@ app.get('/cost/global', async (_req, reply) => {
   return reply.send(globalCostSummary())
 })
 
+// ─── Security Audit（Phase I3, T21）────────────────────────────────────────
+import { runSecurityAudit } from './security/audit.js'
+
+app.get('/security-audit', async (_req, reply) => {
+  const storageMode = getStorageMode()
+  const report = runSecurityAudit({
+    sandboxEnabled: !!process.env.EQUALITY_SANDBOX,
+    workspaceDir: getWorkspaceDir(),
+    registeredTools: toolRegistry.list(),
+    secretStorageMode: storageMode === 'dpapi' ? 'encrypted' : 'env',
+    proxyUrl: process.env.HTTPS_PROXY || process.env.HTTP_PROXY || undefined,
+  })
+  return reply.send(report)
+})
+
 // ─── Copilot: Device Flow Login ───────────────────────────────────────────────
 app.post('/copilot/login', async (_req, reply) => {
   try {
