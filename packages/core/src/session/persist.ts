@@ -2,6 +2,7 @@ import { mkdir, writeFile, readFile, readdir, unlink } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Session } from './types.js'
+import { truncateForPersistence } from './persist-guard.js'
 
 function sessionsDir(): string {
   const appData = process.env.APPDATA ?? join(process.env.HOME ?? '.', '.config')
@@ -18,10 +19,19 @@ export async function persist(session: Session): Promise<void> {
   if (!existsSync(dir)) {
     await mkdir(dir, { recursive: true })
   }
+
+  // Phase H4: 持久化前截断超大 tool result（只截断副本，不修改内存中的 session）
+  const { messages, truncatedCount, savedChars } = truncateForPersistence(session.messages)
+  if (truncatedCount > 0) {
+    console.log(
+      `[persist-guard] 截断 ${truncatedCount} 条 tool result, 节省 ${savedChars} 字符`,
+    )
+  }
+
   const payload = JSON.stringify({
     key: session.key,
     title: session.title,
-    messages: session.messages,
+    messages,
     costLines: session.costLines,
     createdAt: session.createdAt,
     lastActiveAt: session.lastActiveAt,

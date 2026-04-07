@@ -83,7 +83,7 @@ export const VALID_TRANSITIONS: Record<TaskState, readonly TaskState[]> = {
   failed: [],
   timed_out: [],
   cancelled: [],
-  lost: [],
+  lost: ['queued'],  // Phase H1: 孤儿恢复 → 重新排队
 }
 
 /** 终止态（不可再迁移） */
@@ -92,7 +92,7 @@ export const TERMINAL_STATES: ReadonlySet<TaskState> = new Set([
   'failed',
   'timed_out',
   'cancelled',
-  'lost',
+  // 注意：lost 不在此集合——Phase H1 允许 lost → queued 孤儿恢复
 ])
 
 // ─── 任务注册参数 ────────────────────────────────────────────────────────────
