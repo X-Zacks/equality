@@ -6,7 +6,7 @@
 - [x] T2: 修改 `tasks/types.ts` — `VALID_TRANSITIONS` 增加 `lost → queued`
 - [x] T3: 新建 `tasks/orphan-recovery.ts` — `recoverOrphanTasks` + `buildResumeMessage`
 - [x] T4: `scheduleOrphanRecovery()` — 延迟调度 + 指数退避重试
-- [ ] T5: 修改 `index.ts` — 启动时调度孤儿恢复
+- [x] T5: 修改 `index.ts` — 启动时调度孤儿恢复
 - [x] T6: 测试 — ≥ 12 个断言 (实际 19)
   - T6.1: lost → queued 状态迁移
   - T6.2: 其他终止态仍不可迁移

@@ -32,6 +32,7 @@ import { generateTitle } from './session/title-gen.js'
 import { CronScheduler } from './cron/index.js'
 import { setCronScheduler } from './tools/builtins/cron.js'
 import { TaskRegistry, JsonTaskStore, TERMINAL_STATES } from './tasks/index.js'
+import { scheduleOrphanRecovery } from './tasks/orphan-recovery.js'
 import type { TaskRuntime } from './tasks/index.js'
 
 const PORT = Number(process.env.EQUALITY_PORT ?? 18790)
@@ -166,6 +167,22 @@ setSubagentManagerForList(subagentManager)
 setSubagentManagerForSteer(subagentManager)
 setSubagentManagerForKill(subagentManager)
 console.log('[equality-core] SubagentManager 已初始化')
+
+// ─── 孤儿恢复调度（Phase H1, T5）────────────────────────────────────────────
+scheduleOrphanRecovery({
+  taskRegistry,
+  spawnFn: async (task) => {
+    try {
+      const result = await subagentManager.spawn(
+        task.parentSessionKey ?? DESKTOP_SESSION_KEY,
+        { prompt: `[恢复任务] ${task.title ?? '未命名任务'}`, goal: task.title },
+      )
+      return result.success
+    } catch {
+      return false
+    }
+  },
+})
 
 // ─── 初始化 CronScheduler（Phase 4）────────────────────────────────────────
 const sseClients = new Set<import('node:http').ServerResponse>()
