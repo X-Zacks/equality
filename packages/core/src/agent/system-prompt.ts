@@ -14,6 +14,8 @@ export interface SystemPromptOptions {
   activeSkill?: Skill
   /** 工作区引导文件已格式化的文本块（Phase G1） */
   bootstrapBlock?: string
+  /** Agent 自定义身份说明（Phase I2） */
+  agentIdentity?: string
 }
 
 // ─── 主构建函数 ───────────────────────────────────────────────────────────────
@@ -39,6 +41,11 @@ export function buildSystemPrompt(options?: SystemPromptOptions): string {
   \
   cd C:\\path\\to\\project\n+  node script.js\n+  \
   这样的内容只有在 bash 真正执行后才能展示。`
+
+  // ─── Agent 自定义身份说明（Phase I2）─────────────────────────────────────
+  if (options?.agentIdentity) {
+    prompt += `\n\n## Agent 身份\n\n${options.agentIdentity}`
+  }
 
   // ─── 用户指定 Skill（@ 触发，高优先级）──────────────────────────────────
   if (options?.activeSkill) {

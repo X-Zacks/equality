@@ -6,6 +6,7 @@
  */
 
 import type { ToolDefinition, OpenAIToolSchema } from './types.js'
+import { resolveCoreToolProfilePolicy } from './catalog.js'
 
 export class ToolRegistry {
   private tools: Map<string, ToolDefinition> = new Map()
@@ -69,10 +70,20 @@ export class ToolRegistry {
   /**
    * 获取所有工具的 OpenAI Function Calling schema
    * 直接传给 provider.streamChat({ tools })
+   *
+   * @param opts.profile — 可选 profile 过滤（Phase I1）
    */
-  getToolSchemas(): OpenAIToolSchema[] {
+  getToolSchemas(opts?: { profile?: string }): OpenAIToolSchema[] {
+    const policy = opts?.profile ? resolveCoreToolProfilePolicy(opts.profile) : undefined
+    const allowSet = policy?.allow ? new Set(policy.allow) : undefined
+    const denySet = policy?.deny ? new Set(policy.deny) : undefined
+
     const schemas: OpenAIToolSchema[] = []
     for (const tool of this.tools.values()) {
+      // Profile 过滤
+      if (allowSet && !allowSet.has(tool.name)) continue
+      if (denySet && denySet.has(tool.name)) continue
+
       schemas.push({
         type: 'function',
         function: {

@@ -48,6 +48,10 @@ export interface ToolDefinition {
   description: string
   /** 参数 JSON Schema */
   inputSchema: ToolInputSchema
+  /** 逻辑分组（Phase I1: fs/runtime/web/memory/sessions/ui/automation） */
+  sectionId?: string
+  /** 所属 Profile（Phase I1: minimal/coding/messaging/full） */
+  profiles?: import('./catalog.js').ToolProfileId[]
   /** 执行函数 */
   execute: (input: Record<string, unknown>, ctx: ToolContext, onUpdate?: (partial: string) => void) => Promise<ToolResult>
 }
