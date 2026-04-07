@@ -55,6 +55,9 @@ import { DefaultContextEngine, trimMessages } from '../context/index.js'
 import type { ContextEngine } from '../context/index.js'
 import { memorySave } from '../memory/index.js'
 import { getSecret, hasSecret } from '../config/secrets.js'
+import { resolveContextWindow } from '../providers/context-window.js'
+import { createCacheTrace } from '../diagnostics/cache-trace.js'
+import { resolveAgentIdFromSessionKey, resolveAgentConfig } from '../config/agent-scope.js'
 
 // ─── 配置读取工具函数 ─────────────────────────────────────────────────────────
 
@@ -385,6 +388,34 @@ export async function runAttempt(params: RunAttemptParams): Promise<RunAttemptRe
     console.log(`[runner] @model 覆盖，原始消息已剥离 @指令`)
   }
 
+  // 3.5a I.5-2: 动态解析 context window（替代 provider.getCapabilities() 硬编码）
+  const contextWindowInfo = resolveContextWindow({
+    modelId: provider.modelId,
+    providerReported: provider.getCapabilities().contextWindow,
+  })
+  const resolvedContextWindowTokens = contextWindowInfo.tokens
+  console.log(`[runner] I.5-2 contextWindow=${resolvedContextWindowTokens} (source=${contextWindowInfo.source})`)
+
+  // 3.5b I.5-7: Agent 作用域配置解析（per-agent model/workspace/tools）
+  const agentId = resolveAgentIdFromSessionKey(sessionKey)
+  // 未来可从配置文件读取 EqualityConfig，当前先 log agent ID
+  if (agentId !== 'default') {
+    console.log(`[runner] I.5-7 agentId=${agentId}`)
+  }
+
+  // 3.5c I.5-8: Cache Trace（LLM 调用诊断追踪）
+  const cacheTrace = createCacheTrace({
+    sessionKey,
+    provider: provider.providerId,
+    modelId: provider.modelId,
+  })
+  if (cacheTrace) {
+    cacheTrace.recordStage('session:loaded', {
+      messageCount: session.messages.length,
+      note: `runId=${runId}`,
+    })
+  }
+
   // 4. 追加用户消息（使用剥离 @model 后的消息）
   session.messages.push({ role: 'user', content: actualMessage })
 
@@ -468,6 +499,12 @@ export async function runAttempt(params: RunAttemptParams): Promise<RunAttemptRe
       }
       console.log(`[runner] streamChat: loop=${loopCount}, toolsInParams=${streamParams.tools?.length ?? 0}`)
 
+      // I.5-8: 记录 prompt:before 阶段
+      cacheTrace?.recordStage('prompt:before', {
+        messages: messages as unknown[],
+        options: { tools: streamParams.tools?.length ?? 0, loop: loopCount },
+      })
+
       const rawStream = provider.streamChat(streamParams)
       for await (const delta of applyDecorators(rawStream, decorators)) {
         // 文本内容
@@ -500,6 +537,11 @@ export async function runAttempt(params: RunAttemptParams): Promise<RunAttemptRe
       const roundOutput = provider.estimateTokens(currentText)
       totalInputTokens += roundInput
       totalOutputTokens += roundOutput
+
+      // I.5-8: 记录 stream:context 阶段
+      cacheTrace?.recordStage('stream:context', {
+        note: `loop=${loopCount}, inputTokens=${roundInput}, outputTokens=${roundOutput}, toolCalls=${accumulatedToolCalls.size}`,
+      })
 
       // ── 判断：tool_calls 还是纯文本 ───────────────────────────
       const toolCalls = [...accumulatedToolCalls.values()].filter(tc => tc.name)
@@ -598,7 +640,7 @@ export async function runAttempt(params: RunAttemptParams): Promise<RunAttemptRe
                   ? (partial: string) => onToolUpdate({ toolCallId: tc.id, content: partial })
                   : undefined
                 const result = await tool.execute(args, toolCtx, toolOnUpdate)
-                const maxResultChars = calcMaxToolResultChars(provider.getCapabilities().contextWindow)
+                const maxResultChars = calcMaxToolResultChars(resolvedContextWindowTokens)
                 const truncated = truncateToolResult(result.content, maxResultChars)
                 resultContent = truncated.content
                 isError = result.isError ?? false
@@ -813,6 +855,11 @@ export async function runAttempt(params: RunAttemptParams): Promise<RunAttemptRe
 
   // 10. Context Engine: afterTurn（追加 assistant 回复 + costLine 持久化）
   await contextEngine.afterTurn({ sessionKey, assistantMessage: fullText, costLine })
+
+  // 10.5 I.5-8: 记录 session:after 阶段（最终统计）
+  cacheTrace?.recordStage('session:after', {
+    note: `totalInputTokens=${totalInputTokens}, totalOutputTokens=${totalOutputTokens}, toolCallCount=${totalToolCalls}, durationMs=${durationMs}, model=${provider.modelId}`,
+  })
 
   return {
     text: fullText,

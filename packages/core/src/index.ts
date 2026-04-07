@@ -31,7 +31,7 @@ import { getStorageMode } from './config/secrets.js'
 import { generateTitle } from './session/title-gen.js'
 import { CronScheduler } from './cron/index.js'
 import { setCronScheduler } from './tools/builtins/cron.js'
-import { TaskRegistry, JsonTaskStore, TERMINAL_STATES } from './tasks/index.js'
+import { TaskRegistry, JsonTaskStore, SqliteTaskStore, TERMINAL_STATES } from './tasks/index.js'
 import { scheduleOrphanRecovery } from './tasks/orphan-recovery.js'
 import type { TaskRuntime } from './tasks/index.js'
 
@@ -142,9 +142,17 @@ const skillsWatcher = new SkillsWatcher({
 const initialSkills = await skillsWatcher.start()
 console.log(`[equality-core] 已加载 ${initialSkills.length} 个 Skills: ${initialSkills.map(e => e.skill.name).join(', ')}`)
 
-// ─── 初始化 TaskRegistry（Phase E4.1）──────────────────────────────────────
+// ─── 初始化 TaskRegistry（Phase E4.1 → I.5-3: SQLite 优先，fallback JSON）──
+let taskStore: import('./tasks/index.js').TaskStore
+try {
+  taskStore = new SqliteTaskStore()
+  console.log('[equality-core] TaskStore: SQLite (node:sqlite)')
+} catch (e) {
+  console.warn('[equality-core] SqliteTaskStore 不可用，回退到 JsonTaskStore:', (e as Error).message)
+  taskStore = new JsonTaskStore()
+}
 const taskRegistry = new TaskRegistry({
-  store: new JsonTaskStore(),
+  store: taskStore,
   flushDebounceMs: 500,
 })
 const restoredTaskCount = await taskRegistry.restore()
