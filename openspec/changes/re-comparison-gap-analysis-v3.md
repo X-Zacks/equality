@@ -2,6 +2,58 @@
 
 > 基于 Phase A-I 全部完成后（467 assertions, GAP-1~26 全部实现），对 OpenClaw `src/` 源码的系统性逐模块全量对比。
 > V2 分析的 GAP-16~26 已全部实现并合入。本次识别 **Phase J 及以后** 的新差距。
+>
+> **V3.1 修订**（2026-04-07）：对照 Equality OpenSpec 全部 spec（11 个领域 spec + 48 个 Phase 变更目录）
+> 进行交叉验证，修正了以下问题：
+> - 将已在 OpenSpec 路线图中规划的 GAP 标注为"已有规划"而非"新发现"
+> - 移除与 Equality 桌面架构矛盾的 GAP
+> - 修正了对现有实现深度的误判（Phase 12 Memory 已有 SQLite+FTS5）
+> - 增加了 Phase A-I 实现中发现的**设计缺陷和改进建议**
+
+---
+
+## 〇、Phase A-I 回顾：设计缺陷与改进建议
+
+> 在 SDD 方法论下，实现过程中发现的与 spec 不一致之处，应在后续 Phase 中修正。
+
+### 问题 1：Phase E-I 实现与 Gateway 集成断裂
+
+Phase E4（Gateway 集成）的 spec 明确定义了 TaskRegistry/SubagentManager/FailoverPolicy 的运行时接入，
+但 Phase G-I 新增的模块（workspace-bootstrap、security-audit、agent-scope、cache-trace、tool-catalog）
+**均未执行 Gateway 集成**——它们有单元测试但大部分未在 `index.ts` 运行时调用。
+
+| 模块 | 单元测试 | Gateway 集成 | 状态 |
+|------|---------|-------------|------|
+| workspace-bootstrap | ✅ | ✅ 已在 index.ts 调用 | 正常 |
+| external-content | ✅ | ❌ 未注入 web_search/web_fetch 工具 | **需修复** |
+| context-window guard | ✅ | ❌ runner.ts 未调用 resolveContextWindow | **需修复** |
+| orphan-recovery | ✅ | ✅ 已在 index.ts 调度 | 正常 |
+| sqlite-store | ✅ | ❌ index.ts 仍用 JsonTaskStore | **需修复** |
+| key-rotation | ✅ | ❌ FallbackProvider 未使用 | **需修复** |
+| persist-guard | ✅ | ❌ persist.ts 未调用 truncateForPersist | **需修复** |
+| tool-catalog | ✅ | ❌ registry.ts 未使用 profile 过滤 | **需修复** |
+| agent-scope | ✅ | ❌ runner.ts 未调用 resolveAgentConfig | **需修复** |
+| security-audit | ✅ | ✅ 已有 GET /security-audit 路由 | 正常 |
+| cache-trace | ✅ | ❌ runner.ts 未调用 createCacheTrace | **需修复** |
+
+**建议**：在 Phase J 之前，先做一个 **Phase I.5 — Gateway 缝合**（类似 Phase E4 的模式），
+将 G-I 所有已通过测试的模块真正接入运行时。
+
+### 问题 2：Memory 模块（Phase 12）已有 SQLite+FTS5，V3 GAP-37 描述不准确
+
+V3 原文写"memory/db.ts：基于 JSON 的简单 K/V 存储"，但实际上 Phase 12 spec 和实现
+已经使用了 SQLite + FTS5 全文检索（BM25 排名）。GAP-37 的准确差距应该是**缺少向量搜索/embeddings**，
+而非"基于 JSON"。
+
+### 问题 3：渠道系统在 OpenSpec 路线图中已有规划（Phase 13）
+
+V3 将渠道系统归入"暂不追齐"，但 `specs/routing/spec.md` 和 `README.md` 路线图明确规划了
+Phase 13（飞书/钉钉/企微渠道适配器）。这不是"暂不追齐"，而是"已规划但未到优先级"。
+
+### 问题 4：Smart Routing（Phase 10）已实现，V3 未计入
+
+Phase 10 实现了任务复杂度分类 + 自动模型选择 + @model 覆盖。这在 OpenClaw 中对应
+`model-selection.ts` + `model-fallback.ts` 的部分功能，V3 覆盖矩阵中应予以体现。
 
 ---
 
@@ -50,6 +102,7 @@
 | `agents/compaction.ts` (529行) | `context/compaction.ts` (369行) | 分段压缩+标识符保护+重试 |
 | `agents/failover-policy.ts` | `providers/failover-policy.ts` | 9种错误分类+冷却 |
 | `agents/model-fallback.ts` (899行) | `providers/fallback.ts` (183行) | Equality 更轻量但足够 |
+| `agents/model-selection.ts` | `providers/router.ts` (Phase 10) | 任务复杂度分类+@model覆盖 |
 | `agents/tool-loop-detection.ts` (624行) | `tools/loop-detector.ts` | 四重检测器 |
 | `agents/tool-mutation.ts` (229行) | `tools/mutation.ts` (468行) | 写操作精确识别 |
 | `agents/tool-catalog.ts` (359行) | `tools/catalog.ts` | 25 工具+9 section+4 profile |
@@ -60,12 +113,14 @@
 | `agents/subagent-orphan-recovery.ts` | `tasks/orphan-recovery.ts` | 孤儿恢复+重启调度 |
 | `agents/system-prompt.ts` | `agent/system-prompt.ts` | 完整 prompt 组装 |
 | `agents/workspace.ts` | `agent/workspace-bootstrap.ts` | AGENTS.md 等注入 |
+| `agents/pi-tools.schema.ts` | `tools/schema-compat.ts` (GAP-4) | Provider 间 schema 差异处理 |
 | `security/audit.ts` (1505行) | `security/audit.ts` | 6类检查 |
 | `security/external-content.ts` | `security/external-content.ts` | 注入检测+安全包装 |
 | `tasks/task-registry.ts` | `tasks/registry.ts` | 状态机+事件 |
 | `tasks/task-registry.store.sqlite.ts` | `tasks/sqlite-store.ts` | WAL 模式 SQLite |
 | `context-engine/` | `context/` | 可插拔引擎+5生命周期 |
 | `cron/` | `cron/` | 定时任务调度 |
+| `agents/memory-search.ts` (部分) | `memory/db.ts` (Phase 12) | SQLite+FTS5 BM25，**缺向量搜索** |
 
 ### 🟡 部分覆盖（有差距但非关键）
 
@@ -278,7 +333,7 @@
 
 ---
 
-### GAP-37 🟡 Memory 增强（Memory Search + Embeddings）— P2
+### GAP-37 🟡 Memory 向量搜索增强（Memory Embeddings + Hybrid Search）— P2
 
 **OpenClaw 实现**（`agents/memory-search.ts` 399行 + plugin-sdk memory 模块）：
 - 向量搜索（embeddings + SQLite FTS）
@@ -289,11 +344,12 @@
 - 多模态记忆
 
 **Equality 现状**：
-- `memory/db.ts`：基于 JSON 的简单 K/V 存储
-- 文本搜索（indexOf）
-- 无向量搜索、无 embeddings、无智能检索
+- `memory/db.ts`：**已有 SQLite + FTS5 全文检索（Phase 12 实现）**
+- BM25 排名、自动 recall/capture 已实现
+- **缺少**：向量 embeddings、混合搜索、MMR 重排、chunking 策略
+- Phase 12 spec 已预留了 "Phase 12.1 Context Engine 引入向量 embedding" 的规划
 
-**影响**：记忆检索质量低——只有精确匹配，无语义搜索。
+**影响**：语义搜索能力缺失——FTS5 只能做词汇匹配，无法理解"TypeScript ≈ TS"这类语义关系。
 
 ---
 
@@ -317,6 +373,24 @@
 
 ## 五、建议实施路线图
 
+### Phase I.5：Gateway 缝合（前置任务）
+**主题**：将 Phase G-I 已通过测试但未接入运行时的模块全部缝合到 Gateway
+
+> 类似 Phase E4 的模式。不新增功能，只做集成。
+
+| 任务 | 描述 |
+|------|------|
+| I.5-1 | `external-content.ts` 注入 web_search/web_fetch 工具的 tool result |
+| I.5-2 | `context-window.ts` 的 `resolveContextWindow()` 接入 runner.ts |
+| I.5-3 | `sqlite-store.ts` 替换 index.ts 中的 JsonTaskStore |
+| I.5-4 | `key-rotation.ts` 接入 FallbackProvider 构建 |
+| I.5-5 | `persist-guard.ts` 的 `truncateForPersist()` 接入 persist.ts |
+| I.5-6 | `catalog.ts` 的 profile 过滤接入 registry.ts 的运行时 |
+| I.5-7 | `agent-scope.ts` 的 `resolveAgentConfig()` 接入 runner.ts |
+| I.5-8 | `cache-trace.ts` 的 `createCacheTrace()` 接入 runner.ts |
+
+预估：~8 个文件修改，0 个新文件，~15 个集成测试断言
+
 ### Phase J：基础设施增强（GAP-27, GAP-36, GAP-35）
 **主题**：日志、钩子、事件——为后续所有扩展打基础
 
@@ -330,7 +404,7 @@
 **主题**：插件系统 + 记忆增强 + 链接理解
 
 4. **K1 — Plugin SDK (Lite)**：轻量插件框架（provider/tool/hook 三类插件），适配桌面应用
-5. **K2 — Memory Embeddings**：向量搜索（本地 embedding 或 API），混合检索
+5. **K2 — Memory Embeddings**：向量搜索（本地 embedding 或 API），与现有 FTS5 混合检索
 6. **K3 — Link Understanding**：URL 自动提取 + SSRF 防护 + 网页摘要注入
 
 ### Phase L：配置与搜索（GAP-33, GAP-29, GAP-34）
@@ -348,26 +422,36 @@
 
 ---
 
-## 六、暂不追齐的 OpenClaw 特性（维持 V2 判断）
+## 六、已在 OpenSpec 路线图中规划的 OpenClaw 特性
+
+| OpenClaw 特性 | Equality OpenSpec 规划 | 状态 |
+|--------------|----------------------|------|
+| Channel 系统（Telegram/Discord/Slack） | Phase 13 — 飞书/钉钉/企微渠道适配器 | 📋 已有 spec（`routing/spec.md`） |
+| Gateway WebSocket 控制平面 | Phase 13.1 | 📋 已有 spec（`gateway/spec.md`） |
+| 路由 Binding 优先级匹配 | Phase 13.2 | 📋 已有 spec（`routing/spec.md`） |
+| sessions_spawn 子代理 | Phase 15 / task-orchestration | 📋 已有 proposal |
+| 更多 Provider（智谱/百川/Yi） | Phase 16 | 📋 已有规划 |
+| Windows 安装部署 | Phase 14 | 📋 已有 spec |
+| 工作流编排/模板复用 | `task-orchestration/proposal.md` | 📋 Equality 差异化特性 |
+| 项目开发工作流 Skill | `project-dev-workflow/proposal.md` | 📋 Equality 差异化特性 |
+
+## 七、暂不追齐的 OpenClaw 特性
 
 | 特性 | 原因 |
 |------|------|
-| Channel 系统（Telegram/Discord/Slack 等 40+ 渠道） | 桌面应用不需要消息渠道 |
-| Gateway 分布式架构 + WebSocket 协议 | 单机本地架构 |
 | Docker/SSH 沙箱后端 | Windows 桌面用户 Docker 不普及 |
 | Auth profiles + 设备配对 + OAuth 流程 | 单用户桌面，无需多用户认证 |
-| OpenAI Responses API 兼容层 | 不需要对外暴露 API |
+| OpenAI Responses API 兼容层（对外暴露） | 不需要对外暴露 API |
 | ACP（Anthropic Control Protocol） | 特定于 Anthropic 生态 |
-| 执行 Lane 路由 | 单机不需要分离 |
+| 执行 Lane 路由（cron/nested/subagent） | 单机不需要分离 |
 | Skills ClawhHub 市场 | 可用本地 skills + MCP 替代 |
 | CLI / TUI 终端界面 | Tauri 桌面 GUI 替代 |
-| Wizard 初始化向导 | 桌面应用自有 onboarding |
-| i18n 国际化 | 可后续按需添加 |
+| Wizard 初始化向导 | 桌面应用自有 onboarding（Phase G workspace bootstrap） |
 | Canvas Host | 桌面自有渲染层 |
 
 ---
 
-## 七、量化总结
+## 八、量化总结
 
 | 维度 | 数量 |
 |------|------|
@@ -377,12 +461,30 @@
 | 其中 P1 | 3（GAP-27, 32, 36） |
 | 其中 P2 | 6（GAP-28, 29, 33, 34, 35, 37） |
 | 其中 P3 | 2（GAP-30, 31） |
-| 暂不追齐特性 | 12 类 |
-| **总覆盖率**（按核心能力） | **~65%** |
+| **Phase I.5 缝合（前置）** | **8 项集成任务** |
+| 已在 OpenSpec 规划的特性 | 8 项（Phase 13-16 + 差异化提案） |
+| 暂不追齐特性 | 9 类 |
+| **总覆盖率**（按核心能力） | **~65%**（缝合后 ~70%） |
 
 ### 覆盖率说明
 - OpenClaw 有 ~70 个顶层模块目录，大量是渠道/平台特定的
 - 按 **桌面应用相关的核心能力** 算，Equality 已覆盖约 65%
+- **Phase I.5 缝合后**：已实现但未接入的模块生效，达到 ~70%
 - 完成 Phase J-L 后预计达到 **~85%**
 - Phase M 多模态后达到 **~90%**
 - 剩余 10% 为渠道/分布式/平台特定功能，桌面应用不需要
+
+### 与 OpenSpec 已有路线图的关系
+
+| 已有路线图 | V3 新增 | 关系 |
+|-----------|---------|------|
+| Phase 13（渠道适配器） | — | OpenClaw Channel 系统的桌面化适配 |
+| Phase 14（Windows 安装） | — | 无对应 OpenClaw 特性（Equality 独有） |
+| Phase 15（多代理编排） | — | 已有 E3 SubagentManager 基础 |
+| task-orchestration（工作流） | — | Equality 差异化特性（OpenClaw 无此概念） |
+| project-dev-workflow（开发流Skill） | — | Equality 差异化特性 |
+| — | Phase I.5（缝合） | **V3 新增**，修复设计缺陷 |
+| — | Phase J（日志+钩子+事件） | **V3 新增**，基础设施 |
+| — | Phase K（插件+记忆+链接） | **V3 新增**，扩展性 |
+| — | Phase L（配置+搜索+进程） | **V3 新增**，健壮性 |
+| — | Phase M（多模态+语音） | **V3 新增**，可选 |
