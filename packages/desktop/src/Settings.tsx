@@ -320,6 +320,8 @@ interface ProviderDrawerProps {
   onCopilotLogin: () => Promise<void>
   onCopilotLogout: () => Promise<void>
   onClose: () => void
+  onSaveKey: (key: SecretKey, value: string) => Promise<boolean>
+  onRefresh: () => Promise<void>
 }
 
 function saveLabel(state: string) {
@@ -329,6 +331,7 @@ function saveLabel(state: string) {
 function ProviderDrawer({
   providerId, settings, draft, saving, copilot,
   getMasked, onDraftChange, onSave, onClear, onCopilotLogin, onCopilotLogout, onClose,
+  onSaveKey, onRefresh,
 }: ProviderDrawerProps) {
   const group = PROVIDER_GROUPS.find(g => g.id === providerId)
   const isActive = settings.activeProvider === providerId
@@ -443,6 +446,28 @@ function ProviderDrawer({
               {saveLabel(saving[group.id] ?? 'idle')}
             </button>
           </div>
+
+          {/* MiniMax 专属：显示思考过程开关 */}
+          {providerId === 'minimax' && (
+            <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontSize: 13 }}>
+                <input
+                  type="checkbox"
+                  checked={getMasked('MINIMAX_SHOW_THINKING') === 'true'}
+                  onChange={async (e) => {
+                    const val = e.target.checked ? 'true' : 'false'
+                    await onSaveKey('MINIMAX_SHOW_THINKING', val)
+                    await onRefresh()
+                  }}
+                  style={{ width: 15, height: 15 }}
+                />
+                <span>显示思考过程（reasoning）</span>
+              </label>
+              <p style={{ margin: '6px 0 0 25px', fontSize: 11, color: '#888', lineHeight: 1.4 }}>
+                开启后 MiniMax-M2.7 的推理内容将保留在回复中（&lt;think&gt; 格式）。默认关闭。
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -768,70 +793,6 @@ export default function Settings({
   const [toolDetail, setToolDetail] = useState<ToolSchema | null>(null)
   const [skillsList, setSkillsList] = useState<Array<{ name: string; description: string; source: string }>>([])
 
-  // Gallery 状态
-  const [galleryList, setGalleryList] = useState<Array<{ name: string; description: string; repoId: string; remotePath: string; downloadUrl: string; trust: string; installed: boolean }>>([])
-  const [galleryLoading, setGalleryLoading] = useState(false)
-  const [galleryError, setGalleryError] = useState('')
-  const [installing, setInstalling] = useState<Record<string, 'idle' | 'installing' | 'ok' | 'err'>>({})
-  const [installMsg, setInstallMsg] = useState<Record<string, string>>({})
-
-  const fetchGallery = useCallback(async () => {
-    setGalleryLoading(true)
-    setGalleryError('')
-    try {
-      const r = await fetch('http://localhost:18790/skills/gallery')
-      if (!r.ok) throw new Error(`HTTP ${r.status}`)
-      setGalleryList(await r.json())
-    } catch (e) {
-      setGalleryError(e instanceof Error ? e.message : '获取失败')
-    } finally {
-      setGalleryLoading(false)
-    }
-  }, [])
-
-  const handleInstallSkill = useCallback(async (skill: typeof galleryList[0]) => {
-    setInstalling(p => ({ ...p, [skill.name]: 'installing' }))
-    setInstallMsg(p => ({ ...p, [skill.name]: '' }))
-    try {
-      const r = await fetch('http://localhost:18790/skills/gallery/install', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: skill.name, repoId: skill.repoId, downloadUrl: skill.downloadUrl, remotePath: skill.remotePath }),
-      })
-      const result = await r.json()
-      if (result.ok) {
-        setInstalling(p => ({ ...p, [skill.name]: 'ok' }))
-        setInstallMsg(p => ({ ...p, [skill.name]: '✅ 已安装' }))
-        setGalleryList(prev => prev.map(s => s.name === skill.name ? { ...s, installed: true } : s))
-        // 刷新已加载列表
-        const sr = await fetch('http://localhost:18790/skills')
-        setSkillsList(await sr.json())
-      } else {
-        setInstalling(p => ({ ...p, [skill.name]: 'err' }))
-        setInstallMsg(p => ({ ...p, [skill.name]: result.message }))
-      }
-    } catch {
-      setInstalling(p => ({ ...p, [skill.name]: 'err' }))
-      setInstallMsg(p => ({ ...p, [skill.name]: '网络错误' }))
-    }
-  }, [])
-
-  const handleUninstallSkill = useCallback(async (name: string) => {
-    try {
-      const r = await fetch('http://localhost:18790/skills/gallery/uninstall', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name }),
-      })
-      const result = await r.json()
-      if (result.ok) {
-        setGalleryList(prev => prev.map(s => s.name === name ? { ...s, installed: false } : s))
-        const sr = await fetch('http://localhost:18790/skills')
-        setSkillsList(await sr.json())
-      }
-    } catch { /* ignore */ }
-  }, [])
-
   // 费用统计
   const [globalCost, setGlobalCost] = useState<{ totalCny: number; totalTokens: number; callCount: number; sessionCount: number } | null>(null)
 
@@ -996,6 +957,8 @@ export default function Settings({
               setDrawerProvider(null)
             }}
             onClose={() => setDrawerProvider(null)}
+            onSaveKey={saveApiKey}
+            onRefresh={refresh}
           />
         )}
 
@@ -1138,63 +1101,7 @@ export default function Settings({
             >
               🔄 重新加载
             </button>
-            <button
-              className="btn-save"
-              onClick={fetchGallery}
-              disabled={galleryLoading}
-            >
-              {galleryLoading ? '加载中…' : '🛒 技能商店'}
-            </button>
           </div>
-
-          {/* Gallery 区域 */}
-          {galleryError && (
-            <p className="settings-hint" style={{ color: '#f44336', marginTop: 8 }}>❌ {galleryError}</p>
-          )}
-          {galleryList.length > 0 && (
-            <>
-              <div className="settings-section-title" style={{ marginTop: 12 }}>
-                🛡️ 可信仓库 Skills
-              </div>
-              <p className="settings-hint">
-                以下 Skills 来自经过安全审计的官方仓库，安装前会自动进行安全扫描
-              </p>
-              <div className="skills-list">
-                {galleryList.map(g => (
-                  <div key={`${g.repoId}/${g.name}`} className="skill-item gallery-item">
-                    <div className="skill-header">
-                      <span className="skill-name">{g.name}</span>
-                      <span className={`skill-trust trust-${g.trust}`}>
-                        {g.trust === 'official' ? '🔒 官方' : g.trust === 'verified' ? '✅ 已验证' : '👥 社区'}
-                      </span>
-                    </div>
-                    <div className="skill-desc">{g.description}</div>
-                    <div className="gallery-actions">
-                      {g.installed ? (
-                        <>
-                          <span className="gallery-installed">✅ 已安装</span>
-                          <button className="btn-clear btn-sm" onClick={() => handleUninstallSkill(g.name)}>卸载</button>
-                        </>
-                      ) : (
-                        <button
-                          className="btn-save btn-sm"
-                          disabled={installing[g.name] === 'installing'}
-                          onClick={() => handleInstallSkill(g)}
-                        >
-                          {installing[g.name] === 'installing' ? '安装中…' : installing[g.name] === 'ok' ? '✓' : '安装'}
-                        </button>
-                      )}
-                    </div>
-                    {installMsg[g.name] && (
-                      <div className={`gallery-msg ${installing[g.name] === 'err' ? 'err' : ''}`}>
-                        {installMsg[g.name]}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
         </>
       )}
 
@@ -1249,7 +1156,7 @@ export default function Settings({
                   className="key-input"
                   style={{ flex: 1 }}
                   placeholder="例：C:\Users\你的用户名\Equality\workspace"
-                  value={draft['WORKSPACE_DIR'] ?? ''}
+                  value={draft['WORKSPACE_DIR'] ?? getMasked('WORKSPACE_DIR')}
                   onChange={e => setDraft(p => ({ ...p, WORKSPACE_DIR: e.target.value }))}
                 />
                 <button

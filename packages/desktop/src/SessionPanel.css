@@ -132,6 +132,67 @@
   background: rgba(255, 69, 58, 0.2);
 }
 
+/* ─── 折叠箭头 ──────────────────────────────────────────── */
+.session-expand-btn {
+  position: absolute;
+  left: 2px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.35);
+  cursor: pointer;
+  user-select: none;
+  width: 14px;
+  text-align: center;
+  z-index: 1;
+}
+
+.session-expand-btn:hover {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* ─── 子节点数量 badge ───────────────────────────────────── */
+.child-count {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.06);
+  padding: 0 5px;
+  border-radius: 8px;
+  line-height: 16px;
+  vertical-align: middle;
+}
+
+/* ─── 子会话列表容器 ─────────────────────────────────────── */
+.session-children {
+  padding-left: 10px;
+  border-left: 1px solid rgba(255, 255, 255, 0.06);
+  margin-left: 14px;
+  margin-bottom: 2px;
+}
+
+/* ─── 子会话项 ───────────────────────────────────────────── */
+.session-child {
+  padding: 4px 8px !important;
+}
+
+.session-child .session-item-title {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.6);
+  padding-right: 4px;
+}
+
+.session-child.active .session-item-title {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.child-icon {
+  color: rgba(255, 255, 255, 0.25);
+  margin-right: 2px;
+  font-size: 11px;
+}
+
 .theme-light .session-panel {
   background: #f8f9fb;
   border-right-color: rgba(15,23,42,0.12);
@@ -168,4 +229,33 @@
 
 .theme-light .session-item-title {
   color: #111827;
+}
+
+.theme-light .session-expand-btn {
+  color: rgba(15, 23, 42, 0.35);
+}
+
+.theme-light .session-expand-btn:hover {
+  color: rgba(15, 23, 42, 0.7);
+}
+
+.theme-light .child-count {
+  color: rgba(15, 23, 42, 0.4);
+  background: rgba(15, 23, 42, 0.06);
+}
+
+.theme-light .session-children {
+  border-left-color: rgba(15, 23, 42, 0.1);
+}
+
+.theme-light .session-child .session-item-title {
+  color: rgba(15, 23, 42, 0.6);
+}
+
+.theme-light .session-child.active .session-item-title {
+  color: #111827;
+}
+
+.theme-light .child-icon {
+  color: rgba(15, 23, 42, 0.3);
 }

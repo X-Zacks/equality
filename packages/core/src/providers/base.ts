@@ -16,6 +16,7 @@ export class OpenAICompatProvider implements LLMProvider {
   private apiKey: string
   private baseURL: string
   private capabilities: ProviderCapabilities
+  private extraBody: Record<string, unknown>
 
   constructor(opts: {
     providerId: string
@@ -23,12 +24,14 @@ export class OpenAICompatProvider implements LLMProvider {
     apiKey: string
     baseURL: string
     capabilities?: Partial<ProviderCapabilities>
+    extraBody?: Record<string, unknown>
   }) {
     this.providerId = opts.providerId
     this.modelId = opts.modelId
     this.apiKey = opts.apiKey
     this.baseURL = opts.baseURL.replace(/\/$/, '')
     this.capabilities = { ...DEFAULT_CAPABILITIES, ...opts.capabilities }
+    this.extraBody = opts.extraBody ?? {}
   }
 
   getCapabilities(): ProviderCapabilities {
@@ -58,6 +61,7 @@ export class OpenAICompatProvider implements LLMProvider {
       messages: params.messages,
       stream: true as const,
       ...(params.tools?.length ? { tools: params.tools } : {}),
+      ...this.extraBody,
     }
 
     const stream = await client.chat.completions.create(requestBody, {
@@ -103,6 +107,7 @@ export class OpenAICompatProvider implements LLMProvider {
       model,
       messages: params.messages,
       stream: false,
+      ...this.extraBody,
     }, {
       signal: params.abortSignal,
     })

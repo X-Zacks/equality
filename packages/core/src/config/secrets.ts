@@ -36,6 +36,7 @@ const KEY_NAMES = [
   'BRAVE_SEARCH_API_KEY',
   'CHROME_PATH',
   'MINIMAX_API_KEY',
+  'MINIMAX_SHOW_THINKING',
   'WORKSPACE_DIR',
   'MCP_SERVERS',
 ] as const
@@ -121,7 +122,7 @@ export function listSecrets(): Array<{ key: SecretKey; masked: string }> {
   return KEY_NAMES.filter(k => hasSecret(k)).map(k => {
     const val = cache.get(k)!
     // URL / Model / Proxy 不遮掩；API Key / Token 只显示前4位
-    const masked = k.endsWith('_URL') || k === 'CUSTOM_MODEL' || k === 'COPILOT_MODEL' || k === 'HTTPS_PROXY' || k === 'MODEL_ROUTING' || k === 'SELECTED_MODEL' || k.startsWith('BASH_')
+    const masked = k.endsWith('_URL') || k === 'CUSTOM_MODEL' || k === 'COPILOT_MODEL' || k === 'HTTPS_PROXY' || k === 'MODEL_ROUTING' || k === 'SELECTED_MODEL' || k.startsWith('BASH_') || k.startsWith('AGENT_MAX_') || k === 'WORKSPACE_DIR' || k === 'CHROME_PATH' || k === 'MINIMAX_SHOW_THINKING'
       ? val
       : val.length > 6 ? val.slice(0, 4) + '****' + val.slice(-2) : '******'
     return { key: k, masked }

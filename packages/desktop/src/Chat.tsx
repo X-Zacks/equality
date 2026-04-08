@@ -105,23 +105,25 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
 
   // sessionKey 变化时：从 Core 磁盘加载历史（首次切入或重启后）
   useEffect(() => {
+    const mapMessages = (history: { messages: Array<{ role: 'user' | 'assistant'; content: string; toolCalls?: Array<{ toolCallId: string; name: string; args?: Record<string, unknown>; result?: string; status: string }> }> } | null) => {
+      if (!history?.messages?.length) return []
+      return history.messages.map(m => ({
+        role: m.role,
+        content: m.content,
+        toolCalls: m.toolCalls?.map(tc => ({
+          toolCallId: tc.toolCallId,
+          name: tc.name,
+          args: tc.args,
+          result: tc.result,
+          status: (tc.status === 'done' || tc.status === 'error' ? tc.status : 'done') as 'running' | 'done' | 'error',
+        })),
+      }))
+    }
+
     // 从 Core 磁盘加载历史（首次切入或重启后）
     loadSession(sessionKey).then(history => {
-      if (history?.messages?.length) {
-        setMessages(history.messages.map(m => ({
-          role: m.role,
-          content: m.content,
-          toolCalls: m.toolCalls?.map(tc => ({
-            toolCallId: tc.toolCallId,
-            name: tc.name,
-            args: tc.args,
-            result: tc.result,
-            status: (tc.status === 'done' || tc.status === 'error' ? tc.status : 'done') as 'running' | 'done' | 'error',
-          })),
-        })))
-      } else {
-        setMessages([])
-      }
+      const msgs = mapMessages(history)
+      setMessages(msgs)
     })
     streamingTextRef.current = ''
     setStreamingText('')
@@ -133,6 +135,47 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
     pauseIntentRef.current = false
     setPauseIntentVis(false)
   }, [sessionKey, loadSession]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 子 Agent 会话自动轮询：如果是 ::sub:: session 且没有 assistant 消息，定时刷新直到有完整内容
+  useEffect(() => {
+    if (!sessionKey.includes('::sub::')) return
+    let cancelled = false
+    let pollCount = 0
+    const maxPolls = 60 // 最多 2 分钟 (60 × 2s)
+
+    const poll = async () => {
+      if (cancelled || pollCount >= maxPolls) return
+      pollCount++
+      const history = await loadSession(sessionKey)
+      if (cancelled) return
+      if (history?.messages?.length) {
+        const hasAssistant = history.messages.some(m => m.role === 'assistant')
+        setMessages(history.messages.map(m => ({
+          role: m.role,
+          content: m.content,
+          toolCalls: m.toolCalls?.map(tc => ({
+            toolCallId: tc.toolCallId,
+            name: tc.name,
+            args: tc.args,
+            result: tc.result,
+            status: (tc.status === 'done' || tc.status === 'error' ? tc.status : 'done') as 'running' | 'done' | 'error',
+          })),
+        })))
+        if (hasAssistant) return // 有 assistant 回复了，停止轮询
+      }
+      // 继续轮询
+      if (!cancelled) {
+        setTimeout(poll, 2000)
+      }
+    }
+
+    // 首次延迟 1.5 秒后开始轮询
+    const timer = setTimeout(poll, 1500)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [sessionKey, loadSession])
 
   // streaming 变化时通知外层 App.tsx
   useEffect(() => {

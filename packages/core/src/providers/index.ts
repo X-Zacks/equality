@@ -59,8 +59,11 @@ export function createCopilotProvider(): LLMProvider {
   return new CopilotProvider(model)
 }
 
-export function createMiniMaxProvider(model = 'MiniMax-M2.5'): LLMProvider {
+export function createMiniMaxProvider(model = 'MiniMax-M2.7'): LLMProvider {
   const apiKey = getSecret('MINIMAX_API_KEY')
+  // MiniMax Thinking 配置：默认不显示思考过程
+  const showThinking = hasSecret('MINIMAX_SHOW_THINKING')
+    && getSecret('MINIMAX_SHOW_THINKING') === 'true'
   return new OpenAICompatProvider({
     providerId: 'minimax',
     modelId: model,
@@ -68,13 +71,16 @@ export function createMiniMaxProvider(model = 'MiniMax-M2.5'): LLMProvider {
     baseURL: 'https://api.minimaxi.com/v1',
     capabilities: {
       contextWindow: 1_000_000,
-      // MiniMax-M2.7 通过 OpenAI 兼容接口的 function calling 支持不稳定：
-      // 部分场景下模型会把工具调用意图写进文本而非真正触发 tool_calls 协议。
-      // 建议文件修改等 agent 任务改用 GPT-4o / Claude。
       supportsToolCalling: true,
-      // MiniMax 的 OpenAI 兼容接口明确不支持图像输入（官方文档注意事项第3条），
-      // 所有 MiniMax 模型（包括 M2.7）通过此接口均无法处理图片。
+      // MiniMax 的 OpenAI 兼容接口明确不支持图像输入
       supportsVision: false,
+      // MiniMax-M2.7 支持 Interleaved Thinking，始终启用 dropThinkingBlocks 装饰器兜底
+      supportsThinking: true,
+    },
+    // reasoning_split=true 时 API 端将思考分离到 reasoning_details 字段（不污染 content）
+    // reasoning_split=false 时思考以 <think> 标签嵌入 content（由 dropThinkingBlocks 剥离）
+    extraBody: {
+      reasoning_split: !showThinking,
     },
   })
 }
@@ -142,7 +148,7 @@ const PROVIDER_ORDER: Array<{
     name: 'MiniMax',
     factory: createMiniMaxProvider,
     isConfigured: () => hasSecret('MINIMAX_API_KEY'),
-    models: ['MiniMax-M2.5', 'MiniMax-M2.7'],
+    models: ['MiniMax-M2.7', 'MiniMax-M2.7-highspeed', 'MiniMax-M2.5'],
   },
   {
     id: 'custom',
