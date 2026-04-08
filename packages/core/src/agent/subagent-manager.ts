@@ -1,16 +1,23 @@
 /**
  * agent/subagent-manager.ts — 子 Agent 管理器
  *
- * Phase E3 (GAP-8): spawn / list / steer / kill 子 Agent
+ * Phase E3 (GAP-8) + Phase N2: spawn / list / steer / kill / spawnParallel / cascade kill
  *
  * 核心设计：
  * - 每个子 Agent 运行在独立 child session 中
  * - 所有子任务注册到统一 TaskRegistry
- * - V1 仅允许单层（depth=1），禁止孙子 Agent
+ * - N2: 可配置深度限制（maxDepth）、全局上限（maxTotalAgents）、并行 spawn
  */
 
 import type { TaskRegistry } from '../tasks/index.js'
-import type { SpawnSubagentParams, SubagentInfo, SubagentResult } from './subagent-types.js'
+import type {
+  ParallelSpawnItem,
+  SpawnSubagentParams,
+  SubagentInfo,
+  SubagentManagerConfig,
+  SubagentResult,
+} from './subagent-types.js'
+import { DEFAULT_SUBAGENT_CONFIG } from './subagent-types.js'
 import type { RunAttemptParams, RunAttemptResult } from './runner.js'
 import type { ToolRegistry } from '../tools/index.js'
 
@@ -39,6 +46,8 @@ export interface SubagentManagerDeps {
     beforeToolCall?: RunAttemptParams['beforeToolCall']
     contextEngine?: RunAttemptParams['contextEngine']
   }
+  /** N2: 可配置限制参数 */
+  config?: Partial<SubagentManagerConfig>
 }
 
 // ─── SubagentManager ────────────────────────────────────────────────────────
@@ -46,9 +55,11 @@ export interface SubagentManagerDeps {
 export class SubagentManager {
   private deps: SubagentManagerDeps
   private liveAgents = new Map<string, LiveSubagent>()
+  private readonly config: SubagentManagerConfig
 
   constructor(deps: SubagentManagerDeps) {
     this.deps = deps
+    this.config = { ...DEFAULT_SUBAGENT_CONFIG, ...deps.config }
   }
 
   // ─── spawn ──────────────────────────────────────────────────────────────
@@ -56,16 +67,25 @@ export class SubagentManager {
   async spawn(
     parentSessionKey: string,
     params: SpawnSubagentParams,
-    opts?: { depth?: number },
+    opts?: { depth?: number; onComplete?: (result: SubagentResult) => void },
   ): Promise<SubagentResult> {
     const depth = opts?.depth ?? 0
 
-    // V1: 仅允许 depth=1
-    if (depth >= 1) {
+    // N2: 可配置深度限制（替代 V1 的 depth>=1 硬限）
+    if (depth >= this.config.maxDepth) {
       return {
         taskId: '',
         success: false,
-        summary: '暂不支持多层子 Agent（当前限制 depth=1）',
+        summary: `超过最大嵌套深度限制 (depth=${depth}, maxDepth=${this.config.maxDepth})`,
+      }
+    }
+
+    // N2: 全局子 Agent 数量限制
+    if (this.liveAgents.size >= this.config.maxTotalAgents) {
+      return {
+        taskId: '',
+        success: false,
+        summary: `达到全局子Agent上限 (${this.config.maxTotalAgents})`,
       }
     }
 
@@ -106,12 +126,90 @@ export class SubagentManager {
     const taskRecord = registry.get(task.id)
     const summary = taskRecord?.summary ?? result?.text?.slice(0, 500) ?? '子任务无输出'
 
-    return {
+    const subagentResult: SubagentResult = {
       taskId: task.id,
       success: taskRecord?.state === 'succeeded',
       summary,
     }
+
+    // N2: onComplete 回调
+    opts?.onComplete?.(subagentResult)
+
+    return subagentResult
   }
+
+  // ─── spawnParallel (N2.2.1) ───────────────────────────────────────────
+
+  /**
+   * 并行启动多个子 Agent。
+   * - 使用 Promise.allSettled 确保不因单个失败而全部中断
+   * - 内部维护并发信号量
+   * - 每个子 Agent 完成后立即触发 onComplete
+   * - 返回所有结果（顺序与 items 一致）
+   */
+  async spawnParallel(
+    parentSessionKey: string,
+    items: ParallelSpawnItem[],
+    opts?: { depth?: number; maxConcurrent?: number },
+  ): Promise<SubagentResult[]> {
+    if (items.length === 0) return []
+
+    const depth = opts?.depth ?? 0
+    const maxConcurrent = opts?.maxConcurrent ?? this.config.maxConcurrent
+    const results: SubagentResult[] = new Array(items.length)
+
+    // 并发信号量
+    let running = 0
+    let nextIndex = 0
+    const waitQueue: Array<() => void> = []
+
+    const acquireSemaphore = (): Promise<void> => {
+      if (running < maxConcurrent) {
+        running++
+        return Promise.resolve()
+      }
+      return new Promise<void>(resolve => waitQueue.push(resolve))
+    }
+
+    const releaseSemaphore = (): void => {
+      running--
+      const next = waitQueue.shift()
+      if (next) {
+        running++
+        next()
+      }
+    }
+
+    // 创建所有任务的 promise
+    const promises = items.map(async (item, index) => {
+      await acquireSemaphore()
+
+      try {
+        const result = await this.spawn(parentSessionKey, item.params, {
+          depth,
+          onComplete: item.onComplete,
+        })
+        results[index] = result
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        const failResult: SubagentResult = {
+          taskId: '',
+          success: false,
+          summary: msg,
+        }
+        results[index] = failResult
+        item.onComplete?.(failResult)
+      } finally {
+        releaseSemaphore()
+      }
+    })
+
+    await Promise.allSettled(promises)
+
+    return results
+  }
+
+  // ─── executeChild (内部) ──────────────────────────────────────────────
 
   private async executeChild(
     taskId: string,
@@ -200,9 +298,18 @@ export class SubagentManager {
     this.deps.taskRegistry.steer(taskId, message)
   }
 
-  // ─── kill ─────────────────────────────────────────────────────────────
+  // ─── kill (N2.3.1: cascade 支持) ─────────────────────────────────────
 
-  kill(taskId: string): void {
+  kill(taskId: string, opts?: { cascade?: boolean }): void {
+    if (opts?.cascade) {
+      // 递归终止所有后代（深度优先：先终止最深层）
+      const children = this._findChildTasks(taskId)
+      for (const childId of children) {
+        this.kill(childId, { cascade: true })
+      }
+    }
+
+    // 终止当前任务
     const live = this.liveAgents.get(taskId)
     if (live) {
       live.abortController.abort()
@@ -215,9 +322,24 @@ export class SubagentManager {
     }
   }
 
+  /**
+   * 查找某个 taskId 的直接子任务。
+   * 通过 TaskRegistry.list 过滤 parentTaskId。
+   */
+  private _findChildTasks(parentTaskId: string): string[] {
+    return this.deps.taskRegistry
+      .list({ parentTaskId })
+      .map(t => t.id)
+  }
+
   // ─── 工具方法 ─────────────────────────────────────────────────────────
 
   get activeCount(): number {
     return this.liveAgents.size
+  }
+
+  /** N2: 暴露配置（只读） */
+  get managerConfig(): Readonly<SubagentManagerConfig> {
+    return this.config
   }
 }

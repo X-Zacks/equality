@@ -282,9 +282,11 @@ console.log('\n── T43: kill 取消子任务 ──')
 console.log('\n── T44: depth>1 被拒绝 ──')
 {
   const registry = new TaskRegistry()
+  // N2: 使用 maxDepth=1 模拟 V1 行为（仅允许 depth=0）
   const manager = new SubagentManager({
     taskRegistry: registry,
     runAttempt: createMockRunAttempt(),
+    config: { maxDepth: 1, maxTotalAgents: 20, maxConcurrent: 5 },
   })
 
   // depth=0 正常（主 Agent 创建子 Agent）
@@ -294,7 +296,7 @@ console.log('\n── T44: depth>1 被拒绝 ──')
   // depth=1 被拒（子 Agent 尝试再创建孙子 Agent）
   const r1 = await manager.spawn('child-session', { prompt: '孙子任务' }, { depth: 1 })
   assert(r1.success === false, 'depth=1 被拒绝')
-  assert(r1.summary.includes('多层子 Agent') || r1.summary.includes('depth'), '错误信息说明原因')
+  assert(r1.summary.includes('深度限制') || r1.summary.includes('depth') || r1.summary.includes('maxDepth'), '错误信息说明原因')
   assert(r1.taskId === '', 'depth 超限时 taskId 为空')
 
   // depth=2 也被拒
