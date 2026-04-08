@@ -1,13 +1,14 @@
 @echo off
-setlocal
+setlocal enabledelayedexpansion
 
-:: ──────────────────────────────────────────────
 :: Equality Dev Launcher
-:: 窗口1: Core 服务 (Node.js Gateway)
-:: 窗口2: Tauri Dev (Vite + Rust)
-:: ──────────────────────────────────────────────
+:: Window 1: Core service (Node.js Gateway)
+:: Window 2: Tauri Dev (Vite + Rust)
 
-:: 读取 .env.local（如果存在），否则用默认值
+:: -----------------------------------------------
+:: Phase 0: Read .env.local
+:: -----------------------------------------------
+
 set CUSTOM_API_KEY=
 set CUSTOM_BASE_URL=
 set CUSTOM_MODEL=
@@ -18,43 +19,219 @@ if exist "%~dp0.env.local" (
     )
 )
 
-:: 校验：Custom Provider 未配置时仅警告（Copilot 不依赖此项）
 if "%CUSTOM_API_KEY%"=="" (
-    echo [WARN] CUSTOM_API_KEY 未设置，Custom Provider 不可用
-    echo        如需使用，请创建 .env.local 文件
-    echo        Copilot / DeepSeek / Qwen 等 Provider 不受影响
+    echo [WARN] CUSTOM_API_KEY not set, Custom Provider unavailable
+    echo        Create .env.local if needed
+    echo        Copilot / DeepSeek / Qwen providers are not affected
     echo.
 )
 
-:: 添加 Cargo 到 PATH
-set PATH=%PATH%;%USERPROFILE%\.cargo\bin
+:: -----------------------------------------------
+:: Phase 1: Environment checks
+:: -----------------------------------------------
 
-:: 停止旧的 desktop.exe（Tauri 编译前必须释放文件锁）
+set TMPVER=%TEMP%\_equality_ver.tmp
+
+echo.
+echo ===============================================
+echo   Equality Dev Environment Check
+echo ===============================================
+
+set ENV_FAIL=0
+
+:: -- 1.1 Node.js --
+set NODE_STATUS=[FAIL]
+set "NODE_INFO=not installed"
+node --version >"%TMPVER%" 2>nul
+if errorlevel 1 goto :node_fail
+set /p NODE_VER=<"%TMPVER%"
+set "NODE_VER_NUM=%NODE_VER:v=%"
+for /f "tokens=1 delims=." %%M in ("%NODE_VER_NUM%") do set NODE_MAJOR=%%M
+if %NODE_MAJOR% geq 18 (
+    set "NODE_STATUS=[OK]  "
+    set "NODE_INFO=%NODE_VER%"
+) else (
+    set "NODE_STATUS=[WARN]"
+    set "NODE_INFO=%NODE_VER% (need >= v18)"
+)
+goto :node_done
+:node_fail
+set ENV_FAIL=1
+:node_done
+
+:: -- 1.2 pnpm (note: pnpm is a .cmd, must use 'call') --
+set PNPM_STATUS=[FAIL]
+set "PNPM_INFO=not installed"
+call pnpm --version >"%TMPVER%" 2>nul
+if errorlevel 1 goto :pnpm_fail
+set /p PNPM_VER=<"%TMPVER%"
+set "PNPM_STATUS=[OK]  "
+set "PNPM_INFO=v%PNPM_VER%"
+goto :pnpm_done
+:pnpm_fail
+set ENV_FAIL=1
+:pnpm_done
+
+:: -- 1.3 Cargo/Rust --
+set PATH=%PATH%;%USERPROFILE%\.cargo\bin
+set CARGO_STATUS=[FAIL]
+set "CARGO_INFO=not installed"
+cargo --version >"%TMPVER%" 2>nul
+if errorlevel 1 goto :cargo_fail
+set /p CARGO_LINE=<"%TMPVER%"
+set "CARGO_STATUS=[OK]  "
+set "CARGO_INFO=%CARGO_LINE%"
+goto :cargo_done
+:cargo_fail
+set ENV_FAIL=1
+:cargo_done
+
+:: -- 1.4 MSVC link.exe --
+set MSVC_STATUS=[FAIL]
+set "MSVC_INFO=not found"
+set VCVARS_FOUND=0
+
+where link.exe >nul 2>&1
+if not errorlevel 1 (
+    set "MSVC_STATUS=[OK]  "
+    set "MSVC_INFO=link.exe in PATH"
+    set VCVARS_FOUND=1
+    goto :msvc_done
+)
+
+:: Try to find vcvarsall.bat
+set VCVARS_PATH=
+if exist "C:\Program Files\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvarsall.bat" (
+    set "VCVARS_PATH=C:\Program Files\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvarsall.bat"
+)
+if "%VCVARS_PATH%"=="" if exist "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvarsall.bat" (
+    set "VCVARS_PATH=C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvarsall.bat"
+)
+if "%VCVARS_PATH%"=="" if exist "C:\Program Files\Microsoft Visual Studio\2022\Professional\VC\Auxiliary\Build\vcvarsall.bat" (
+    set "VCVARS_PATH=C:\Program Files\Microsoft Visual Studio\2022\Professional\VC\Auxiliary\Build\vcvarsall.bat"
+)
+if "%VCVARS_PATH%"=="" if exist "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" (
+    set "VCVARS_PATH=C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat"
+)
+if "%VCVARS_PATH%"=="" if exist "C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\VC\Auxiliary\Build\vcvarsall.bat" (
+    set "VCVARS_PATH=C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\VC\Auxiliary\Build\vcvarsall.bat"
+)
+
+if "%VCVARS_PATH%"=="" goto :msvc_not_found
+echo [INFO] Loading MSVC build environment...
+call "%VCVARS_PATH%" x64 >nul 2>&1
+where link.exe >nul 2>&1
+if errorlevel 1 goto :msvc_not_found
+set "MSVC_STATUS=[OK]  "
+set "MSVC_INFO=loaded via vcvarsall.bat"
+set VCVARS_FOUND=1
+goto :msvc_done
+
+:msvc_not_found
+set ENV_FAIL=1
+:msvc_done
+
+:: -- 1.5 node_modules --
+set "DEPS_STATUS=[OK]  "
+set "DEPS_INFO=installed"
+if not exist "%~dp0node_modules" (
+    echo [INFO] node_modules not found, running pnpm install...
+    echo.
+    call pnpm install
+    if errorlevel 1 (
+        set "DEPS_STATUS=[FAIL]"
+        set "DEPS_INFO=pnpm install failed"
+        set ENV_FAIL=1
+    ) else (
+        set "DEPS_INFO=auto-installed"
+    )
+)
+
+:: -- Cleanup temp file --
+del "%TMPVER%" >nul 2>&1
+
+:: -- 1.6 Summary --
+echo.
+echo ===============================================
+echo   %NODE_STATUS% Node.js    %NODE_INFO%
+echo   %PNPM_STATUS% pnpm       %PNPM_INFO%
+echo   %CARGO_STATUS% Cargo      %CARGO_INFO%
+echo   %MSVC_STATUS% MSVC       %MSVC_INFO%
+echo   %DEPS_STATUS% Deps       %DEPS_INFO%
+echo ===============================================
+
+if %ENV_FAIL% equ 0 goto :env_ok
+
+echo.
+echo [ERROR] Environment check failed. Please fix the following:
+echo.
+if "%NODE_STATUS%"=="[FAIL]" (
+    echo   Node.js:  Install Node.js ^>= 18
+    echo             https://nodejs.org/
+    echo             or: winget install OpenJS.NodeJS.LTS
+    echo.
+)
+if "%PNPM_STATUS%"=="[FAIL]" (
+    echo   pnpm:     npm install -g pnpm
+    echo             or: winget install pnpm.pnpm
+    echo.
+)
+if "%CARGO_STATUS%"=="[FAIL]" (
+    echo   Rust:     Install Rust toolchain
+    echo             https://rustup.rs/
+    echo             or: winget install Rustlang.Rustup
+    echo.
+)
+if "%MSVC_STATUS%"=="[FAIL]" (
+    echo   MSVC:     Install Visual Studio Build Tools (C++ workload^)
+    echo             winget install Microsoft.VisualStudio.2022.BuildTools --override "--add Microsoft.VisualStudio.Workload.VCTools"
+    echo             Restart terminal after installation
+    echo.
+)
+if "%DEPS_STATUS%"=="[FAIL]" (
+    echo   Deps:     Run pnpm install manually to check errors
+    echo.
+)
+echo Please fix issues above, then re-run dev.cmd
+pause
+exit /b 1
+
+:env_ok
+echo.
+echo Environment check passed!
+echo.
+
+:: -----------------------------------------------
+:: Phase 2: Kill old processes
+:: -----------------------------------------------
+
 taskkill /IM desktop.exe /F >nul 2>&1
 
-:: 停止已有 Node 占用的 18790 端口
 for /f "tokens=5" %%P in ('netstat -aon ^| findstr ":18790 " 2^>nul') do (
     taskkill /PID %%P /F >nul 2>&1
 )
 
-echo [1/2] 启动 Core 服务 (localhost:18790)...
+:: -----------------------------------------------
+:: Phase 3: Start services
+:: -----------------------------------------------
+
+echo [1/2] Starting Core service (localhost:18790)...
 start "Equality Core" cmd /k "cd /d %~dp0 && set CUSTOM_API_KEY=%CUSTOM_API_KEY% && set CUSTOM_BASE_URL=%CUSTOM_BASE_URL% && set CUSTOM_MODEL=%CUSTOM_MODEL% && pnpm --filter @equality/core dev"
 
-:: 等待 Core 就绪（轮询端口）
-echo 等待 Core 启动...
+echo Waiting for Core to start...
 :wait_core
 timeout /t 1 /nobreak >nul
 netstat -an | findstr ":18790 " >nul 2>&1
 if errorlevel 1 goto wait_core
-echo Core 已就绪 ✓
+echo Core ready!
 
-echo [2/2] 启动 Tauri Dev...
-start "Equality Desktop" cmd /k "cd /d %~dp0 && pnpm --filter @equality/desktop tauri:dev"
+echo [2/2] Starting Tauri Dev...
+start "Equality Desktop" cmd /k "cd /d %~dp0 && set PATH=%PATH%;%USERPROFILE%\.cargo\bin && pnpm --filter @equality/desktop tauri:dev"
 
 echo.
-echo ✅ 所有服务已启动
-echo    Core  → http://localhost:18790/health
-echo    UI    → Tauri 窗口编译完成后自动弹出（首次需要几分钟）
+echo All services started!
+echo    Core  -^> http://localhost:18790/health
+echo    UI    -^> Tauri window will open after compilation (first time takes a few minutes)
 echo.
-echo 按任意键关闭此窗口（服务继续在各自窗口运行）
+echo Press any key to close this window (services keep running in their own windows)
 pause >nul
