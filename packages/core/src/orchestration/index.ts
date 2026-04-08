@@ -59,3 +59,13 @@ export type {
   HistoryEvent,
   HistoryLogSnapshot,
 } from './history-log.js'
+
+// ─── Role Config (N5) ────────────────────────────────────────────────────────
+
+export { getRoleConfig, listRoles, DEFAULT_ROLE_CONFIGS } from './role-config.js'
+export type { AgentRoleConfig, ToolProfile } from './role-config.js'
+
+// ─── Execution Registry (N5) ─────────────────────────────────────────────────
+
+export { ExecutionRegistry } from './execution-registry.js'
+export type { ExecutionEntry, ExecutionKind, ExecutionGraph } from './execution-registry.js'
