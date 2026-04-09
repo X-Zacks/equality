@@ -15,7 +15,7 @@ set CUSTOM_MODEL=
 
 if exist "%~dp0.env.local" (
     for /f "usebackq tokens=1,* delims==" %%A in ("%~dp0.env.local") do (
-        set %%A=%%B
+        if not "%%A"=="" if not "%%A:~0,1%"=="#" set "%%A=%%B"
     )
 )
 
@@ -309,7 +309,17 @@ for /f "tokens=5" %%P in ('netstat -aon ^| findstr ":18790 " 2^>nul') do (
 :: -----------------------------------------------
 
 echo [1/2] Starting Core service (localhost:18790)...
-start "Equality Core" cmd /k "cd /d %~dp0 && set CUSTOM_API_KEY=%CUSTOM_API_KEY% && set CUSTOM_BASE_URL=%CUSTOM_BASE_URL% && set CUSTOM_MODEL=%CUSTOM_MODEL% && pnpm --filter @equality/core dev"
+:: Write a helper bat to avoid special-char quoting issues with start cmd /k
+set "CORE_LAUNCHER=%TEMP%\_equality_core_launch.bat"
+(
+    echo @echo off
+    echo set "CUSTOM_API_KEY=%CUSTOM_API_KEY%"
+    echo set "CUSTOM_BASE_URL=%CUSTOM_BASE_URL%"
+    echo set "CUSTOM_MODEL=%CUSTOM_MODEL%"
+    echo cd /d "%~dp0"
+    echo pnpm --filter @equality/core dev
+) > "%CORE_LAUNCHER%"
+start "Equality Core" cmd /k "%CORE_LAUNCHER%"
 
 echo Waiting for Core to start...
 :wait_core
