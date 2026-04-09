@@ -305,6 +305,20 @@ for /f "tokens=5" %%P in ('netstat -aon ^| findstr ":18790 " 2^>nul') do (
 )
 
 :: -----------------------------------------------
+:: Phase 2.5: Ensure Tauri resource placeholders
+:: -----------------------------------------------
+set "RES_DIR=%~dp0packages\desktop\src-tauri\resources"
+if not exist "%RES_DIR%" mkdir "%RES_DIR%"
+if not exist "%RES_DIR%\better-sqlite3.node" (
+    echo [INFO] Creating placeholder for better-sqlite3.node...
+    echo placeholder > "%RES_DIR%\better-sqlite3.node"
+)
+if not exist "%RES_DIR%\equality-core.exe" (
+    echo [INFO] Creating placeholder for equality-core.exe...
+    echo placeholder > "%RES_DIR%\equality-core.exe"
+)
+
+:: -----------------------------------------------
 :: Phase 3: Start services
 :: -----------------------------------------------
 
