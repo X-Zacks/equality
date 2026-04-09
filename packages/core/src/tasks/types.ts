@@ -55,7 +55,7 @@ export interface TaskSummary {
 
 // ─── 任务事件 ────────────────────────────────────────────────────────────────
 
-export type TaskEventType = 'state_changed' | 'finished' | 'cancelled' | 'steer'
+export type TaskEventType = 'state_changed' | 'finished' | 'cancelled' | 'steer' | 'subagent_progress'
 
 export interface TaskEvent {
   type: TaskEventType
@@ -64,6 +64,8 @@ export interface TaskEvent {
   runtime: TaskRuntime
   timestamp: number
   detail?: string
+  /** 子 Agent 进度事件的父 session key */
+  parentSessionKey?: string
 }
 
 // ─── 状态迁移表（合法迁移白名单）────────────────────────────────────────────

@@ -213,6 +213,8 @@ taskRegistry.events.on((event) => {
     state: event.state,
     runtime: event.runtime,
     timestamp: event.timestamp,
+    detail: event.detail,
+    parentSessionKey: event.parentSessionKey,
   })
   for (const client of sseClients) {
     try { client.write(`data: ${data}\n\n`) } catch { sseClients.delete(client) }

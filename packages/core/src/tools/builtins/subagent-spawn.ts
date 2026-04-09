@@ -56,9 +56,10 @@ export const subagentSpawnTool: ToolDefinition = {
     const allowedTools = input.allowed_tools
       ? String(input.allowed_tools).split(',').map(s => s.trim()).filter(Boolean)
       : undefined
-    const timeoutMs = input.timeout_seconds
-      ? Number(input.timeout_seconds) * 1000
-      : undefined
+    const DEFAULT_TIMEOUT_SECONDS = 300 // 5 minutes
+    const timeoutMs = (input.timeout_seconds
+      ? Number(input.timeout_seconds)
+      : DEFAULT_TIMEOUT_SECONDS) * 1000
 
     try {
       const result = await _manager.spawn(parentSessionKey, {

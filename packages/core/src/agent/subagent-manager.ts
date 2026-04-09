@@ -108,7 +108,7 @@ export class SubagentManager {
     registry.transition(task.id, 'running')
 
     // 启动子 runAttempt（非阻塞）
-    const resultPromise = this.executeChild(task.id, childSessionKey, params, abortController, steeringQueue)
+    const resultPromise = this.executeChild(task.id, childSessionKey, params, abortController, steeringQueue, parentSessionKey)
 
     // 注册到 live agents
     this.liveAgents.set(task.id, {
@@ -217,6 +217,7 @@ export class SubagentManager {
     params: SpawnSubagentParams,
     abortController: AbortController,
     steeringQueue: string[],
+    parentSessionKey?: string,
   ): Promise<RunAttemptResult | null> {
     const registry = this.deps.taskRegistry
 
@@ -232,6 +233,21 @@ export class SubagentManager {
         }, params.timeoutMs)
       }
 
+      // 通过 TaskEventBus 广播子 Agent 进度事件，让前端实时感知
+      const emitProgress = (detail: string) => {
+        try {
+          registry.events.emit({
+            type: 'subagent_progress',
+            taskId,
+            state: 'running',
+            runtime: 'subagent',
+            timestamp: Date.now(),
+            detail,
+            parentSessionKey,
+          })
+        } catch { /* 事件广播失败不影响子 agent 执行 */ }
+      }
+
       const result = await this.deps.runAttempt({
         sessionKey: childSessionKey,
         userMessage: params.prompt,
@@ -243,6 +259,8 @@ export class SubagentManager {
         skills: this.deps.defaults?.skills,
         beforeToolCall: this.deps.defaults?.beforeToolCall,
         contextEngine: this.deps.defaults?.contextEngine,
+        onToolStart: (info) => emitProgress(`tool_start:${info.name}`),
+        onToolResult: (info) => emitProgress(`tool_done:${info.name}${info.isError ? '(error)' : ''}`),
       })
 
       if (timer) clearTimeout(timer)

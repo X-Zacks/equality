@@ -136,12 +136,13 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
     setPauseIntentVis(false)
   }, [sessionKey, loadSession]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 子 Agent 会话自动轮询：如果是 ::sub:: session 且没有 assistant 消息，定时刷新直到有完整内容
+  // 子 Agent 会话自动轮询：::sub:: session 定时刷新直到子 agent 完成
   useEffect(() => {
     if (!sessionKey.includes('::sub::')) return
     let cancelled = false
     let pollCount = 0
-    const maxPolls = 60 // 最多 2 分钟 (60 × 2s)
+    const maxPolls = 150 // 最多 10 分钟 (150 × 4s)
+    let hasSeenContent = false
 
     const poll = async () => {
       if (cancelled || pollCount >= maxPolls) return
@@ -149,7 +150,8 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
       const history = await loadSession(sessionKey)
       if (cancelled) return
       if (history?.messages?.length) {
-        const hasAssistant = history.messages.some(m => m.role === 'assistant')
+        hasSeenContent = true
+        const hasAssistant = history.messages.some(m => m.role === 'assistant' && m.content)
         setMessages(history.messages.map(m => ({
           role: m.role,
           content: m.content,
@@ -161,11 +163,32 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
             status: (tc.status === 'done' || tc.status === 'error' ? tc.status : 'done') as 'running' | 'done' | 'error',
           })),
         })))
-        if (hasAssistant) return // 有 assistant 回复了，停止轮询
+        // 只有在 assistant 产生了最终文本回复时才停止轮询
+        // tool_calls 阶段继续刷新以展示中间进度
+        if (hasAssistant) {
+          // 再刷一次确保最终状态
+          if (!cancelled) setTimeout(async () => {
+            const final = await loadSession(sessionKey)
+            if (final?.messages?.length && !cancelled) {
+              setMessages(final.messages.map(m => ({
+                role: m.role,
+                content: m.content,
+                toolCalls: m.toolCalls?.map(tc => ({
+                  toolCallId: tc.toolCallId,
+                  name: tc.name,
+                  args: tc.args,
+                  result: tc.result,
+                  status: (tc.status === 'done' || tc.status === 'error' ? tc.status : 'done') as 'running' | 'done' | 'error',
+                })),
+              })))
+            }
+          }, 2000)
+          return
+        }
       }
-      // 继续轮询
+      // 继续轮询：有内容后用 4s 间隔，无内容用 3s
       if (!cancelled) {
-        setTimeout(poll, 2000)
+        setTimeout(poll, hasSeenContent ? 4000 : 3000)
       }
     }
 
