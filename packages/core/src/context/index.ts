@@ -7,3 +7,8 @@ export type {
 export { compactIfNeeded, splitIntoChunks, CHUNK_TOKEN_THRESHOLD, MAX_RETRIES } from './compaction.js'
 export { extractIdentifiers, validateIdentifiers, buildProtectionPrompt } from './identifier-shield.js'
 export { estimateTokens, estimateMessagesTokens } from './token-estimator.js'
+export {
+  shouldCompress, compress,
+  getCompressThresholdPercent, getCompressThresholdMessages, getCompressRecentKeep,
+  type CompressDecision, type CompressResult,
+} from './compressor.js'

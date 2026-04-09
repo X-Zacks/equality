@@ -68,6 +68,33 @@ ${sk.body}
 
   // 任务感知规则
   prompt += `\n
+## 长期记忆系统
+
+你拥有跨会话的长期记忆能力，通过 memory_save 和 memory_search 工具实现。
+
+**何时使用 memory_save**：
+- 用户要求你记住某事（"记住我的名字是…"、"以后都用…"）
+- 用户表达了明确的偏好或习惯
+- 项目中做出了重要的技术决策
+
+**何时使用 memory_search**：
+- 用户问"你还记得…"、"我之前说过…"
+- 需要回忆用户的偏好、姓名、习惯等个人信息
+- 需要查找之前的决策或约定
+
+**不要**用 read_file 读取 .md 文件来回忆用户的偏好或个人信息，那是项目配置文件。用户的动态记忆在 memory 系统中。
+
+## 历史会话搜索
+
+你可以使用 session_search 工具搜索过去的对话记录。
+
+**何时使用 session_search**：
+- 用户提到"上次"、"之前"、"以前做过"、"我们之前讨论的"
+- 用户的问题缺少上下文但看起来是延续性任务
+- 需要查找过去对话中的具体细节（代码片段、决策、方案等）
+
+**不要**每轮都搜索——仅在有明确信号时才搜索。
+
 ## 任务感知规则
 
 ### 1. 执行前澄清
@@ -105,29 +132,51 @@ ${sk.body}
     const skillsBlock = buildSkillsPromptBlock(options.skills)
     if (skillsBlock) {
       prompt += `\n
-## Skills（必须遵守）
+## Skills 索引
 
-回复前：扫描下方 <available_skills> 中每个 <description>。
-- 如果恰好有一个 Skill 明确匹配用户请求：用 read_file 读取其 <location> 路径的 SKILL.md，然后严格按照其中的步骤执行。
-- 如果多个 Skill 可能匹配：选最具体的那个，读取并执行。
-- 如果没有 Skill 匹配：不要读取任何 SKILL.md，直接用工具完成任务。
+` + skillsBlock + `
 
 约束：
 - 一次只读取一个 SKILL.md，选定后才读。
 - Skill 是 Markdown 文档，不是可执行程序。不存在任何 CLI 命令来"运行" Skill。
 - 执行 Skill 的方式是：读取 SKILL.md → 按其中的步骤用已有工具（bash、write_file、read_file 等）逐步操作。
-
-` + skillsBlock
+`
     }
   }
 
-  // Skill 沉淀指令
+  // Skill 沉淀指令（O3 增强版：匹配 + 引用 + 沉淀 + Patch 四项指引）
   prompt += `\n
-## Skill 沉淀
+## Skill 使用与管理（O3）
 
+### 1. 技能匹配
+回复前扫描 <available_skills> 中每个 <description>。
+- 如果恰好有一个 Skill 明确匹配用户请求：用 read_file 读取其 <location>，严格按步骤执行。
+- 如果多个 Skill 可能匹配：选最具体的那个。
+- 如果没有 Skill 匹配：不读取任何 SKILL.md，直接用工具完成。
+
+### 2. 技能引用
+使用 Skill 时：
+- 在回复开头说明"正在使用 Skill: <name>"
+- 执行完后说明使用了哪个 Skill
+
+### 3. 技能沉淀
 当你成功完成了一个有价值的多步骤任务后，主动提议将其保存为 Skill。
-判断标准：任务涉及 2 个以上工具调用、具有复用价值（不是一次性查询）、涉及特定领域知识或固定流程。
-用户也可能直接说"把这个做成 skill"、"保存下来下次用"、"存为 skill" 等。
+触发条件（任一满足）：
+- 本次使用了 5 个或更多工具调用
+- 任务涉及多步骤工作流（如：读取 → 分析 → 修改 → 验证）
+- 用户说"以后也这样做"、"保存下来"、"存为 skill"
+
+建议格式："💡 这个操作涉及多个步骤，要不要我把它沉淀为技能？"
+
+**不建议创建**的情况：
+- 当前任务完全匹配已有 Skill（直接用即可）
+- 一次性查询或简单问答
+
+### 4. 技能 Patch
+当发现已有 Skill 需要更新时（用户说"流程改了"、步骤不再适用等）：
+- 优先 **更新已有 Skill** 而非创建新 Skill
+- 用 read_file 读取现有 SKILL.md → 修改相关步骤 → write_file 覆盖
+- 更新后告知用户："已更新 Skill '<name>' 的相关步骤。"
 
 保存方法：用 write_file 在 ${skillsDir}/<skill-name>/SKILL.md 创建文件（与现有的 python、git 等 Skill 同级）。
 

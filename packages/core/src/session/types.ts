@@ -11,6 +11,8 @@ export interface Session {
   createdAt: number
   lastActiveAt: number
   runningAbort: AbortController | null
+  /** O1: 冻结的记忆快照 — 首轮 assemble 时生成，后续轮复用 */
+  frozenMemorySnapshot?: string
 }
 
 export function createSession(key: string): Session {

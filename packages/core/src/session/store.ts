@@ -20,6 +20,7 @@ export async function getOrCreate(key: string): Promise<Session> {
       session.costLines = saved.costLines ?? {}
       session.createdAt = saved.createdAt ?? Date.now()
       session.title = saved.title
+      session.frozenMemorySnapshot = saved.frozenMemorySnapshot
     }
     store.set(key, session)
   }

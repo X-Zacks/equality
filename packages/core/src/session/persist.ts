@@ -35,11 +35,12 @@ export async function persist(session: Session): Promise<void> {
     costLines: session.costLines,
     createdAt: session.createdAt,
     lastActiveAt: session.lastActiveAt,
+    frozenMemorySnapshot: session.frozenMemorySnapshot,
   })
   await writeFile(sessionFile(session.key), payload, 'utf8')
 }
 
-export async function load(key: string): Promise<Pick<Session, 'messages' | 'costLines' | 'createdAt' | 'title'> | null> {
+export async function load(key: string): Promise<Pick<Session, 'messages' | 'costLines' | 'createdAt' | 'title' | 'frozenMemorySnapshot'> | null> {
   const file = sessionFile(key)
   if (!existsSync(file)) return null
   try {

@@ -474,6 +474,14 @@ export async function runAttempt(params: RunAttemptParams): Promise<RunAttemptRe
   let forcedToolRetryUsed = false
   let compileRetryUsed = false
 
+  // O1.2: Budget awareness tracking
+  const budgetState = {
+    warned70Turns: false,
+    warned90Turns: false,
+    warned70Calls: false,
+    warned90Calls: false,
+  }
+
   // Stream Decorator 管道（Phase 9）
   const decorators = buildDecoratorPipeline(provider)
 
@@ -716,6 +724,35 @@ export async function runAttempt(params: RunAttemptParams): Promise<RunAttemptRe
           tool_call_id: tc.id,
           content: resultForMessages,
         })
+
+        // ── O1.2: Budget awareness — 追加预算警告到最近 tool result ──
+        {
+          const lastToolMsg = messages[messages.length - 1]
+          if (lastToolMsg.role === 'tool' && typeof lastToolMsg.content === 'string') {
+            const turnPct = loopCount / maxLlmTurns
+            const callPct = totalToolCalls / maxToolCalls
+
+            let budgetWarning = ''
+            if (turnPct >= 0.9 && !budgetState.warned90Turns) {
+              budgetState.warned90Turns = true
+              budgetWarning += `\n\n🚨 BUDGET CRITICAL: 90% of iteration budget used (${loopCount}/${maxLlmTurns} turns). Summarize and finish NOW.`
+            } else if (turnPct >= 0.7 && !budgetState.warned70Turns) {
+              budgetState.warned70Turns = true
+              budgetWarning += `\n\n⚠️ BUDGET WARNING: 70% of iteration budget used (${loopCount}/${maxLlmTurns} turns). Start wrapping up.`
+            }
+            if (callPct >= 0.9 && !budgetState.warned90Calls) {
+              budgetState.warned90Calls = true
+              budgetWarning += `\n\n🚨 BUDGET CRITICAL: 90% of tool call budget used (${totalToolCalls}/${maxToolCalls} calls). Summarize and finish NOW.`
+            } else if (callPct >= 0.7 && !budgetState.warned70Calls) {
+              budgetState.warned70Calls = true
+              budgetWarning += `\n\n⚠️ BUDGET WARNING: 70% of tool call budget used (${totalToolCalls}/${maxToolCalls} calls). Start wrapping up.`
+            }
+            if (budgetWarning) {
+              ;(lastToolMsg as { content: string }).content += budgetWarning
+              console.log(`[runner] 💰 Budget warning injected at turn=${loopCount} calls=${totalToolCalls}`)
+            }
+          }
+        }
 
         // ── D4: contextEngine.afterToolCall ─────────────────────
         if (params.contextEngine?.afterToolCall) {
