@@ -289,14 +289,20 @@ export function useGateway() {
 
   const loadSession = useCallback(async (key: string): Promise<SessionHistory | null> => {
     try {
-      const resp = await fetch(`${CORE_URL}/sessions/${encodeURIComponent(key)}`)
+      const url = key.includes('::sub::')
+        ? `${CORE_URL}/sessions/_?key=${encodeURIComponent(key)}`
+        : `${CORE_URL}/sessions/${encodeURIComponent(key)}`
+      const resp = await fetch(url)
       return resp.ok ? await resp.json() : null
     } catch { return null }
   }, [])
 
   const deleteSession = useCallback(async (key: string): Promise<boolean> => {
     try {
-      const resp = await fetch(`${CORE_URL}/sessions/${encodeURIComponent(key)}`, { method: 'DELETE' })
+      const url = key.includes('::sub::')
+        ? `${CORE_URL}/sessions/_?key=${encodeURIComponent(key)}`
+        : `${CORE_URL}/sessions/${encodeURIComponent(key)}`
+      const resp = await fetch(url, { method: 'DELETE' })
       return resp.ok
     } catch { return false }
   }, [])

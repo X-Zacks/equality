@@ -722,8 +722,8 @@ app.get('/sessions', async (_req, reply) => {
 })
 
 /** 获取某个会话的历史消息 */
-app.get<{ Params: { key: string } }>('/sessions/:key', async (req, reply) => {
-  const { key } = req.params
+app.get<{ Params: { key: string }; Querystring: { key?: string } }>('/sessions/:key', async (req, reply) => {
+  const key = req.query.key ?? req.params.key
   const session = await getOrCreate(key)
 
   // 构建 tool_call_id -> tool result 的快速查找表
@@ -788,8 +788,8 @@ app.get<{ Params: { key: string } }>('/sessions/:key', async (req, reply) => {
 })
 
 /** 删除一个会话 */
-app.delete<{ Params: { key: string } }>('/sessions/:key', async (req, reply) => {
-  const { key } = req.params
+app.delete<{ Params: { key: string }; Querystring: { key?: string } }>('/sessions/:key', async (req, reply) => {
+  const key = req.query.key ?? req.params.key
   // 先清理该 session 的浏览器上下文（如果有的话）
   await closeSessionBrowser(key).catch(() => {})
   await deleteSessionFromDisk(key)

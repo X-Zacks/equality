@@ -13,8 +13,10 @@ import { memorySave, memorySearch, memoryList, memoryDelete, memoryCount } from 
 export const memorySaveTool: ToolDefinition = {
   name: 'memory_save',
   description:
-    '将一条信息保存到长期记忆中。用于记住用户偏好、项目约定、技术决策等重要信息。' +
-    '这些记忆会跨会话持久保留，在未来的对话中自动检索。',
+    'Save information to persistent long-term memory that survives across sessions. ' +
+    'Use this tool when the user asks you to remember something, states a preference, ' +
+    'shares personal info (name, timezone, habits), or when an important decision is made. ' +
+    'Do NOT use write_file to .md files for this purpose — use this tool instead.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -64,8 +66,10 @@ export const memorySaveTool: ToolDefinition = {
 export const memorySearchTool: ToolDefinition = {
   name: 'memory_search',
   description:
-    '搜索长期记忆。使用全文检索（BM25）查找之前保存的记忆。' +
-    '可以用来回忆用户偏好、项目约定、之前的决策等。',
+    'Search persistent long-term memory for previously saved information. ' +
+    'Use this tool when the user asks "do you remember...", "what did I say about...", ' +
+    'or when you need to recall user preferences, names, past decisions, or project conventions. ' +
+    'Do NOT use read_file on .md files to recall personal info — use this tool instead.',
   inputSchema: {
     type: 'object',
     properties: {

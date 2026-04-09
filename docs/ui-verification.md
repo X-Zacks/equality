@@ -1,7 +1,7 @@
 # Equality Desktop — UI 验证操作手册
 
-> **适用范围**：Phase A ～ N 全功能验证  
-> **应用版本**：feat/phase-N-orchestration  
+> **适用范围**：Phase A ～ O 全功能验证  
+> **应用版本**：feat/phase-O-self-evolution  
 > **测试环境**：Tauri v2 + React 桌面端 · Core 服务 `http://localhost:18790`  
 > **文档更新**：2025-07
 
@@ -27,6 +27,7 @@
 16. [Phase N6 诊断与快照](#16-phase-n6-诊断与快照)
 17. [API 端点直接验证](#17-api-端点直接验证)
 18. [已知限制与待集成项](#18-已知限制与待集成项)
+19. [Phase O 自进化循环](#19-phase-o-自进化循环)
 
 ---
 
@@ -609,6 +610,213 @@ curl http://localhost:18790/sessions/:key/snapshots
 
 ---
 
+## 19. Phase O 自进化循环
+
+> **对应分支**：`feat/phase-O-self-evolution`  
+> **核心思路**：对话 → 学习 → 记忆 → 技能化 → 历史搜索 → 更好的对话
+
+### 19.1 O1 — 冻结记忆快照
+
+**原理**：首轮 assemble 时执行一次 `memorySearch`，结果冻结在 `session.frozenMemorySnapshot`；后续轮直接复用，不再重复检索。
+
+#### 验证方式
+
+1. 先执行 §10 保存至少一条记忆，例如：
+   ```
+   记住：我的偏好语言是 TypeScript
+   ```
+2. 新建会话后立即提问：
+   ```
+   你好，直接开始对话
+   ```
+
+| # | 检查点 | 预期结果 |
+|---|--------|----------|
+| 19.1.1 | Core 日志 | 出现 `[context-engine] 冻结记忆快照: N 条` |
+| 19.1.2 | 第 2 条消息发送后 | 日志出现 `[context-engine] 复用冻结快照`，**不**出现第二次 `冻结记忆快照` |
+| 19.1.3 | 中途调用 memory_save | 日志出现写入成功，但快照**不变**（当前会话不刷新） |
+| 19.1.4 | Recall 容量上限 | 记忆条数超多时，快照不超过 4000 字符（可在 Core 日志中观察截断提示） |
+| 19.1.5 | 重启应用加载旧会话 | 旧会话的 `frozenMemorySnapshot` 从磁盘恢复，无需重新 recall |
+
+#### 磁盘验证
+
+```powershell
+# 查看 session JSON，确认字段存在
+Get-Content "$env:APPDATA\Equality\sessions\*.json" | ConvertFrom-Json | Select-Object key, frozenMemorySnapshot
+```
+
+---
+
+### 19.2 O1 — 预算感知警告
+
+**原理**：toolLoop 在迭代次数或工具调用次数达到 70% / 90% 时，向最近一条 tool result 末尾追加警告文本。
+
+#### 验证方式
+
+发送需要大量工具调用的任务，或临时将环境变量调低：
+
+```powershell
+# 将最大轮数设为 10，便于观察
+$env:AGENT_MAX_LLM_TURNS = '10'
+```
+
+然后发送：
+```
+请依次读取 src/ 目录下所有 .tsx 文件并逐个总结
+```
+
+| # | 检查点 | 预期结果 |
+|---|--------|----------|
+| 19.2.1 | 到达 70% 轮数 | Core 日志出现 `[runner] 💰 Budget warning injected`，AI 回复中可能提及「即将达到上限」 |
+| 19.2.2 | 70% 警告仅触发一次 | 后续轮不重复追加同一 70% 警告 |
+| 19.2.3 | 到达 90% 轮数 | 日志再次出现 budget warning，警告等级升为 CRITICAL |
+| 19.2.4 | tool calls 独立计数 | 设置 `AGENT_MAX_TOOL_CALLS=10`，工具调用达到 7 次时触发独立的调用预算警告 |
+
+---
+
+### 19.3 O2 — 上下文智能压缩
+
+**原理**：当 token 占比 ≥ 50% **或**消息数 ≥ 30 时，自动执行 6 步结构化压缩（标记 → 提取 → 摘要 → 合成 → 替换 → 验证）。
+
+#### 验证方式
+
+方法 A（调低阈值）：
+```powershell
+$env:CONTEXT_COMPRESS_THRESHOLD_MESSAGES = '8'
+```
+然后在同一会话中发送 9 条以上消息。
+
+方法 B（真实场景）：进行长达 30+ 条消息的工作对话，无需修改配置。
+
+| # | 检查点 | 预期结果 |
+|---|--------|----------|
+| 19.3.1 | 触发压缩 | Core 日志出现 `[compressor] Step 1: old=N msgs, recent=M msgs` |
+| 19.3.2 | 摘要生成 | 日志出现 `[compressor] Step 3: summary generated (N chars)` |
+| 19.3.3 | 消息数减少 | `[compressor] Step 5: X → Y msgs`（Y 明显小于 X） |
+| 19.3.4 | token 验证 | `[compressor] Step 6: tokens A → B (saved C)` |
+| 19.3.5 | 压缩后继续对话 | AI 仍能引用压缩前的关键信息（因摘要中保留了关键决策） |
+| 19.3.6 | 幂等性 | 同一轮内不重复压缩（日志只出现一次 Step 1） |
+| 19.3.7 | 环境变量生效 | 修改 `CONTEXT_COMPRESS_THRESHOLD_PERCENT=0.70` 后，70% 前不触发 |
+
+#### 摘要结构验证
+
+压缩后的摘要 system message 应包含以下段落（可通过 `/sessions/:key` API 查看消息列表）：
+
+```
+## 用户目标
+## 关键决策
+## 工具调用摘要
+## 未完成事项
+## 重要上下文
+```
+
+---
+
+### 19.4 O3 — 技能增强（4 段指引）
+
+**原理**：system prompt 中新增匹配、引用、沉淀、Patch 四段技能指引，Agent 在完成复杂任务后主动建议创建技能。
+
+#### 19.4.1 技能引用验证
+
+前提：已有名为 `git-commit-convention` 或任意 Skill 的 SKILL.md 文件。
+
+| # | 操作 | 预期结果 |
+|---|------|----------|
+| 19.4.1 | 发送与某 Skill 匹配的请求 | AI 回复开头出现「正在使用 Skill: <name>」 |
+| 19.4.2 | 无匹配 Skill 时 | 直接完成任务，不读取 SKILL.md |
+
+#### 19.4.2 技能沉淀建议验证
+
+发送需要多个工具调用的任务（至少 5 次工具调用）：
+
+```
+请帮我：读取 package.json → 检查依赖版本 → 运行 pnpm outdated → 生成升级报告
+```
+
+| # | 检查点 | 预期结果 |
+|---|--------|----------|
+| 19.4.3 | 工具调用 ≥ 5 次后 | AI 最终回复中出现 `💡 这个操作涉及多个步骤，要不要我把它沉淀为技能？` |
+| 19.4.4 | 用户回复「是」| Agent 调用 write_file 在 skills/ 目录创建 SKILL.md |
+| 19.4.5 | 简单查询（< 2 工具） | 不建议创建技能 |
+
+#### 19.4.3 技能 Patch 验证
+
+```
+我们的部署流程改了，现在多了一步审批，请更新 deploy-to-prod 技能
+```
+
+| # | 检查点 | 预期结果 |
+|---|--------|----------|
+| 19.4.6 | Agent 行为 | 读取现有 SKILL.md → 修改步骤 → write_file 覆盖（而非创建新 Skill） |
+| 19.4.7 | 完成提示 | 「已更新 Skill 'deploy-to-prod' 的相关步骤。」 |
+
+---
+
+### 19.5 O4 — 历史会话搜索
+
+**原理**：每轮对话结束后自动将 user/assistant 消息增量写入 `session-search.db`（SQLite FTS5），Agent 可通过 `session_search` 工具全文检索历史会话。
+
+#### 验证方式
+
+**Step 1**：在会话 A 中进行一次有特色的对话：
+```
+我们讨论了使用 Redis Streams 实现消息队列的方案，最终决定用 XADD/XREADGROUP
+```
+
+**Step 2**：新建会话 B，询问：
+```
+上次我们讨论过一个消息队列的方案，你还记得细节吗？
+```
+
+| # | 检查点 | 预期结果 |
+|---|--------|----------|
+| 19.5.1 | Agent 触发搜索 | 工具调用卡片出现 `session_search`，query 为「消息队列」 |
+| 19.5.2 | 返回结果 | 显示历史会话片段，含 `**Redis**`/`**XADD**` 等高亮词 |
+| 19.5.3 | 无匹配时 | 工具返回 `No matching sessions found.` |
+| 19.5.4 | limit 参数 | 默认返回 ≤ 10 条结果 |
+| 19.5.5 | 索引不阻塞 | Core 日志中索引写入与下一轮 LLM 调用异步进行（无明显延迟） |
+
+#### 数据库验证
+
+```powershell
+# 确认数据库已创建
+Test-Path "$env:APPDATA\Equality\session-search.db"
+
+# 查看索引条数（需安装 sqlite3.exe 或通过 Core API）
+curl http://localhost:18790/diagnostics/bootstrap  # 目前可观察内存日志
+```
+
+#### session_search 工具参数
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `query` | string（必填） | 搜索关键词 |
+| `limit` | number（可选） | 最大返回数，默认 10，上限 50 |
+
+---
+
+### 19.6 Phase O 联合验证场景
+
+以下场景同时覆盖 O1–O4 的联动：
+
+```
+场景：长工作流 + 记忆 + 历史搜索
+
+1. 会话 A：执行 10+ 步骤的复杂任务（触发 O2 压缩 + O1 预算警告 + O3 技能建议）
+2. 接受技能建议，将任务保存为 Skill（O3 沉淀）
+3. 新建会话 B：问「上次那个复杂任务的流程是什么」（触发 O4 session_search）
+4. 会话 B 首条消息触发记忆召回（O1 冻结快照），无需重复 recall
+```
+
+| # | 检查点 | 预期结果 |
+|---|--------|----------|
+| 19.6.1 | 会话 A 长对话 | 压缩日志 + 预算警告日志均出现 |
+| 19.6.2 | 技能沉淀 | skills/ 目录出现新 SKILL.md |
+| 19.6.3 | 会话 B 首轮 | 日志出现「冻结记忆快照」一次 |
+| 19.6.4 | 会话 B 查询历史 | session_search 工具被调用，返回会话 A 的相关片段 |
+
+---
+
 ## 附录 A：快速回归检查单
 
 完整的冒烟测试（约 15 分钟）：
@@ -624,6 +832,11 @@ curl http://localhost:18790/sessions/:key/snapshots
 - [ ] 14.2.1 `Ctrl++` 放大，`Ctrl+0` 重置
 - [ ] 14.1.1 浅色主题切换
 - [ ] 17 `/health` 端点返回 ok
+- [ ] 19.1.1 Core 日志出现「冻结记忆快照」
+- [ ] 19.2.1 长任务触发预算警告（70%）
+- [ ] 19.3.1 长对话触发压缩（日志出现 `[compressor] Step 1`）
+- [ ] 19.4.3 多步骤任务后 AI 建议沉淀技能
+- [ ] 19.5.1 新会话中 `session_search` 找到历史会话
 
 ---
 
@@ -655,6 +868,23 @@ localStorage.getItem('equality-panel-open')
 pnpm --filter @equality/core dev
 ```
 
+### Phase O 相关调试
+
+```powershell
+# 查看 session 的冻结记忆快照字段
+$sessions = Get-ChildItem "$env:APPDATA\Equality\sessions\*.json"
+foreach ($f in $sessions) { $d = Get-Content $f | ConvertFrom-Json; if ($d.frozenMemorySnapshot) { Write-Host "$($d.key): $($d.frozenMemorySnapshot.Length) chars" } }
+
+# 确认历史会话索引库已创建
+Test-Path "$env:APPDATA\Equality\session-search.db"
+
+# 临时调低压缩阈值（触发快速验证）
+$env:CONTEXT_COMPRESS_THRESHOLD_MESSAGES = '8'
+
+# 临时调低迭代上限（触发预算警告）
+$env:AGENT_MAX_LLM_TURNS = '10'
+```
+
 ### 常用测试 Prompt
 
 ```
@@ -669,4 +899,13 @@ pnpm --filter @equality/core dev
 
 # 触发内存保存（G-H）
 请记住：这个项目使用 Tauri v2 + React + pnpm monorepo 结构
+
+# 触发技能沉淀建议（O3）—— 需要 5+ 工具调用
+请帮我：读取 package.json → 检查 node_modules 大小 → 运行 pnpm outdated → 用 bash 执行 pnpm list --depth 0 → 生成依赖升级建议报告
+
+# 触发历史会话搜索（O4）
+上次我们讨论过的那个技术方案，你还记得具体细节吗？
+
+# 触发压缩（O2）—— 需先设置 CONTEXT_COMPRESS_THRESHOLD_MESSAGES=8
+请逐步分析这 5 个文件并给出建议：App.tsx / Chat.tsx / SessionPanel.tsx / ToolCallCard.tsx / StatusBar.tsx
 ```
