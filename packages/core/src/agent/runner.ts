@@ -522,29 +522,85 @@ export async function runAttempt(params: RunAttemptParams): Promise<RunAttemptRe
       })
 
       const rawStream = provider.streamChat(streamParams)
-      for await (const delta of applyDecorators(rawStream, decorators)) {
-        // 文本内容
-        if (delta.content) {
-          currentText += delta.content
-          onDelta?.(delta.content)
-        }
+      // ── LLM 流式读取（含网络错误自动重试 1 次）──────────────
+      let streamRetried = false
+      const consumeStream = async () => {
+        for await (const delta of applyDecorators(rawStream, decorators)) {
+          // 文本内容
+          if (delta.content) {
+            currentText += delta.content
+            onDelta?.(delta.content)
+          }
 
-        // 累积 tool_calls（流式 delta 中分片到达）
-        if (delta.toolCalls) {
-          for (const tc of delta.toolCalls) {
-            let acc = accumulatedToolCalls.get(tc.index)
-            if (!acc) {
-              acc = { id: tc.id ?? '', name: tc.name ?? '', arguments: '' }
-              accumulatedToolCalls.set(tc.index, acc)
+          // 累积 tool_calls（流式 delta 中分片到达）
+          if (delta.toolCalls) {
+            for (const tc of delta.toolCalls) {
+              let acc = accumulatedToolCalls.get(tc.index)
+              if (!acc) {
+                acc = { id: tc.id ?? '', name: tc.name ?? '', arguments: '' }
+                accumulatedToolCalls.set(tc.index, acc)
+              }
+              if (tc.id) acc.id = tc.id
+              if (tc.name) acc.name = tc.name
+              if (tc.arguments) acc.arguments += tc.arguments
             }
-            if (tc.id) acc.id = tc.id
-            if (tc.name) acc.name = tc.name
-            if (tc.arguments) acc.arguments += tc.arguments
+          }
+
+          if (delta.finishReason) {
+            finishReason = delta.finishReason
           }
         }
+      }
 
-        if (delta.finishReason) {
-          finishReason = delta.finishReason
+      try {
+        await consumeStream()
+      } catch (streamErr) {
+        // 判断是否为可重试的网络错误
+        const errMsg = streamErr instanceof Error ? streamErr.message : String(streamErr)
+        const errCode = (streamErr as any)?.code ?? ''
+        const isNetworkError =
+          errCode === 'ECONNRESET' || errCode === 'ECONNREFUSED' || errCode === 'ETIMEDOUT' ||
+          errCode === 'UND_ERR_CONNECT_TIMEOUT' ||
+          errMsg.includes('Connection error') || errMsg.includes('fetch failed') ||
+          errMsg.includes('network') || errMsg.includes('ECONNRESET') ||
+          errMsg.includes('socket hang up') || errMsg.includes('timed out')
+
+        if (isNetworkError && !streamRetried && !abort.signal.aborted) {
+          streamRetried = true
+          console.warn(`[runner] ⚠️ LLM 流式读取网络错误，自动重试: ${errMsg}`)
+          onDelta?.('\n\n🔄 网络连接中断，正在自动重试…\n\n')
+
+          // 重置本轮累积状态
+          currentText = ''
+          accumulatedToolCalls.clear()
+          finishReason = null
+
+          // 等待 2 秒后重试
+          await new Promise(r => setTimeout(r, 2000))
+          if (abort.signal.aborted) throw streamErr
+
+          const retryStream = provider.streamChat(streamParams)
+          for await (const delta of applyDecorators(retryStream, decorators)) {
+            if (delta.content) {
+              currentText += delta.content
+              onDelta?.(delta.content)
+            }
+            if (delta.toolCalls) {
+              for (const tc of delta.toolCalls) {
+                let acc = accumulatedToolCalls.get(tc.index)
+                if (!acc) {
+                  acc = { id: tc.id ?? '', name: tc.name ?? '', arguments: '' }
+                  accumulatedToolCalls.set(tc.index, acc)
+                }
+                if (tc.id) acc.id = tc.id
+                if (tc.name) acc.name = tc.name
+                if (tc.arguments) acc.arguments += tc.arguments
+              }
+            }
+            if (delta.finishReason) finishReason = delta.finishReason
+          }
+        } else {
+          throw streamErr
         }
       }
 

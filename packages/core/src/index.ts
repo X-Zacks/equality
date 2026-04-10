@@ -474,6 +474,19 @@ app.post<{ Body: ChatBody }>('/chat/stream', async (req, reply) => {
     send({ type: 'done', usage: { inputTokens: result.inputTokens, outputTokens: result.outputTokens, totalCny: result.totalCny, toolCallCount: result.toolCallCount } })
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err)
+
+    // 回滚: runAttempt 失败时，移除已追加的 user 消息（防止重试时重复）
+    try {
+      const session = await getOrCreate(sessionKey)
+      if (session.messages.length > 0) {
+        const last = session.messages[session.messages.length - 1]
+        if (last.role === 'user') {
+          session.messages.pop()
+          console.log('[chat/stream] 回滚失败请求的 user message，防止重复追加')
+        }
+      }
+    } catch { /* ignore rollback error */ }
+
     // API Key 相关错误
     const API_KEY_SECRETS = ['DEEPSEEK_API_KEY', 'QWEN_API_KEY', 'VOLC_API_KEY', 'CUSTOM_API_KEY', 'CUSTOM_BASE_URL', 'MINIMAX_API_KEY']
     const isApiKeyMissing = API_KEY_SECRETS.some(k => msg.includes(`Secret not configured: ${k}`))
@@ -489,8 +502,9 @@ app.post<{ Body: ChatBody }>('/chat/stream', async (req, reply) => {
       send({ type: 'error', message: '❌ API Key 无效或已过期，请在设置中重新填入正确的 Key。' })
     } else if (msg.includes('rate limit') || msg.includes('429')) {
       send({ type: 'error', message: '❌ 请求过于频繁（限速），请稍等片刻后重试。' })
+    } else if (msg.includes('Connection error') || msg.includes('ECONNRESET') || msg.includes('fetch failed') || msg.includes('socket hang up')) {
+      send({ type: 'error', message: '❌ 与 AI 模型的网络连接中断。已自动重试 1 次仍失败。\n可能原因：网络不稳定 / 代理中断 / 模型服务暂时不可用。\n建议：稍等片刻后重试，或切换到其他模型。' })
     } else if (msg.includes('Secret not configured:')) {
-      // 内部配置项缺失（如 AGENT_MAX_LLM_TURNS），不应暴露给用户，属于程序 bug
       console.error('[chat/stream] internal config error:', msg)
       send({ type: 'error', message: `❌ 内部配置错误：${msg}，请反馈给开发者。` })
     } else {
