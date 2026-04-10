@@ -38,6 +38,89 @@
   color: rgba(255,255,255,0.9);
 }
 
+/* ─── Stats Action Buttons ───────────────────────────────────────────────── */
+
+.stat-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  padding-left: 8px;
+}
+
+.stat-action-btn {
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(255,255,255,0.15);
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.8);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+
+.stat-action-btn:hover:not(:disabled) {
+  background: rgba(255,255,255,0.12);
+  border-color: rgba(255,255,255,0.25);
+}
+
+.stat-action-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ─── Memory Toast ───────────────────────────────────────────────────────── */
+
+.memory-toast {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  animation: memToastIn 0.2s ease-out;
+}
+
+@keyframes memToastIn {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.memory-toast-success {
+  background: rgba(48, 209, 88, 0.15);
+  border: 1px solid rgba(48, 209, 88, 0.3);
+  color: #30d158;
+}
+
+.memory-toast-error {
+  background: rgba(255, 69, 58, 0.15);
+  border: 1px solid rgba(255, 69, 58, 0.3);
+  color: #ff453a;
+}
+
+.memory-toast-info {
+  background: rgba(100, 210, 255, 0.12);
+  border: 1px solid rgba(100, 210, 255, 0.25);
+  color: #64d2ff;
+}
+
+.memory-toast-close {
+  background: transparent;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: 14px;
+  opacity: 0.6;
+  margin-left: auto;
+  padding: 0 4px;
+}
+
+.memory-toast-close:hover { opacity: 1; }
+
 /* ─── Toolbar ────────────────────────────────────────────────────────────── */
 
 .memory-toolbar {
@@ -442,4 +525,31 @@
 
 [data-theme="light"] .memory-dialog-overlay {
   background: rgba(0,0,0,0.35);
+}
+
+/* Light theme: stat actions + toast */
+[data-theme="light"] .stat-action-btn {
+  border-color: rgba(0,0,0,0.15);
+  background: rgba(0,0,0,0.04);
+  color: rgba(0,0,0,0.7);
+}
+
+[data-theme="light"] .stat-action-btn:hover:not(:disabled) {
+  background: rgba(0,0,0,0.08);
+  border-color: rgba(0,0,0,0.25);
+}
+
+[data-theme="light"] .memory-toast-success {
+  background: rgba(48, 209, 88, 0.1);
+  color: #1a8f3c;
+}
+
+[data-theme="light"] .memory-toast-error {
+  background: rgba(255, 69, 58, 0.1);
+  color: #d42f27;
+}
+
+[data-theme="light"] .memory-toast-info {
+  background: rgba(0, 122, 255, 0.08);
+  color: #007aff;
 }

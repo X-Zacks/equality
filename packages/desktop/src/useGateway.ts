@@ -392,11 +392,37 @@ export function useGateway() {
     } catch { return null }
   }, [])
 
+  const exportMemories = useCallback(async () => {
+    try {
+      const resp = await fetch(`${CORE_URL}/memories/export`)
+      return resp.ok ? await resp.json() : null
+    } catch { return null }
+  }, [])
+
+  const importMemories = useCallback(async (items: unknown[], mode: 'merge' | 'replace' = 'merge') => {
+    try {
+      const resp = await fetch(`${CORE_URL}/memories/import`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items, mode }),
+      })
+      return resp.ok ? await resp.json() : null
+    } catch { return null }
+  }, [])
+
+  const triggerMemoryGC = useCallback(async () => {
+    try {
+      const resp = await fetch(`${CORE_URL}/memories/gc`, { method: 'POST' })
+      return resp.ok ? await resp.json() : null
+    } catch { return null }
+  }, [])
+
   return {
     coreOnline, sendMessage, abort,
     saveApiKey, loadSettings, deleteKey,
     copilotLogin, copilotLoginStatus, copilotLogout, copilotModels,
     listSessions, loadSession, deleteSession,
     listMemories, getMemory, createMemory, updateMemory, deleteMemory, deleteMemories, getMemoryStats,
+    exportMemories, importMemories, triggerMemoryGC,
   }
 }

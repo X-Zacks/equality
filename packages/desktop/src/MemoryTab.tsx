@@ -4,7 +4,7 @@
  * Phase M1: 记忆列表 + 搜索 + 过滤 + 分页 + 编辑/添加/删除 + 统计面板
  */
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useGateway } from './useGateway'
 import './MemoryTab.css'
 
@@ -40,7 +40,13 @@ interface MemoryStats {
 
 // ─── Stats Panel ──────────────────────────────────────────────────────────────
 
-function StatsPanel({ stats }: { stats: MemoryStats | null }) {
+function StatsPanel({ stats, busy, onExport, onImport, onGC }: {
+  stats: MemoryStats | null
+  busy?: boolean
+  onExport: () => void
+  onImport: () => void
+  onGC: () => void
+}) {
   if (!stats) return null
   return (
     <div className="memory-stats">
@@ -66,6 +72,11 @@ function StatsPanel({ stats }: { stats: MemoryStats | null }) {
           <span className="stat-value">{cnt}</span>
         </div>
       ))}
+      <div className="stat-actions">
+        <button className="stat-action-btn" onClick={onExport} disabled={busy} title="导出所有记忆为 JSON 文件">⬇️ 导出</button>
+        <button className="stat-action-btn" onClick={onImport} disabled={busy} title="从 JSON 文件导入记忆">⬆️ 导入</button>
+        <button className="stat-action-btn" onClick={onGC} disabled={busy} title="清理低重要性旧记忆">🧹 清理</button>
+      </div>
     </div>
   )
 }
@@ -158,7 +169,7 @@ function MemoryDialog({
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export function MemoryTab() {
-  const { listMemories, createMemory, updateMemory, deleteMemory, deleteMemories, getMemoryStats } = useGateway()
+  const { listMemories, createMemory, updateMemory, deleteMemory, deleteMemories, getMemoryStats, exportMemories, importMemories, triggerMemoryGC } = useGateway()
 
   const [memories, setMemories] = useState<MemoryEntry[]>([])
   const [total, setTotal] = useState(0)
@@ -172,6 +183,16 @@ export function MemoryTab() {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [editingEntry, setEditingEntry] = useState<MemoryEntry | null | 'new'>(null)
   const [loading, setLoading] = useState(false)
+  const [actionBusy, setActionBusy] = useState(false)
+  const [toast, setToast] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const showToast = useCallback((text: string, type: 'success' | 'error' | 'info' = 'success') => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+    setToast({ text, type })
+    toastTimerRef.current = setTimeout(() => setToast(null), 4000)
+  }, [])
 
   const refresh = useCallback(async () => {
     setLoading(true)
@@ -244,6 +265,102 @@ export function MemoryTab() {
     if (e.key === 'Enter') { setPage(1); refresh() }
   }
 
+  // ─── 导出记忆（M3/T34）──────────────────────────────────────────────────
+  const handleExport = useCallback(async () => {
+    setActionBusy(true)
+    try {
+      const data = await exportMemories()
+      if (!data) { showToast('导出失败', 'error'); return }
+      const json = JSON.stringify(data, null, 2)
+      const blob = new Blob([json], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      const dateStr = new Date().toISOString().slice(0, 10)
+      a.href = url
+      a.download = `equality-memories-${dateStr}.json`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      showToast(`已导出 ${data.count} 条记忆`, 'success')
+    } catch {
+      showToast('导出失败', 'error')
+    } finally {
+      setActionBusy(false)
+    }
+  }, [exportMemories, showToast])
+
+  // ─── 导入记忆（M3/T34）──────────────────────────────────────────────────
+  const handleImportClick = useCallback(() => {
+    fileInputRef.current?.click()
+  }, [])
+
+  const handleImportFile = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    // 重置 input（允许再次选择同一文件）
+    e.target.value = ''
+
+    setActionBusy(true)
+    try {
+      const text = await file.text()
+      let parsed: any
+      try {
+        parsed = JSON.parse(text)
+      } catch {
+        showToast('JSON 格式错误，无法解析', 'error')
+        return
+      }
+
+      // 支持 { items: [...] } 和直接 [...] 两种格式
+      const items = Array.isArray(parsed) ? parsed : (parsed.items ?? parsed)
+      if (!Array.isArray(items)) {
+        showToast('无效的导入格式（需要包含 items 数组）', 'error')
+        return
+      }
+
+      // 确认对话框
+      const ok = confirm(`即将导入 ${items.length} 条记忆（合并模式，重复将跳过）。\n\n确定继续？`)
+      if (!ok) return
+
+      const result = await importMemories(items, 'merge')
+      if (!result) { showToast('导入失败', 'error'); return }
+
+      const parts: string[] = []
+      if (result.imported > 0) parts.push(`导入 ${result.imported} 条`)
+      if (result.skipped > 0) parts.push(`跳过 ${result.skipped} 条重复`)
+      if (result.blocked > 0) parts.push(`拦截 ${result.blocked} 条`)
+      showToast(parts.length > 0 ? `✅ ${parts.join('，')}` : '无新记忆可导入', parts.length > 0 ? 'success' : 'info')
+      refresh()
+    } catch {
+      showToast('导入失败', 'error')
+    } finally {
+      setActionBusy(false)
+    }
+  }, [importMemories, showToast, refresh])
+
+  // ─── 手动 GC（M3/T34）──────────────────────────────────────────────────
+  const handleGC = useCallback(async () => {
+    setActionBusy(true)
+    try {
+      const result = await triggerMemoryGC()
+      if (!result) { showToast('清理失败', 'error'); return }
+      if (result.archived === 0 && result.deleted === 0) {
+        showToast('没有需要清理的记忆', 'info')
+      } else {
+        const parts: string[] = []
+        if (result.archived > 0) parts.push(`归档 ${result.archived} 条`)
+        if (result.deleted > 0) parts.push(`永删 ${result.deleted} 条`)
+        showToast(`🧹 ${parts.join('，')}`, 'success')
+        refresh()
+      }
+    } catch {
+      showToast('清理失败', 'error')
+    } finally {
+      setActionBusy(false)
+    }
+  }, [triggerMemoryGC, showToast, refresh])
+
   const toggleSelect = (id: string) => {
     setSelected(prev => {
       const n = new Set(prev)
@@ -264,8 +381,25 @@ export function MemoryTab() {
 
   return (
     <div className="memory-tab">
+      {/* 隐藏文件输入（导入用） */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".json"
+        style={{ display: 'none' }}
+        onChange={handleImportFile}
+      />
+
+      {/* 操作反馈 Toast */}
+      {toast && (
+        <div className={`memory-toast memory-toast-${toast.type}`}>
+          {toast.text}
+          <button className="memory-toast-close" onClick={() => setToast(null)}>✕</button>
+        </div>
+      )}
+
       {/* 统计面板 */}
-      <StatsPanel stats={stats} />
+      <StatsPanel stats={stats} busy={actionBusy} onExport={handleExport} onImport={handleImportClick} onGC={handleGC} />
 
       {/* 工具栏 */}
       <div className="memory-toolbar">

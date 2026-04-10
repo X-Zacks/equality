@@ -63,7 +63,7 @@
 - [x] T31: `hybrid-search.ts` — fuseScores 增加 `createdAt` 参数 + 时间衰减因子 `exp(-ln2/30 × ageDays)`，pinned 豁免
 - [x] T32: `db.ts` — `memoryGC()` 自动归档策略 (importance≤3/90d, ≤5/180d, archived/365d 永删)
 - [x] T33: `index.ts` — GC 启动时执行一次 + setInterval 24h；GET /memories/export + POST /memories/import + POST /memories/gc
-- [ ] T34: `MemoryTab.tsx` — StatsPanel 增加 "导出" / "导入" 按钮 + 结果提示（UI deferred）
+- [x] T34: `MemoryTab.tsx` — StatsPanel 增加 "导出" / "导入" / "清理" 按钮 + 文件选择 + 结果 Toast
 - [x] T35: `Settings.tsx` — 高级设置增加 "自动记忆 (Auto Capture)" 开关 → MEMORY_AUTO_CAPTURE
 - [x] T36: `agent/runner.ts` — autoCapture 检查 MEMORY_AUTO_CAPTURE 开关 (off 时跳过)
 - [x] T37: 测试 — 时间衰减 + GC + 导入导出 + autoCapture 开关 (17 assertions)
@@ -73,5 +73,6 @@
 - M1: 25 个任务（T1-T25），~1100 行新增 ✅ 已完成 (b74fc30)
 - M1.5: 6 个任务（T22a-T22f），~120 行新增/修改 ✅ 已完成 (74f1c4e)
 - M2: 5 个任务（T26-T30），~300 行修改 ✅ 已完成 (74f1c4e)
-- M3: 7 个任务（T31-T37），~500 行 ✅ 6/7 完成（T34 MemoryTab 导入导出 UI deferred）
+- M3: 7 个任务（T31-T37），~500 行 ✅ 已完成
 - **总计**: 74 assertions passing (M1=47, M2=10, M3=17)
+- **Phase M 全部完成** 🎉
