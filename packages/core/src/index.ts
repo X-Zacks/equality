@@ -22,7 +22,12 @@ import type { BeforeToolCallInfo } from './agent/runner.js'
 import { SubagentManager } from './agent/subagent-manager.js'
 import { DefaultContextEngine } from './context/index.js'
 import { closeSessionBrowser } from './tools/builtins/browser.js'
-import { backfillEmbeddings } from './memory/index.js'
+import {
+  backfillEmbeddings,
+  memorySave, memoryDelete, memoryGetById, memoryUpdate,
+  memoryListPaged, memoryStats, scanMemoryThreats, checkMemoryDuplicate,
+} from './memory/index.js'
+import type { MemorySaveOptions, MemoryListPagedOptions } from './memory/index.js'
 import { SkillsWatcher } from './skills/index.js'
 import { fetchGallery, installSkill, uninstallSkill, scanSkillContent, TRUSTED_REPOS } from './skills/gallery.js'
 import { buildSkillStatus } from './skills/status.js'
@@ -286,7 +291,7 @@ await app.register(cors, {
     // 其余（外部网页）一律拒绝
     cb(Object.assign(new Error('CORS: origin not allowed'), { statusCode: 403 }), false)
   },
-  methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   exposedHeaders: ['Content-Type'],
   credentials: false,
@@ -884,6 +889,149 @@ app.get('/security-audit', async (_req, reply) => {
     proxyUrl: process.env.HTTPS_PROXY || process.env.HTTP_PROXY || undefined,
   })
   return reply.send(report)
+})
+
+// ─── Memory Management（Phase M1）─────────────────────────────────────────────
+
+// T8: GET /memories — 分页列表
+app.get<{ Querystring: Record<string, string | undefined> }>('/memories', async (req, reply) => {
+  const q = req.query
+  const options: MemoryListPagedOptions = {
+    page: q.page ? parseInt(q.page) : 1,
+    pageSize: q.pageSize ? parseInt(q.pageSize) : 20,
+    category: q.category || undefined,
+    agentId: q.agent || undefined,
+    workspaceDir: q.workspace || undefined,
+    source: q.source || undefined,
+    search: q.search || undefined,
+    archived: q.archived === 'true' ? true : q.archived === 'false' ? false : undefined,
+    pinned: q.pinned === 'true' ? true : q.pinned === 'false' ? false : undefined,
+  }
+  return reply.send(memoryListPaged(options))
+})
+
+// T9: GET /memories/stats — 统计
+app.get('/memories/stats', async (_req, reply) => {
+  return reply.send(memoryStats())
+})
+
+// T9: GET /memories/:id — 详情
+app.get<{ Params: { id: string } }>('/memories/:id', async (req, reply) => {
+  const entry = memoryGetById(req.params.id)
+  if (!entry) return reply.status(404).send({ error: 'not_found' })
+  return reply.send(entry)
+})
+
+// T10: POST /memories — 创建（manual source + 安全扫描 + 去重）
+app.post('/memories', async (req, reply) => {
+  const body = req.body as {
+    text?: string
+    category?: string
+    importance?: number
+    agentId?: string
+    workspaceDir?: string
+    pinned?: boolean
+  }
+
+  if (!body.text?.trim()) {
+    return reply.status(400).send({ error: 'text_required' })
+  }
+
+  // 安全扫描
+  const threat = scanMemoryThreats(body.text.trim())
+  if (!threat.safe) {
+    return reply.status(400).send({ error: 'memory_threat_detected', type: threat.type })
+  }
+
+  // 去重检查
+  const dup = checkMemoryDuplicate(body.text.trim())
+  if (dup.duplicate) {
+    return reply.send({
+      duplicate: true,
+      existingId: dup.existingId,
+      existingText: dup.existingText,
+      similarity: dup.similarity,
+    })
+  }
+
+  const opts: MemorySaveOptions = {
+    category: body.category,
+    importance: body.importance,
+    agentId: body.agentId,
+    workspaceDir: body.workspaceDir,
+    source: 'manual',
+    pinned: body.pinned,
+  }
+
+  const result = memorySave(body.text, opts)
+  if ('blocked' in result) {
+    return reply.status(400).send({ error: 'memory_threat_detected', type: result.type })
+  }
+  if ('duplicate' in result) {
+    return reply.send(result)
+  }
+  return reply.status(201).send(result)
+})
+
+// T11: PATCH /memories/:id — 编辑 + 快照失效
+app.patch<{ Params: { id: string } }>('/memories/:id', async (req, reply) => {
+  const body = req.body as {
+    text?: string
+    category?: string
+    importance?: number
+    pinned?: boolean
+    archived?: boolean
+  }
+
+  const updated = memoryUpdate(req.params.id, body)
+  if (!updated) return reply.status(404).send({ error: 'not_found' })
+
+  // T16: 快照失效 — 清空活跃 session 的冻结快照
+  try {
+    const { invalidateMemorySnapshots } = await import('./session/store.js')
+    invalidateMemorySnapshots()
+  } catch {
+    // session store 未初始化时忽略
+  }
+
+  return reply.send(updated)
+})
+
+// T12: DELETE /memories/:id — 单条删除
+app.delete<{ Params: { id: string } }>('/memories/:id', async (req, reply) => {
+  const ok = memoryDelete(req.params.id)
+  if (!ok) return reply.status(404).send({ error: 'not_found' })
+
+  // 快照失效
+  try {
+    const { invalidateMemorySnapshots } = await import('./session/store.js')
+    invalidateMemorySnapshots()
+  } catch { /* ignore */ }
+
+  return reply.send({ ok: true })
+})
+
+// T12: DELETE /memories?ids= — 批量删除
+app.delete('/memories', async (req, reply) => {
+  const q = (req.query as Record<string, string | undefined>)
+  const idsParam = q.ids
+  if (!idsParam) return reply.status(400).send({ error: 'ids_required' })
+
+  const ids = idsParam.split(',').map(s => s.trim()).filter(Boolean)
+  let deleted = 0
+  for (const id of ids) {
+    if (memoryDelete(id)) deleted++
+  }
+
+  // 快照失效
+  if (deleted > 0) {
+    try {
+      const { invalidateMemorySnapshots } = await import('./session/store.js')
+      invalidateMemorySnapshots()
+    } catch { /* ignore */ }
+  }
+
+  return reply.send({ ok: true, deleted })
 })
 
 // ─── Copilot: Device Flow Login ───────────────────────────────────────────────

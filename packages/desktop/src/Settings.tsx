@@ -2,9 +2,10 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useGateway } from './useGateway'
 import type { SettingsState, SecretKey } from './useGateway'
 import { open } from '@tauri-apps/plugin-shell'
+import { MemoryTab } from './MemoryTab'
 import './Settings.css'
 
-type SettingsTab = 'model' | 'tools' | 'skills' | 'advanced' | 'about'
+type SettingsTab = 'model' | 'tools' | 'skills' | 'memory' | 'advanced' | 'about'
 type ThemePreference = 'system' | 'light' | 'dark'
 type EffectiveTheme = 'light' | 'dark'
 
@@ -833,6 +834,7 @@ export default function Settings({
           { id: 'model' as SettingsTab, label: '🤖 模型' },
           { id: 'tools' as SettingsTab, label: '🔧 工具' },
           { id: 'skills' as SettingsTab, label: '📚 Skills' },
+          { id: 'memory' as SettingsTab, label: '🧠 记忆' },
           { id: 'advanced' as SettingsTab, label: '⚙️ 高级' },
           { id: 'about' as SettingsTab, label: 'ℹ️ 关于' },
         ]).map(t => (
@@ -1104,6 +1106,9 @@ export default function Settings({
           </div>
         </>
       )}
+
+      {/* ━━━ 记忆 Tab ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+      {tab === 'memory' && <MemoryTab />}
 
       {/* ━━━ 高级 Tab ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
       {tab === 'advanced' && (

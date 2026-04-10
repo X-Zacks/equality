@@ -419,8 +419,8 @@ export async function runAttempt(params: RunAttemptParams): Promise<RunAttemptRe
   // 4. 追加用户消息（使用剥离 @model 后的消息）
   session.messages.push({ role: 'user', content: actualMessage })
 
-  // 4.5 Memory: 自动 Capture（检测“记住/remember”等关键词）
-  autoCapture(actualMessage, sessionKey)
+  // 4.5 Memory: 自动 Capture（检测"记住/remember"等关键词）
+  autoCapture(actualMessage, sessionKey, agentId, params.workspaceDir)
 
   // 5. Context Engine: 组装消息列表（system prompt + memory recall + history + compaction + trim）
   // 解析 @ Skill 指定（支持多个）
@@ -589,6 +589,7 @@ export async function runAttempt(params: RunAttemptParams): Promise<RunAttemptRe
       const toolCtx: ToolContext = {
         workspaceDir: params.workspaceDir ?? process.cwd(),
         sessionKey: params.sessionKey,
+        agentId,
         abortSignal: abort.signal,
         proxyUrl: getProxyUrl() ?? undefined,
         provider,
@@ -926,16 +927,29 @@ const CAPTURE_TRIGGERS = [
 
 /**
  * 检测用户消息是否包含"记住"类触发词，自动存储到长期记忆。
+ * M1: 传入 agentId + workspaceDir + source='auto-capture'
  */
-function autoCapture(message: string, sessionKey?: string): void {
+function autoCapture(message: string, sessionKey?: string, agentId?: string, workspaceDir?: string): void {
   try {
     const text = message.trim()
     if (text.length < 5 || text.length > 500) return
 
     for (const pat of CAPTURE_TRIGGERS) {
       if (pat.test(text)) {
-        memorySave(text, 'general', 6, sessionKey)
-        console.log(`[memory] 自动 Capture: "${text.slice(0, 60)}..."`)
+        const result = memorySave(text, {
+          category: 'general',
+          importance: 6,
+          sessionKey,
+          agentId: agentId ?? 'default',
+          workspaceDir,
+          source: 'auto-capture',
+        })
+        // 去重或安全拦截时静默跳过
+        if ('blocked' in result || 'duplicate' in result) {
+          console.log(`[memory] autoCapture 跳过: ${('blocked' in result) ? '安全拦截' : '去重'}`)
+          return
+        }
+        console.log(`[memory] 自动 Capture: "${text.slice(0, 60)}..." (agent=${agentId ?? 'default'})`)
         return
       }
     }

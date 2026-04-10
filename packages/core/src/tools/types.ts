@@ -28,6 +28,8 @@ export interface ToolContext {
   workspaceDir: string
   /** 当前会话 key（browser 等有状态工具用于隔离） */
   sessionKey?: string
+  /** 当前 Agent ID（M1: 记忆工具用于关联 agent） */
+  agentId?: string
   /** 取消信号（用户中止时触发） */
   abortSignal?: AbortSignal
   /** HTTPS 代理 URL（web_fetch / bash 继承） */

@@ -3,11 +3,13 @@
  *
  * Phase 12: memory_save + memory_search
  * Phase K2: memory_search 接入混合搜索（BM25 + cosine score fusion）
+ * Phase M1: memory_save 传入 sessionKey + agentId + workspaceDir + source
  * 使用 SQLite + FTS5 + embedding 实现跨 Session 的长期记忆。
  */
 
 import type { ToolDefinition, ToolResult, ToolContext } from '../types.js'
 import { memorySave, memorySearch, memoryList, memoryDelete, memoryCount, getAllMemoriesWithEmbedding, getDefaultEmbedder } from '../../memory/index.js'
+import type { MemorySaveOptions } from '../../memory/index.js'
 import { hybridSearch } from '../../memory/index.js'
 import type { MemoryRecord } from '../../memory/index.js'
 
@@ -42,7 +44,7 @@ export const memorySaveTool: ToolDefinition = {
 
   async execute(
     args: Record<string, unknown>,
-    _ctx: ToolContext,
+    ctx: ToolContext,
   ): Promise<ToolResult> {
     const text = String(args.text ?? '').trim()
     if (!text) {
@@ -55,9 +57,31 @@ export const memorySaveTool: ToolDefinition = {
     const category = String(args.category ?? 'general')
     const importance = Math.min(10, Math.max(1, Number(args.importance) || 5))
 
-    const entry = memorySave(text, category, importance)
+    // M1: 传入完整上下文
+    const opts: MemorySaveOptions = {
+      category,
+      importance,
+      sessionKey: ctx.sessionKey,
+      agentId: ctx.agentId ?? 'default',
+      workspaceDir: ctx.workspaceDir,
+      source: 'tool',
+    }
+
+    const result = memorySave(text, opts)
+
+    // 去重或安全拦截
+    if ('blocked' in result) {
+      return { content: `⚠️ 记忆被安全扫描拦截 (${result.type})`, isError: true }
+    }
+    if ('duplicate' in result) {
+      return {
+        content: `ℹ️ 检测到近似记忆 (相似度: ${result.similarity.toFixed(2)})，已跳过保存。\n` +
+          `已有记忆: ${result.existingText.slice(0, 100)}`,
+      }
+    }
+
     return {
-      content: `✅ 已保存记忆 (id: ${entry.id.slice(0, 8)})\n` +
+      content: `✅ 已保存记忆 (id: ${result.id.slice(0, 8)})\n` +
         `分类: ${category} | 重要性: ${importance}\n` +
         `内容: ${text.slice(0, 100)}${text.length > 100 ? '...' : ''}`,
     }

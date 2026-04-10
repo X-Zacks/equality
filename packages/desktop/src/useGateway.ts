@@ -307,10 +307,89 @@ export function useGateway() {
     } catch { return false }
   }, [])
 
+  // ─── Memory CRUD（Phase M1）─────────────────────────────────────────────────
+
+  const listMemories = useCallback(async (params?: {
+    page?: number; pageSize?: number; category?: string; agent?: string
+    workspace?: string; source?: string; search?: string; archived?: boolean; pinned?: boolean
+  }) => {
+    try {
+      const qs = new URLSearchParams()
+      if (params?.page) qs.set('page', String(params.page))
+      if (params?.pageSize) qs.set('pageSize', String(params.pageSize))
+      if (params?.category) qs.set('category', params.category)
+      if (params?.agent) qs.set('agent', params.agent)
+      if (params?.workspace) qs.set('workspace', params.workspace)
+      if (params?.source) qs.set('source', params.source)
+      if (params?.search) qs.set('search', params.search)
+      if (params?.archived !== undefined) qs.set('archived', String(params.archived))
+      if (params?.pinned !== undefined) qs.set('pinned', String(params.pinned))
+      const resp = await fetch(`${CORE_URL}/memories?${qs}`)
+      return resp.ok ? await resp.json() : { items: [], total: 0, page: 1, pageSize: 20 }
+    } catch { return { items: [], total: 0, page: 1, pageSize: 20 } }
+  }, [])
+
+  const getMemory = useCallback(async (id: string) => {
+    try {
+      const resp = await fetch(`${CORE_URL}/memories/${id}`)
+      return resp.ok ? await resp.json() : null
+    } catch { return null }
+  }, [])
+
+  const createMemory = useCallback(async (data: {
+    text: string; category?: string; importance?: number
+    agentId?: string; workspaceDir?: string; pinned?: boolean
+  }) => {
+    try {
+      const resp = await fetch(`${CORE_URL}/memories`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      })
+      return await resp.json()
+    } catch { return null }
+  }, [])
+
+  const updateMemory = useCallback(async (id: string, data: {
+    text?: string; category?: string; importance?: number
+    pinned?: boolean; archived?: boolean
+  }) => {
+    try {
+      const resp = await fetch(`${CORE_URL}/memories/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      })
+      return resp.ok ? await resp.json() : null
+    } catch { return null }
+  }, [])
+
+  const deleteMemory = useCallback(async (id: string) => {
+    try {
+      const resp = await fetch(`${CORE_URL}/memories/${id}`, { method: 'DELETE' })
+      return resp.ok
+    } catch { return false }
+  }, [])
+
+  const deleteMemories = useCallback(async (ids: string[]) => {
+    try {
+      const resp = await fetch(`${CORE_URL}/memories?ids=${ids.join(',')}`, { method: 'DELETE' })
+      return resp.ok ? await resp.json() : { ok: false, deleted: 0 }
+    } catch { return { ok: false, deleted: 0 } }
+  }, [])
+
+  const getMemoryStats = useCallback(async () => {
+    try {
+      const resp = await fetch(`${CORE_URL}/memories/stats`)
+      return resp.ok ? await resp.json() : null
+    } catch { return null }
+  }, [])
+
   return {
     coreOnline, sendMessage, abort,
     saveApiKey, loadSettings, deleteKey,
     copilotLogin, copilotLoginStatus, copilotLogout, copilotModels,
     listSessions, loadSession, deleteSession,
+    listMemories, getMemory, createMemory, updateMemory, deleteMemory, deleteMemories, getMemoryStats,
   }
 }

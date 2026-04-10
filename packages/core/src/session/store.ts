@@ -55,3 +55,21 @@ export function reap(): number {
 export function size(): number {
   return store.size
 }
+
+/**
+ * M1 T16: 清空所有活跃 session 的冻结记忆快照。
+ * 当记忆被编辑/删除/添加时调用，强制下次 assemble 重新 Recall。
+ */
+export function invalidateMemorySnapshots(): number {
+  let count = 0
+  for (const session of store.values()) {
+    if (session.frozenMemorySnapshot) {
+      session.frozenMemorySnapshot = undefined
+      count++
+    }
+  }
+  if (count > 0) {
+    console.log(`[session] 已清空 ${count} 个 session 的冻结记忆快照`)
+  }
+  return count
+}
