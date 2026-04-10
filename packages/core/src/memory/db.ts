@@ -5,6 +5,8 @@
  * Phase K2: 增加 embedding BLOB 列 + 混合搜索支持。
  * Phase M1: 增加 agent_id / workspace_dir / source / updated_at / archived / pinned +
  *           去重 / 安全扫描 / memoryUpdate / memoryListPaged / memoryStats。
+ * Phase M2: 作用域搜索 memorySearchScoped + memoryGetPinned。
+ * Phase M3: memoryGC 自动归档 + memoryExport / memoryImport。
  * 存储路径：%APPDATA%\Equality\memory.db
  */
 
@@ -30,6 +32,8 @@ export interface MemoryEntry {
   updatedAt?: number
   archived: boolean
   pinned: boolean
+  /** K2/M2: 嵌入向量（仅在需要时填充） */
+  embedding?: Float32Array | null
 }
 
 export interface MemorySaveOptions {
@@ -203,10 +207,11 @@ interface MemoryRow {
   updated_at: number | null
   archived: number
   pinned: number
+  embedding?: Buffer | null
 }
 
 function rowToEntry(r: MemoryRow): MemoryEntry {
-  return {
+  const entry: MemoryEntry = {
     id: r.id,
     text: r.text,
     category: r.category,
@@ -220,6 +225,10 @@ function rowToEntry(r: MemoryRow): MemoryEntry {
     archived: r.archived === 1,
     pinned: r.pinned === 1,
   }
+  if (r.embedding) {
+    entry.embedding = new Float32Array(new Uint8Array(r.embedding).buffer)
+  }
+  return entry
 }
 
 // ─── CRUD ─────────────────────────────────────────────────────────────────────
@@ -586,6 +595,207 @@ export function memoryStats(): MemoryStats {
   }
 
   return { total, byCategory, byAgent, bySource, byWorkspace, archived, pinned, oldestAt: oldest, newestAt: newest, embeddingCoverage }
+}
+
+// ─── M2: 作用域搜索 + Pinned ─────────────────────────────────────────────────
+
+export interface MemorySearchScope {
+  agentId?: string
+  workspaceDir?: string
+}
+
+/**
+ * M2 T26: 按 agent_id + workspace_dir 5 层优先级过滤候选记忆。
+ * 返回去重后的候选 MemoryEntry[]，用于 hybrid search 的输入池。
+ */
+export function memoryCandidatesScoped(scope: MemorySearchScope): MemoryEntry[] {
+  const d = db()
+  const agentId = scope.agentId ?? 'default'
+  const hasWs = scope.workspaceDir != null
+
+  let sql: string
+  const params: unknown[] = []
+
+  if (hasWs) {
+    // 5 层: 本agent+本ws, 本agent+全局, default+本ws, default+全局, fact跨agent
+    sql = `
+      SELECT id, text, category, importance, created_at, session_key, embedding,
+             agent_id, workspace_dir, source, updated_at, archived, pinned
+      FROM memories
+      WHERE archived = 0 AND (
+        (agent_id = ? AND workspace_dir = ?)
+        OR (agent_id = ? AND workspace_dir IS NULL)
+        OR (agent_id = 'default' AND workspace_dir = ?)
+        OR (agent_id = 'default' AND workspace_dir IS NULL)
+        OR category = 'fact'
+      )
+    `
+    params.push(agentId, scope.workspaceDir, agentId, scope.workspaceDir)
+  } else {
+    // 无 workspace: 本agent(全部ws) + default + fact
+    sql = `
+      SELECT id, text, category, importance, created_at, session_key, embedding,
+             agent_id, workspace_dir, source, updated_at, archived, pinned
+      FROM memories
+      WHERE archived = 0 AND (
+        agent_id = ?
+        OR agent_id = 'default'
+        OR category = 'fact'
+      )
+    `
+    params.push(agentId)
+  }
+
+  const rows = d.prepare(sql).all(...params) as MemoryRow[]
+  // 去重 by id
+  const seen = new Set<string>()
+  const result: MemoryEntry[] = []
+  for (const r of rows) {
+    if (!seen.has(r.id)) {
+      seen.add(r.id)
+      result.push(rowToEntry(r))
+    }
+  }
+  return result
+}
+
+/**
+ * M2 T27: 获取 pinned 记忆。
+ * 如果提供 scope，按作用域过滤 + 全局 pinned。
+ */
+export function memoryGetPinned(scope?: MemorySearchScope): MemoryEntry[] {
+  const d = db()
+  if (!scope) {
+    const rows = d.prepare(`
+      SELECT * FROM memories WHERE pinned = 1 AND archived = 0
+    `).all() as MemoryRow[]
+    return rows.map(rowToEntry)
+  }
+
+  const agentId = scope.agentId ?? 'default'
+  const rows = d.prepare(`
+    SELECT * FROM memories
+    WHERE pinned = 1 AND archived = 0 AND (
+      agent_id = ? OR agent_id = 'default'
+    )
+  `).all(agentId) as MemoryRow[]
+  return rows.map(rowToEntry)
+}
+
+// ─── M3: GC + 导入导出 ──────────────────────────────────────────────────────
+
+/**
+ * M3 T32: 自动归档 GC。
+ * - importance≤3 + age>90d + !pinned → 归档
+ * - importance≤5 + age>180d + !pinned → 归档
+ * - archived=1 + age>365d → 永久删除
+ */
+export function memoryGC(): { archived: number; deleted: number } {
+  const d = db()
+  const now = Date.now()
+  const day90 = now - 90 * 86400_000
+  const day180 = now - 180 * 86400_000
+  const day365 = now - 365 * 86400_000
+
+  // 归档低重要性老旧记忆
+  const arch1 = d.prepare(`
+    UPDATE memories SET archived = 1, updated_at = ?
+    WHERE archived = 0 AND pinned = 0
+      AND importance <= 3 AND created_at < ?
+  `).run(now, day90)
+
+  const arch2 = d.prepare(`
+    UPDATE memories SET archived = 1, updated_at = ?
+    WHERE archived = 0 AND pinned = 0
+      AND importance <= 5 AND created_at < ?
+  `).run(now, day180)
+
+  const archived = (arch1.changes ?? 0) + (arch2.changes ?? 0)
+
+  // 永久删除过期归档
+  const del = d.prepare(`
+    DELETE FROM memories WHERE archived = 1 AND created_at < ?
+  `).run(day365)
+  const deleted = del.changes ?? 0
+
+  if (archived > 0 || deleted > 0) {
+    console.log(`[memory] GC: 归档 ${archived} 条, 永久删除 ${deleted} 条`)
+  }
+  return { archived, deleted }
+}
+
+/**
+ * M3 T33: 导出所有记忆（不含 embedding）。
+ */
+export function memoryExport(): { version: number; exportedAt: number; count: number; items: MemoryEntry[] } {
+  const rows = db().prepare(`
+    SELECT id, text, category, importance, created_at, session_key,
+           agent_id, workspace_dir, source, updated_at, archived, pinned
+    FROM memories ORDER BY created_at DESC
+  `).all() as MemoryRow[]
+
+  return {
+    version: 1,
+    exportedAt: Date.now(),
+    count: rows.length,
+    items: rows.map(rowToEntry),
+  }
+}
+
+/**
+ * M3 T33: 导入记忆。
+ * mode='merge' (默认): 跳过重复 + 安全扫描。
+ * mode='replace': 清空后导入。
+ */
+export function memoryImport(
+  items: Array<{ text: string; category?: string; importance?: number; agentId?: string; workspaceDir?: string; source?: string; pinned?: boolean }>,
+  mode: 'merge' | 'replace' = 'merge',
+): { imported: number; skipped: number; blocked: number; deleted: number } {
+  const d = db()
+  let deleted = 0
+
+  if (mode === 'replace') {
+    const del = d.prepare('DELETE FROM memories').run()
+    deleted = del.changes ?? 0
+  }
+
+  let imported = 0
+  let skipped = 0
+  let blocked = 0
+
+  const txn = d.transaction(() => {
+    for (const item of items) {
+      const text = (item.text ?? '').trim()
+      if (!text) { skipped++; continue }
+
+      // 安全扫描
+      const threat = scanMemoryThreats(text)
+      if (!threat.safe) { blocked++; continue }
+
+      // 去重 (merge 模式)
+      if (mode === 'merge') {
+        const dup = checkMemoryDuplicate(text)
+        if (dup.duplicate) { skipped++; continue }
+      }
+
+      const id = randomUUID()
+      const now = Date.now()
+      let embeddingBuf: Buffer | null = null
+      try { embeddingBuf = computeEmbeddingBuffer(text) } catch { /* 降级 */ }
+
+      d.prepare(`
+        INSERT INTO memories (id, text, category, importance, created_at, session_key, embedding,
+                              agent_id, workspace_dir, source, updated_at, archived, pinned)
+        VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, NULL, 0, ?)
+      `).run(id, text, item.category ?? 'general', item.importance ?? 5, now, embeddingBuf,
+             item.agentId ?? 'default', item.workspaceDir ?? null, item.source ?? 'manual', item.pinned ? 1 : 0)
+      imported++
+    }
+  })
+  txn()
+
+  console.log(`[memory] 导入完成: imported=${imported}, skipped=${skipped}, blocked=${blocked}, deleted=${deleted}`)
+  return { imported, skipped, blocked, deleted }
 }
 
 // ─── K2: Embedding 辅助 ──────────────────────────────────────────────────────

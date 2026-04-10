@@ -1193,6 +1193,38 @@ export default function Settings({
                 </div>
               </div>
             </div>
+
+            {/* M3/T35: 自动记忆开关 */}
+            <div className="advanced-item" style={{ marginTop: 12, marginBottom: 10 }}>
+              <div className="advanced-item-header">
+                <span className="advanced-item-label">🧠 自动记忆 (Auto Capture)</span>
+                <label style={{ position: 'relative', display: 'inline-block', width: 40, height: 22 }}>
+                  <input
+                    type="checkbox"
+                    style={{ opacity: 0, width: 0, height: 0 }}
+                    checked={getMasked('MEMORY_AUTO_CAPTURE') !== 'off'}
+                    onChange={async (e) => {
+                      const val = e.target.checked ? 'on' : 'off'
+                      await saveApiKey('MEMORY_AUTO_CAPTURE', val)
+                      // 刷新
+                      const s = await loadSettings()
+                      if (s) setSettings(s)
+                    }}
+                  />
+                  <span style={{
+                    position: 'absolute', cursor: 'pointer', top: 0, left: 0, right: 0, bottom: 0,
+                    background: getMasked('MEMORY_AUTO_CAPTURE') === 'off' ? '#555' : '#30d158',
+                    borderRadius: 11, transition: 'background 0.2s',
+                  }}>
+                    <span style={{
+                      position: 'absolute', height: 18, width: 18, left: getMasked('MEMORY_AUTO_CAPTURE') === 'off' ? 2 : 20,
+                      bottom: 2, background: '#fff', borderRadius: '50%', transition: 'left 0.2s',
+                    }} />
+                  </span>
+                </label>
+              </div>
+              <p className="advanced-item-desc">检测到"记住/remember"等关键词时自动保存到长期记忆。关闭后仍可手动使用 memory_save 工具。</p>
+            </div>
           </div>
 
           {/* ─── 高级设置 drawer ─────────────────────────────────────── */}

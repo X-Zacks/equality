@@ -26,6 +26,7 @@ import {
   backfillEmbeddings,
   memorySave, memoryDelete, memoryGetById, memoryUpdate,
   memoryListPaged, memoryStats, scanMemoryThreats, checkMemoryDuplicate,
+  memoryGC, memoryExport, memoryImport,
 } from './memory/index.js'
 import type { MemorySaveOptions, MemoryListPagedOptions } from './memory/index.js'
 import { SkillsWatcher } from './skills/index.js'
@@ -460,6 +461,7 @@ app.post<{ Body: ChatBody }>('/chat/stream', async (req, reply) => {
         contextEngine: new DefaultContextEngine(),
         onModelSwitch: (info) => send({ type: 'model_switch', from: info.fromProvider, to: info.toProvider, reason: info.reason }),
         onInteractive: (payload) => send({ type: 'interactive', payload }),
+        onMemoryCaptured: (info) => send({ type: 'memory_captured', id: info.id, content: info.text, category: info.category }),
         ...(provider ? { provider } : {}),
         onDelta: (chunk) => send({ type: 'delta', content: chunk }),
         onToolStart: (info) => send({ type: 'tool_start', name: info.name, args: info.args, toolCallId: info.toolCallId }),
@@ -1034,6 +1036,43 @@ app.delete('/memories', async (req, reply) => {
   return reply.send({ ok: true, deleted })
 })
 
+// M3/T33: GET /memories/export — 导出全部记忆
+app.get('/memories/export', async (_req, reply) => {
+  try {
+    const data = memoryExport()
+    return reply.send(data)
+  } catch (err) {
+    return reply.status(500).send({ error: String(err) })
+  }
+})
+
+// M3/T33: POST /memories/import — 导入记忆
+app.post<{ Body: { items: unknown[]; mode?: 'merge' | 'replace' } }>('/memories/import', async (req, reply) => {
+  const { items, mode } = req.body ?? {}
+  if (!Array.isArray(items)) return reply.status(400).send({ error: 'items must be an array' })
+  try {
+    const result = memoryImport(items as any[], mode ?? 'merge')
+    // 导入后快照失效
+    try {
+      const { invalidateMemorySnapshots } = await import('./session/store.js')
+      invalidateMemorySnapshots()
+    } catch { /* ignore */ }
+    return reply.send(result)
+  } catch (err) {
+    return reply.status(500).send({ error: String(err) })
+  }
+})
+
+// M3/T34: POST /memories/gc — 手动触发 GC
+app.post('/memories/gc', async (_req, reply) => {
+  try {
+    const result = memoryGC()
+    return reply.send(result)
+  } catch (err) {
+    return reply.status(500).send({ error: String(err) })
+  }
+})
+
 // ─── Copilot: Device Flow Login ───────────────────────────────────────────────
 app.post('/copilot/login', async (_req, reply) => {
   try {
@@ -1098,6 +1137,28 @@ try {
       console.warn('[equality-core] embedding 回填失败:', err)
     }
   }, 2000) // 延迟 2s，等数据库初始化稳定后再回填
+
+  // M3/T34: 启动时 GC + 每 24h 自动 GC
+  setTimeout(() => {
+    try {
+      const gc = memoryGC()
+      if (gc.archived > 0 || gc.deleted > 0) {
+        console.log(`[equality-core] memory GC: archived=${gc.archived}, deleted=${gc.deleted}`)
+      }
+    } catch (err) {
+      console.warn('[equality-core] memory GC 失败:', err)
+    }
+  }, 5000) // 延迟 5s
+  setInterval(() => {
+    try {
+      const gc = memoryGC()
+      if (gc.archived > 0 || gc.deleted > 0) {
+        console.log(`[equality-core] memory GC (scheduled): archived=${gc.archived}, deleted=${gc.deleted}`)
+      }
+    } catch (err) {
+      console.warn('[equality-core] memory GC 失败:', err)
+    }
+  }, 24 * 3600_000) // 24h
 } catch (err) {
   app.log.error(err)
   process.exit(1)

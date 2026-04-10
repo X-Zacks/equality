@@ -144,6 +144,11 @@ export interface RunAttemptParams {
    */
   onInteractive?: (payload: import('./interactive.js').InteractivePayload) => void
   /**
+   * 自动 Capture 成功回调（T22）。
+   * autoCapture 检测到触发词并保存成功后触发，用于 SSE 通知客户端展示 Toast。
+   */
+  onMemoryCaptured?: (info: { id: string; text: string; category: string }) => void
+  /**
    * 可插拔上下文引擎（D4）。
    * 传入则在工具执行后调用 afterToolCall、Compaction 前调用 beforeCompaction。
    * 不传则跳过（no-op）——向后兼容。
@@ -420,7 +425,7 @@ export async function runAttempt(params: RunAttemptParams): Promise<RunAttemptRe
   session.messages.push({ role: 'user', content: actualMessage })
 
   // 4.5 Memory: 自动 Capture（检测"记住/remember"等关键词）
-  autoCapture(actualMessage, sessionKey, agentId, params.workspaceDir)
+  autoCapture(actualMessage, sessionKey, agentId, params.workspaceDir, params.onMemoryCaptured)
 
   // 5. Context Engine: 组装消息列表（system prompt + memory recall + history + compaction + trim）
   // 解析 @ Skill 指定（支持多个）
@@ -436,6 +441,7 @@ export async function runAttempt(params: RunAttemptParams): Promise<RunAttemptRe
     provider,
     userMessage: actualMessage,
     workspaceDir: params.workspaceDir,
+    agentId,
     skills: params.skills,
     activeSkills,
     abortSignal: abort.signal,
@@ -928,9 +934,22 @@ const CAPTURE_TRIGGERS = [
 /**
  * 检测用户消息是否包含"记住"类触发词，自动存储到长期记忆。
  * M1: 传入 agentId + workspaceDir + source='auto-capture'
+ * M3/T36: 检查 MEMORY_AUTO_CAPTURE 开关（'off' 时跳过）
+ * T22: 成功时调用 onCaptured 回调，通知客户端显示 Toast
  */
-function autoCapture(message: string, sessionKey?: string, agentId?: string, workspaceDir?: string): void {
+function autoCapture(
+  message: string,
+  sessionKey?: string,
+  agentId?: string,
+  workspaceDir?: string,
+  onCaptured?: (info: { id: string; text: string; category: string }) => void,
+): void {
   try {
+    // M3/T36: 检查自动记忆开关
+    if (hasSecret('MEMORY_AUTO_CAPTURE') && getSecret('MEMORY_AUTO_CAPTURE') === 'off') {
+      return
+    }
+
     const text = message.trim()
     if (text.length < 5 || text.length > 500) return
 
@@ -950,6 +969,8 @@ function autoCapture(message: string, sessionKey?: string, agentId?: string, wor
           return
         }
         console.log(`[memory] 自动 Capture: "${text.slice(0, 60)}..." (agent=${agentId ?? 'default'})`)
+        // T22: 通知客户端
+        onCaptured?.({ id: result.id, text: text.slice(0, 100), category: 'general' })
         return
       }
     }

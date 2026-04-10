@@ -8,8 +8,8 @@
  */
 
 import type { ToolDefinition, ToolResult, ToolContext } from '../types.js'
-import { memorySave, memorySearch, memoryList, memoryDelete, memoryCount, getAllMemoriesWithEmbedding, getDefaultEmbedder } from '../../memory/index.js'
-import type { MemorySaveOptions } from '../../memory/index.js'
+import { memorySave, memorySearch, memoryList, memoryDelete, memoryCount, memoryCandidatesScoped, getAllMemoriesWithEmbedding, getDefaultEmbedder } from '../../memory/index.js'
+import type { MemorySaveOptions, MemorySearchScope } from '../../memory/index.js'
 import { hybridSearch } from '../../memory/index.js'
 import type { MemoryRecord } from '../../memory/index.js'
 
@@ -124,31 +124,43 @@ export const memorySearchTool: ToolDefinition = {
     const limit = Math.min(20, Math.max(1, Number(args.limit) || 5))
     const total = memoryCount()
 
-    // K2: 混合搜索（BM25 + cosine score fusion）
+    // M2: 作用域混合搜索（BM25 + cosine score fusion + scoped candidates）
     try {
-      const bm25Results = memorySearch(query, limit * 2) // 多取一些 BM25 结果用于融合
-      const allWithEmbedding = getAllMemoriesWithEmbedding()
-      const embedder = getDefaultEmbedder()
+      const scope: MemorySearchScope = { agentId: _ctx.agentId, workspaceDir: _ctx.workspaceDir }
 
-      // 转换 BM25 结果为 MemoryRecord 格式
+      // BM25 搜索
+      const bm25Results = memorySearch(query, limit * 2)
       const bm25Records: MemoryRecord[] = bm25Results.map(r => ({
         id: r.entry.id,
         text: r.entry.text,
         category: r.entry.category,
-        bm25Score: Math.abs(r.rank), // FTS5 rank 是负数，取绝对值
+        bm25Score: Math.abs(r.rank),
+        createdAt: r.entry.createdAt,
+        pinned: r.entry.pinned,
       }))
 
+      // 作用域候选（5-level 优先级）
+      const scopedCandidates = memoryCandidatesScoped(scope)
+      const scopedIds = new Set(scopedCandidates.map(e => e.id))
+
+      // 只对 scope 内的 BM25 结果做 fusion
+      const scopedBm25 = bm25Records.filter(r => scopedIds.has(r.id))
+      const candidateRecords: MemoryRecord[] = scopedCandidates.map(e => ({
+        id: e.id,
+        text: e.text,
+        category: e.category,
+        embedding: e.embedding,
+        createdAt: e.createdAt,
+        pinned: e.pinned,
+      }))
+
+      const embedder = getDefaultEmbedder()
       const hybridResults = await hybridSearch(
-        bm25Records,
-        allWithEmbedding.map(r => ({
-          id: r.id,
-          text: r.text,
-          category: r.category,
-          embedding: r.embedding,
-        })),
+        scopedBm25,
+        candidateRecords,
         query,
         embedder,
-        { query, limit, alpha: 0.4 }, // alpha=0.4 偏向语义，解决词汇不匹配问题
+        { query, limit, alpha: 0.4 },
       )
 
       if (hybridResults.length === 0) {

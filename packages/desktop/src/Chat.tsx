@@ -84,6 +84,9 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
   // ─── Interactive Payload 状态（Phase F1）──────────────────────────────────
   const [interactivePayloads, setInteractivePayloads] = useState<InteractivePayload[]>([])
 
+  // ─── Memory Captured Toast 状态（T22）──────────────────────────────────────
+  const [memoryToast, setMemoryToast] = useState<{ id: string; text: string; undone?: boolean } | null>(null)
+  const memoryToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // ─── Mention Picker 状态 ────────────────────────────────────────────────
   const [mentionState, setMentionState] = useState<{
     type: 'skill' | 'tool'
@@ -515,6 +518,7 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
       },
       (s) => setStreaming(s),
       (payload) => setInteractivePayloads(prev => [...prev, payload]),
+      handleMemoryCaptured,
     )
   }
 
@@ -556,6 +560,26 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
       (payload) => setInteractivePayloads(prev => [...prev, payload]),
     )
   }, [sendMessage, sessionKey, abort])
+
+  // ─── Memory Captured Toast 回调（T22）──────────────────────────
+  const handleMemoryCaptured = useCallback((info: { id: string; text: string; category: string }) => {
+    // 清除之前的 timer
+    if (memoryToastTimerRef.current) clearTimeout(memoryToastTimerRef.current)
+    setMemoryToast({ id: info.id, text: info.text })
+    // 5 秒自动消失
+    memoryToastTimerRef.current = setTimeout(() => setMemoryToast(null), 5000)
+  }, [])
+
+  const handleMemoryUndo = useCallback(async () => {
+    if (!memoryToast) return
+    try {
+      await invoke('proxy_request', { method: 'DELETE', path: `/memories/${memoryToast.id}` })
+      setMemoryToast(prev => prev ? { ...prev, undone: true } : null)
+      setTimeout(() => setMemoryToast(null), 1500)
+    } catch {
+      // 撤销失败静默处理
+    }
+  }, [memoryToast])
 
   // ─── 复制消息 ───────────────────────────────────────────────────
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null)
@@ -667,6 +691,31 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
 
   return (
     <div className="chat-page">
+      {/* T22: Memory Captured Toast */}
+      {memoryToast && (
+        <div className="memory-toast" style={{
+          position: 'fixed', top: 16, right: 16, zIndex: 9999,
+          background: 'var(--bg-secondary, #2a2a2a)', color: 'var(--text-primary, #e0e0e0)',
+          borderRadius: 8, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10,
+          boxShadow: '0 4px 16px rgba(0,0,0,0.3)', fontSize: 13, maxWidth: 360,
+          animation: 'fadeIn 0.2s ease-out',
+        }}>
+          {memoryToast.undone ? (
+            <span>↩️ 已撤销</span>
+          ) : (
+            <>
+              <span style={{ flex: 1 }}>💾 已自动记住: {memoryToast.text.slice(0, 60)}{memoryToast.text.length > 60 ? '...' : ''}</span>
+              <button
+                onClick={handleMemoryUndo}
+                style={{
+                  background: 'transparent', border: '1px solid #666', borderRadius: 4,
+                  color: '#ccc', padding: '2px 8px', cursor: 'pointer', fontSize: 12, whiteSpace: 'nowrap',
+                }}
+              >撤销</button>
+            </>
+          )}
+        </div>
+      )}
       {/* 消息列表 */}
       <div className="chat-messages">
         {messages.length === 0 && !streaming && (

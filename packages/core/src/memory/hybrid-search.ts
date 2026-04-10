@@ -30,6 +30,10 @@ export interface MemoryRecord {
   category?: string
   embedding?: Float32Array | null
   bm25Score?: number
+  /** M2: 创建时间戳(ms)，用于 time decay */
+  createdAt?: number
+  /** M2: 置顶标记，pinned 条目不受 time decay 影响 */
+  pinned?: boolean
 }
 
 // ─── Score Fusion ───────────────────────────────────────────────────────────
@@ -92,15 +96,26 @@ export function fuseScores(
   }
   const cosineNorm = normalizeScores(cosineRaw)
 
-  // Fusion
+  // Fusion + Time Decay (M2)
+  const LN2_OVER_30 = Math.LN2 / 30 // half-life = 30 days
+  const now = Date.now()
   const results: HybridSearchResult[] = ids.map((id, i) => {
     const rec = recordMap.get(id)!
+    const rawScore = alpha * bm25Norm[i] + (1 - alpha) * cosineNorm[i]
+    // Time decay: exp(-ln2/30 * ageDays), pinned records exempt
+    let score = rawScore
+    if (rec.createdAt && !rec.pinned) {
+      const ageDays = (now - rec.createdAt) / 86_400_000
+      if (ageDays > 0) {
+        score *= Math.exp(-LN2_OVER_30 * ageDays)
+      }
+    }
     return {
       id,
       text: rec.text,
       bm25Score: bm25Norm[i],
       cosineScore: cosineNorm[i],
-      score: alpha * bm25Norm[i] + (1 - alpha) * cosineNorm[i],
+      score,
       category: rec.category,
     }
   })

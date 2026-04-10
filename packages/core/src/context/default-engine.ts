@@ -15,8 +15,8 @@ import type { ChatCompletionMessageParam } from 'openai/resources/chat/completio
 import type { ContextEngine, AssembleParams, AssembleResult, AfterTurnParams, AfterToolCallParams, BeforeCompactionParams } from './types.js'
 import { compactIfNeeded } from './compaction.js'
 import { buildSystemPrompt } from '../agent/system-prompt.js'
-import { memorySearch, getAllMemoriesWithEmbedding, getDefaultEmbedder, hybridSearch } from '../memory/index.js'
-import type { MemoryRecord } from '../memory/index.js'
+import { memorySearch, memoryCandidatesScoped, memoryGetPinned, getAllMemoriesWithEmbedding, getDefaultEmbedder, hybridSearch } from '../memory/index.js'
+import type { MemoryRecord, MemorySearchScope } from '../memory/index.js'
 import { getOrCreate } from '../session/store.js'
 import { persist } from '../session/persist.js'
 import { calcMaxToolResultChars } from '../tools/index.js'
@@ -96,7 +96,7 @@ export class DefaultContextEngine implements ContextEngine {
   readonly engineId = 'default'
 
   async assemble(params: AssembleParams): Promise<AssembleResult> {
-    const { sessionKey, provider, userMessage, workspaceDir, skills, activeSkills, abortSignal, onCompaction } = params
+    const { sessionKey, provider, userMessage, workspaceDir, agentId, skills, activeSkills, abortSignal, onCompaction } = params
 
     // 1. 获取 session
     const session = await getOrCreate(sessionKey)
@@ -136,52 +136,87 @@ export class DefaultContextEngine implements ContextEngine {
         recalledCount = memoryBlock ? (memoryBlock.match(/^\d+\./gm)?.length ?? 0) : 0
         console.log(`[context-engine] 复用冻结快照: ${recalledCount} 条记忆 (${memoryBlock.length} chars)`)
       } else {
-        // ── 首轮：执行 hybrid search 并冻结（K2） ──
+        // ── 首轮：M2 scoped hybrid search + pinned-first ──
         if (userMessage.trim().length >= 10) {
-          // K2: BM25 + cosine 混合检索
+          const scope: MemorySearchScope = { agentId, workspaceDir }
+
+          // 1) 获取 pinned 记忆（始终包含）
+          const pinnedEntries = memoryGetPinned(scope)
+          const pinnedSet = new Set(pinnedEntries.map(e => e.id))
+
+          // 2) 获取作用域候选（5-level 优先级）
+          const scopedCandidates = memoryCandidatesScoped(scope)
+
+          // 3) BM25 搜索（用于 score fusion）
           const bm25Results = memorySearch(userMessage, 20)
           const bm25Records: MemoryRecord[] = bm25Results.map(r => ({
             id: r.entry.id,
             text: r.entry.text,
             category: r.entry.category,
             bm25Score: Math.abs(r.rank),
+            createdAt: r.entry.createdAt,
+            pinned: r.entry.pinned,
           }))
 
-          let recallResults: Array<{ text: string; category?: string; score: number }> = []
+          // 4) 候选集合 = scoped entries (with embedding for cosine)
+          const candidateRecords: MemoryRecord[] = scopedCandidates.map(e => ({
+            id: e.id,
+            text: e.text,
+            category: e.category,
+            embedding: e.embedding,
+            createdAt: e.createdAt,
+            pinned: e.pinned,
+          }))
+
+          let recallResults: Array<{ id: string; text: string; category?: string; score: number }> = []
           try {
-            const allWithEmbedding = getAllMemoriesWithEmbedding()
             const embedder = getDefaultEmbedder()
+            // 只对 scoped 候选做 hybrid search（bm25 结果也按 scope 过滤）
+            const scopedIds = new Set(scopedCandidates.map(e => e.id))
+            const scopedBm25 = bm25Records.filter(r => scopedIds.has(r.id))
+
             const hybridResults = await hybridSearch(
-              bm25Records,
-              allWithEmbedding.map(r => ({
-                id: r.id,
-                text: r.text,
-                category: r.category,
-                embedding: r.embedding,
-              })),
+              scopedBm25,
+              candidateRecords,
               userMessage,
               embedder,
               { query: userMessage, limit: 10, alpha: 0.4 },
             )
-            recallResults = hybridResults.map(r => ({ text: r.text, category: r.category, score: r.score }))
+            recallResults = hybridResults.map(r => ({ id: r.id, text: r.text, category: r.category, score: r.score }))
           } catch (hybridErr) {
-            // 降级到纯 BM25
             console.warn('[context-engine] hybrid search 失败，降级到 BM25:', hybridErr)
-            recallResults = bm25Results.map(r => ({ text: r.entry.text, category: r.entry.category, score: 0 }))
+            recallResults = bm25Results.map(r => ({ id: r.entry.id, text: r.entry.text, category: r.entry.category, score: 0 }))
           }
 
-          if (recallResults.length > 0) {
-            // 容量截断：保持条目完整性
+          // 5) Merge: pinned-first, then search results (dedup)
+          const seenIds = new Set<string>()
+          const mergedResults: Array<{ text: string; category?: string; isPinned?: boolean }> = []
+
+          for (const p of pinnedEntries) {
+            if (!seenIds.has(p.id)) {
+              seenIds.add(p.id)
+              mergedResults.push({ text: p.text, category: p.category, isPinned: true })
+            }
+          }
+          for (const r of recallResults) {
+            if (!seenIds.has(r.id)) {
+              seenIds.add(r.id)
+              mergedResults.push({ text: r.text, category: r.category })
+            }
+          }
+
+          if (mergedResults.length > 0) {
             const lines: string[] = []
             let totalChars = 0
-            for (let i = 0; i < recallResults.length; i++) {
-              const line = `${i + 1}. [${recallResults[i].category ?? 'general'}] ${recallResults[i].text}`
+            for (let i = 0; i < mergedResults.length; i++) {
+              const pin = mergedResults[i].isPinned ? '📌 ' : ''
+              const line = `${i + 1}. ${pin}[${mergedResults[i].category ?? 'general'}] ${mergedResults[i].text}`
               if (totalChars + line.length > MEMORY_RECALL_MAX_CHARS && lines.length > 0) {
-                console.log(`[context-engine] Memory recall 容量截断: ${i}/${recallResults.length} 条 (${totalChars} chars)`)
+                console.log(`[context-engine] Memory recall 容量截断: ${i}/${mergedResults.length} 条 (${totalChars} chars)`)
                 break
               }
               lines.push(line)
-              totalChars += line.length + 1 // +1 for \n
+              totalChars += line.length + 1
             }
             recalledCount = lines.length
             memoryBlock = lines.join('\n')

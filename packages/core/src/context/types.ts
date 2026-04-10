@@ -15,6 +15,8 @@ export interface AssembleParams {
   provider: LLMProvider
   /** 当前工作目录 */
   workspaceDir?: string
+  /** Agent ID（M2 作用域搜索） */
+  agentId?: string
   /** 已加载的 Skills */
   skills?: Skill[]
   /** 用户通过 @ 指定的高优先级 Skills（可多个） */

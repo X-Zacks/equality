@@ -39,6 +39,7 @@ const KEY_NAMES = [
   'MINIMAX_SHOW_THINKING',
   'WORKSPACE_DIR',
   'MCP_SERVERS',
+  'MEMORY_AUTO_CAPTURE',
 ] as const
 export type SecretKey = (typeof KEY_NAMES)[number]
 

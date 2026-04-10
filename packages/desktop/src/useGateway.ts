@@ -45,6 +45,7 @@ export type SecretKey =
   | 'BASH_TIMEOUT_MS' | 'BASH_IDLE_TIMEOUT_MS' | 'BASH_MAX_TIMEOUT_MS'
   | 'AGENT_MAX_TOOL_CALLS' | 'AGENT_MAX_LLM_TURNS'
   | 'WORKSPACE_DIR'
+  | 'MEMORY_AUTO_CAPTURE'
 
 export interface ConfiguredSecret {
   key: SecretKey
@@ -60,7 +61,7 @@ export interface SettingsState {
 }
 
 interface DeltaEvent {
-  type: 'delta' | 'done' | 'error' | 'tool_start' | 'tool_result' | 'tool_update' | 'interactive' | 'model_switch'
+  type: 'delta' | 'done' | 'error' | 'tool_start' | 'tool_result' | 'tool_update' | 'interactive' | 'model_switch' | 'memory_captured'
   sessionKey?: string
   content?: string
   message?: string
@@ -73,6 +74,9 @@ interface DeltaEvent {
   isError?: boolean
   // interactive fields (Phase F1)
   payload?: InteractivePayload
+  // memory_captured fields (T22)
+  id?: string
+  category?: string
 }
 
 export interface ToolCallEvent {
@@ -112,6 +116,7 @@ export function useGateway() {
       onAbort?: () => void,
       onStreamingChange?: (streaming: boolean) => void,
       onInteractive?: (payload: InteractivePayload) => void,
+      onMemoryCaptured?: (info: { id: string; text: string; category: string }) => void,
     ): Promise<void> => {
       if (!message.trim()) return
       const sk = sessionKey ?? ''
@@ -192,6 +197,8 @@ export function useGateway() {
                 resolve()
               } else if (evt.type === 'interactive' && evt.payload) {
                 onInteractive?.(evt.payload)
+              } else if (evt.type === 'memory_captured' && evt.id && evt.content) {
+                onMemoryCaptured?.({ id: evt.id, text: evt.content, category: evt.category ?? 'general' })
               } else if (evt.type === 'error') {
                 cleanup()
                 onStreamingChange?.(false)
