@@ -294,15 +294,13 @@
 
 .tool-call {
   display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
-  padding: 4px 8px;
+  flex-direction: column;
   border-radius: 6px;
   font-size: 12px;
   font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.08);
+  overflow: hidden;
 }
 
 .tool-call-running {
@@ -381,6 +379,94 @@
 
 @keyframes tool-spin {
   to { transform: rotate(360deg); }
+}
+
+/* ─── 折叠卡片 header / body ───────────────────────────────── */
+.tool-call-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  width: 100%;
+  box-sizing: border-box;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+  text-align: left;
+  min-width: 0;
+  transition: background 0.15s;
+}
+.tool-call-header:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.tool-call-chevron {
+  font-size: 9px;
+  flex-shrink: 0;
+  opacity: 0.5;
+  transition: transform 0.15s;
+  width: 10px;
+  text-align: center;
+}
+
+.tool-call-spacer {
+  flex: 1;
+  min-width: 4px;
+}
+
+.tool-call-badge {
+  flex-shrink: 0;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.tool-call-body {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 6px 10px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tool-call-section {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tool-call-section-label {
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.3);
+  font-weight: 700;
+}
+
+.tool-call-pre {
+  margin: 0;
+  padding: 6px 8px;
+  font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
+  font-size: 11px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: rgba(255, 255, 255, 0.65);
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 4px;
+  max-height: 240px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.tool-call-pre-live {
+  color: rgba(255, 255, 255, 0.4);
+  max-height: 160px;
 }
 
 /* ─── Markdown 内容样式 ─────────────────────────────────────── */
@@ -686,6 +772,27 @@
 
 .theme-light .tool-call-output {
   background: rgba(15,23,42,0.06);
+}
+
+.theme-light .tool-call-header:hover {
+  background: rgba(15,23,42,0.06);
+}
+.theme-light .tool-call-body {
+  border-top-color: rgba(15,23,42,0.10);
+}
+.theme-light .tool-call-section-label {
+  color: rgba(15,23,42,0.38);
+}
+.theme-light .tool-call-pre {
+  color: rgba(15,23,42,0.68);
+  background: rgba(15,23,42,0.05);
+}
+.theme-light .tool-call-badge {
+  color: rgba(15,23,42,0.45);
+  background: rgba(15,23,42,0.08);
+}
+.theme-light .tool-call-chevron {
+  color: rgba(15,23,42,0.5);
 }
 
 .theme-light .chat-assistant .bubble-content blockquote {

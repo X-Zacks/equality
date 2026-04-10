@@ -99,7 +99,17 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
   const [paused, setPaused] = useState(false)
   const [pauseIntentVis, setPauseIntentVis] = useState(false)  // 驱动⏳按鈕 re-render
   const [streaming, setStreaming] = useState(false)
+  const [expandedToolCalls, setExpandedToolCalls] = useState<Set<string>>(new Set())
   const { sendMessage, abort, loadSession } = useGateway()
+
+  const toggleToolCall = useCallback((id: string) => {
+    setExpandedToolCalls(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }, [])
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
@@ -669,14 +679,45 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
           <div key={i} className={`chat-bubble chat-${msg.role}`}>
             {msg.toolCalls && msg.toolCalls.length > 0 && (
               <div className="tool-calls">
-                {msg.toolCalls.map((tc) => (
-                  <div key={tc.toolCallId} className={`tool-call tool-call-${tc.status}`}>
-                    <span className="tool-call-icon">{tc.status === 'error' ? '❌' : '✅'}</span>
-                    <span className="tool-call-name">{tc.name}</span>
-                    {toolArgsSummary(tc.name, tc.args) && <span className="tool-call-args" title={toolArgsSummary(tc.name, tc.args)}>{toolArgsSummary(tc.name, tc.args).slice(0, 60)}{toolArgsSummary(tc.name, tc.args).length > 60 ? '…' : ''}</span>}
-                    {tc.result && <span className="tool-call-result" title={tc.result}>{tc.result.slice(0, 80)}{tc.result.length > 80 ? '…' : ''}</span>}
-                  </div>
-                ))}
+                {msg.toolCalls.map((tc) => {
+                  const cardId = `hist-${i}-${tc.toolCallId}`
+                  const expanded = expandedToolCalls.has(cardId)
+                  const summary = toolArgsSummary(tc.name, tc.args)
+                  return (
+                    <div key={tc.toolCallId} className={`tool-call tool-call-${tc.status}${expanded ? ' tool-call-expanded' : ''}`}>
+                      <button className="tool-call-header" onClick={() => toggleToolCall(cardId)}>
+                        <span className="tool-call-chevron">{expanded ? '▼' : '▶'}</span>
+                        <span className="tool-call-icon">{tc.status === 'error' ? '❌' : '✅'}</span>
+                        <span className="tool-call-name">{tc.name}</span>
+                        {summary && !expanded && (
+                          <span className="tool-call-args" title={summary}>
+                            {summary.slice(0, 60)}{summary.length > 60 ? '…' : ''}
+                          </span>
+                        )}
+                        <span className="tool-call-spacer" />
+                        {!expanded && tc.status === 'done' && (
+                          <span className="tool-call-badge">{tc.result ? `${tc.result.length} chars` : 'done'}</span>
+                        )}
+                      </button>
+                      {expanded && (
+                        <div className="tool-call-body">
+                          {tc.args && Object.keys(tc.args).length > 0 && (
+                            <div className="tool-call-section">
+                              <div className="tool-call-section-label">INPUT</div>
+                              <pre className="tool-call-pre">{JSON.stringify(tc.args, null, 2)}</pre>
+                            </div>
+                          )}
+                          {tc.result && (
+                            <div className="tool-call-section">
+                              <div className="tool-call-section-label">OUTPUT</div>
+                              <pre className="tool-call-pre">{tc.result}</pre>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             )}
             <span className="bubble-content">
@@ -715,18 +756,56 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
           <div className="chat-bubble chat-assistant">
             {activeToolCalls.length > 0 && (
               <div className="tool-calls">
-                {activeToolCalls.map((tc) => (
-                  <div key={tc.toolCallId} className={`tool-call tool-call-${tc.status}`}>
-                    <span className="tool-call-icon">{tc.status === 'running' ? '⏳' : tc.status === 'error' ? '❌' : '✅'}</span>
-                    <span className="tool-call-name">{tc.name}</span>
-                    {toolArgsSummary(tc.name, tc.args) && <span className="tool-call-args" title={toolArgsSummary(tc.name, tc.args)}>{toolArgsSummary(tc.name, tc.args).slice(0, 60)}{toolArgsSummary(tc.name, tc.args).length > 60 ? '…' : ''}</span>}
-                    {tc.status === 'running' && <span className="tool-call-spinner" />}
-                    {tc.result && <span className="tool-call-result" title={tc.result}>{tc.result.slice(0, 80)}{tc.result.length > 80 ? '…' : ''}</span>}
-                    {tc.partial && tc.status === 'running' && (
-                      <div className="tool-call-output">{tc.partial}</div>
-                    )}
-                  </div>
-                ))}
+                {activeToolCalls.map((tc) => {
+                  const cardId = `live-${tc.toolCallId}`
+                  const expanded = expandedToolCalls.has(cardId)
+                  const summary = toolArgsSummary(tc.name, tc.args)
+                  return (
+                    <div key={tc.toolCallId} className={`tool-call tool-call-${tc.status}${expanded ? ' tool-call-expanded' : ''}`}>
+                      <button className="tool-call-header" onClick={() => toggleToolCall(cardId)}>
+                        <span className="tool-call-chevron">{expanded ? '▼' : '▶'}</span>
+                        <span className="tool-call-icon">
+                          {tc.status === 'running' ? <span className="tool-call-spinner" /> : tc.status === 'error' ? '❌' : '✅'}
+                        </span>
+                        <span className="tool-call-name">{tc.name}</span>
+                        {summary && !expanded && (
+                          <span className="tool-call-args" title={summary}>
+                            {summary.slice(0, 60)}{summary.length > 60 ? '…' : ''}
+                          </span>
+                        )}
+                        <span className="tool-call-spacer" />
+                        {tc.status === 'running' && !expanded && tc.partial && (
+                          <span className="tool-call-badge">{tc.partial.split('\n').length} lines</span>
+                        )}
+                      </button>
+                      {expanded && (
+                        <div className="tool-call-body">
+                          {tc.args && Object.keys(tc.args).length > 0 && (
+                            <div className="tool-call-section">
+                              <div className="tool-call-section-label">INPUT</div>
+                              <pre className="tool-call-pre">{JSON.stringify(tc.args, null, 2)}</pre>
+                            </div>
+                          )}
+                          {tc.partial && tc.status === 'running' && (
+                            <div className="tool-call-section">
+                              <div className="tool-call-section-label">STDOUT</div>
+                              <pre className="tool-call-pre tool-call-pre-live">{tc.partial}</pre>
+                            </div>
+                          )}
+                          {tc.result && (
+                            <div className="tool-call-section">
+                              <div className="tool-call-section-label">OUTPUT</div>
+                              <pre className="tool-call-pre">{tc.result}</pre>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      {!expanded && tc.partial && tc.status === 'running' && (
+                        <div className="tool-call-output">{tc.partial}</div>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             )}
             {streamingText && <span className="bubble-content"><Markdown content={streamingText} /></span>}
