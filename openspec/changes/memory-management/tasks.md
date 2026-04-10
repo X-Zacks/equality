@@ -37,26 +37,40 @@
 
 - [x] T25: `phase-M-mem.test.ts` — 测试：schema 迁移 + memorySave 新签名 + 去重 + 安全扫描 + memoryUpdate + memoryListPaged + memoryStats (47 assertions)
 
-## M2 — Agent + Workspace 作用域 + 通知 (P1) — 待 M1 完成后
+## M1.5 — autoCapture Toast (T22，依赖 M2 的 onMemoryCaptured 回调)
 
-- [ ] T26: `db.ts` — `memorySearchScoped(query, { agentId, workspaceDir })` 作用域搜索
-- [ ] T27: `db.ts` — `memoryGetPinned()` 获取所有置顶记忆
-- [ ] T28: `default-engine.ts` — Recall 改为 pinned + scoped hybrid search
-- [ ] T29: `tools/builtins/memory.ts` — memory_search 增加 agent/workspace 上下文
-- [ ] T30: `agent/runner.ts` — autoCapture 传入 agentId + workspaceDir
-- [ ] T31: 测试 — 作用域过滤 + pinned 强制包含 (~15 assertions)
+- [ ] T22a: `agent/runner.ts` — RunAttemptParams 新增 `onMemoryCaptured?` 回调；autoCapture 成功后调用
+- [ ] T22b: `index.ts` — `/chat/stream` 端点传入 onMemoryCaptured → 通过 SSE send `{ type: 'memory_captured' }`
+- [ ] T22c: `useGateway.ts` — DeltaEvent 新增 `memory_captured` 类型处理
+- [ ] T22d: `Chat.tsx` — 接收 memory_captured 事件 → 显示 Toast + [撤销] 按钮 (5s auto-dismiss)
+- [ ] T22e: `Chat.css` — autoCapture Toast 样式
+- [ ] T22f: 测试 — autoCapture 回调触发验证 (~3 assertions)
 
-## M3 — 容量控制 + 时间衰减 + 导入导出 (P2) — 待 M2 完成后
+## M2 — Agent + Workspace 作用域 Recall (P1)
 
-- [ ] T32: `hybrid-search.ts` — 时间衰减因子 `exp(-ln2/30 × ageDays)`
-- [ ] T33: `db.ts` — `memoryGC()` 自动归档策略
-- [ ] T34: `index.ts` — GET /memories/export + POST /memories/import
-- [ ] T35: Desktop 统计面板 + 导入导出按钮
-- [ ] T36: 高级设置 — MEMORY_AUTO_CAPTURE 开关
-- [ ] T37: 测试 — 时间衰减 + GC + 导入导出 (~15 assertions)
+> **Spec**: `specs/memory-recall/spec.md`
+
+- [ ] T26: `db.ts` — `memorySearchScoped(query, scope)` — 5 层优先级作用域搜索，合并去重后 hybrid search
+- [ ] T27: `db.ts` — `memoryGetPinned(scope?)` — 获取匹配作用域的 pinned 记忆
+- [ ] T28: `default-engine.ts` — Recall 改为 pinned-first + scoped hybrid search (替换全局搜索)
+- [ ] T29: `tools/builtins/memory.ts` — memory_search 改用 memorySearchScoped，从 ctx 取 agentId/workspaceDir
+- [ ] T30: 测试 — 作用域过滤 + pinned 强制包含 + 降级全局搜索 (~15 assertions)
+
+## M3 — 容量控制 + 时间衰减 + 导入导出 (P2)
+
+> **Spec**: `specs/memory-capacity/spec.md`
+
+- [ ] T31: `hybrid-search.ts` — fuseScores 增加 `createdAt` 参数 + 时间衰减因子 `exp(-ln2/30 × ageDays)`，pinned 豁免
+- [ ] T32: `db.ts` — `memoryGC()` 自动归档策略 (importance≤3/90d, ≤5/180d, archived/365d 永删)
+- [ ] T33: `index.ts` — GC 启动时执行一次 + setInterval 24h；GET /memories/export + POST /memories/import
+- [ ] T34: `MemoryTab.tsx` — StatsPanel 增加 "导出" / "导入" 按钮 + 结果提示
+- [ ] T35: `Settings.tsx` — 高级设置增加 "自动记忆 (Auto Capture)" 开关 → MEMORY_AUTO_CAPTURE
+- [ ] T36: `agent/runner.ts` — autoCapture 检查 MEMORY_AUTO_CAPTURE 开关 (off 时跳过)
+- [ ] T37: 测试 — 时间衰减 + GC + 导入导出 + autoCapture 开关 (~15 assertions)
 
 ## 统计
 
-- M1: 25 个任务（T1-T25），预估 ~1000 行新增 + ~80 行修改
-- M2: 6 个任务（T26-T31），预估 ~300 行修改
-- M3: 6 个任务（T32-T37），预估 ~500 行
+- M1: 25 个任务（T1-T25），~1100 行新增 ✅ 已完成 (b74fc30)
+- M1.5: 6 个任务（T22a-T22f），预估 ~120 行新增/修改
+- M2: 5 个任务（T26-T30），预估 ~300 行修改
+- M3: 7 个任务（T31-T37），预估 ~500 行
