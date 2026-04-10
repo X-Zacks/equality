@@ -2,11 +2,14 @@
  * tools/builtins/memory.ts — 长期记忆工具
  *
  * Phase 12: memory_save + memory_search
- * 使用 SQLite + FTS5 实现跨 Session 的长期记忆。
+ * Phase K2: memory_search 接入混合搜索（BM25 + cosine score fusion）
+ * 使用 SQLite + FTS5 + embedding 实现跨 Session 的长期记忆。
  */
 
 import type { ToolDefinition, ToolResult, ToolContext } from '../types.js'
-import { memorySave, memorySearch, memoryList, memoryDelete, memoryCount } from '../../memory/index.js'
+import { memorySave, memorySearch, memoryList, memoryDelete, memoryCount, getAllMemoriesWithEmbedding, getDefaultEmbedder } from '../../memory/index.js'
+import { hybridSearch } from '../../memory/index.js'
+import type { MemoryRecord } from '../../memory/index.js'
 
 // ─── memory_save ──────────────────────────────────────────────────────────────
 
@@ -95,20 +98,63 @@ export const memorySearchTool: ToolDefinition = {
     }
 
     const limit = Math.min(20, Math.max(1, Number(args.limit) || 5))
-    const results = memorySearch(query, limit)
     const total = memoryCount()
 
-    if (results.length === 0) {
-      return { content: `未找到相关记忆 (数据库共 ${total} 条)` }
-    }
+    // K2: 混合搜索（BM25 + cosine score fusion）
+    try {
+      const bm25Results = memorySearch(query, limit * 2) // 多取一些 BM25 结果用于融合
+      const allWithEmbedding = getAllMemoriesWithEmbedding()
+      const embedder = getDefaultEmbedder()
 
-    const lines = results.map((r, i) => {
-      const date = new Date(r.entry.createdAt).toLocaleString('zh-CN')
-      return `${i + 1}. [${r.entry.category}] ${r.entry.text}\n   (重要性: ${r.entry.importance}, 时间: ${date})`
-    })
+      // 转换 BM25 结果为 MemoryRecord 格式
+      const bm25Records: MemoryRecord[] = bm25Results.map(r => ({
+        id: r.entry.id,
+        text: r.entry.text,
+        category: r.entry.category,
+        bm25Score: Math.abs(r.rank), // FTS5 rank 是负数，取绝对值
+      }))
 
-    return {
-      content: `找到 ${results.length} 条相关记忆 (共 ${total} 条):\n\n${lines.join('\n\n')}`,
+      const hybridResults = await hybridSearch(
+        bm25Records,
+        allWithEmbedding.map(r => ({
+          id: r.id,
+          text: r.text,
+          category: r.category,
+          embedding: r.embedding,
+        })),
+        query,
+        embedder,
+        { query, limit, alpha: 0.4 }, // alpha=0.4 偏向语义，解决词汇不匹配问题
+      )
+
+      if (hybridResults.length === 0) {
+        return { content: `未找到相关记忆 (数据库共 ${total} 条)` }
+      }
+
+      const lines = hybridResults.map((r, i) => {
+        return `${i + 1}. [${r.category ?? 'general'}] ${r.text}\n   (综合得分: ${r.score.toFixed(3)}, BM25: ${r.bm25Score.toFixed(3)}, 语义: ${r.cosineScore.toFixed(3)})`
+      })
+
+      return {
+        content: `找到 ${hybridResults.length} 条相关记忆 (共 ${total} 条):\n\n${lines.join('\n\n')}`,
+      }
+    } catch (err) {
+      // 降级到纯 BM25
+      console.warn('[memory_search] hybrid search 失败，降级到 BM25:', err)
+      const results = memorySearch(query, limit)
+
+      if (results.length === 0) {
+        return { content: `未找到相关记忆 (数据库共 ${total} 条)` }
+      }
+
+      const lines = results.map((r, i) => {
+        const date = new Date(r.entry.createdAt).toLocaleString('zh-CN')
+        return `${i + 1}. [${r.entry.category}] ${r.entry.text}\n   (重要性: ${r.entry.importance}, 时间: ${date})`
+      })
+
+      return {
+        content: `找到 ${results.length} 条相关记忆 (共 ${total} 条):\n\n${lines.join('\n\n')}`,
+      }
     }
   },
 }

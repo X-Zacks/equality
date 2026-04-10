@@ -17,7 +17,11 @@
 - [x] T10: 新建 `memory/embeddings.ts` — EmbeddingProvider 接口 + 本地实现
 - [x] T11: `cosineSimilarity(a, b)` — 向量余弦相似度
 - [x] T12: 新建 `memory/chunking.ts` — chunkText() 文本分块（token 窗口 + 句子边界）
-- [ ] T13: 修改 `memory/db.ts` — 增加 embedding BLOB 列 + searchHybrid()（v2）
+- [x] T13a: 修改 `memory/db.ts` — ALTER TABLE 增加 embedding BLOB 列 + memorySave 计算并存储 embedding
+- [x] T13b: 修改 `memory/db.ts` — 新增 `getAllMemoriesWithEmbedding()` + `backfillEmbeddings()`
+- [x] T13c: 修改 `tools/builtins/memory.ts` — memory_search 工具接入 hybridSearch
+- [x] T13d: 修改 `context/default-engine.ts` — auto Recall 接入 hybridSearch
+- [x] T13e: 修改 `memory/index.ts` — 导出 hybrid search + embeddings 新 API
 - [x] T14: 新建 `memory/hybrid-search.ts` — BM25 + cosine score fusion 逻辑
 - [x] T15: 测试 — 25 个断言 ✅
 
@@ -32,6 +36,6 @@
 
 ## 统计
 
-- 实际总断言数：82（K1:26 + K2:25 + K3:31）
+- 实际总断言数：92（K1:26 + K2:25 + K2b:10 + K3:31）
 - 新文件：7 个（types, host, embeddings, chunking, hybrid-search, detect, ssrf-guard, understand）
-- 修改文件：0 个（v2 任务推迟）
+- 修改文件：4 个（db.ts, memory.ts, default-engine.ts, memory/index.ts）

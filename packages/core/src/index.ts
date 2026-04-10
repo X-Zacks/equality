@@ -22,6 +22,7 @@ import type { BeforeToolCallInfo } from './agent/runner.js'
 import { SubagentManager } from './agent/subagent-manager.js'
 import { DefaultContextEngine } from './context/index.js'
 import { closeSessionBrowser } from './tools/builtins/browser.js'
+import { backfillEmbeddings } from './memory/index.js'
 import { SkillsWatcher } from './skills/index.js'
 import { fetchGallery, installSkill, uninstallSkill, scanSkillContent, TRUSTED_REPOS } from './skills/gallery.js'
 import { buildSkillStatus } from './skills/status.js'
@@ -939,6 +940,16 @@ process.on('SIGTERM', async () => {
 try {
   await app.listen({ port: PORT, host: HOST })
   console.log(`[equality-core] v${VERSION} listening on ${HOST}:${PORT}`)
+
+  // K2: 异步回填旧记忆的 embedding（不阻塞启动）
+  setTimeout(() => {
+    try {
+      const count = backfillEmbeddings()
+      if (count > 0) console.log(`[equality-core] embedding 回填完成: ${count} 条`)
+    } catch (err) {
+      console.warn('[equality-core] embedding 回填失败:', err)
+    }
+  }, 2000) // 延迟 2s，等数据库初始化稳定后再回填
 } catch (err) {
   app.log.error(err)
   process.exit(1)

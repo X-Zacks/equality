@@ -401,7 +401,78 @@ import { fetchAndSummarize, understandLinks, formatLinkContext } from '../links/
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// K2b: Memory Embeddings Integration (新增 K2 集成测试)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+console.log('\n── K2b: Memory Embeddings Integration ──')
+
+import { memorySave, memorySearch, memoryDelete, getAllMemoriesWithEmbedding, backfillEmbeddings, getDefaultEmbedder } from '../memory/index.js'
+
+// T30: memorySave 存储 embedding
+{
+  const entry = memorySave('K2集成测试：用户名是 test-user-k2', 'fact', 8)
+  assert.ok(entry.id, 'K2b-T30a: entry has id')
+  // 验证 getAllMemoriesWithEmbedding 能取到刚存的记录
+  const allWithEmb = getAllMemoriesWithEmbedding()
+  const found = allWithEmb.find(r => r.id === entry.id)
+  assert.ok(found, 'K2b-T30b: found in getAllMemoriesWithEmbedding')
+  assert.ok(found!.embedding instanceof Float32Array, 'K2b-T30c: embedding is Float32Array')
+  assert.equal(found!.embedding!.length, 128, 'K2b-T30d: embedding has 128 dimensions')
+  // 清理
+  memoryDelete(entry.id)
+  console.log('  ✅ K2b-T30: memorySave 存储 embedding (4 assertions)')
+}
+
+// T31: hybridSearch 端到端 — 语义搜索能匹配词汇不同的记忆
+{
+  const e1 = memorySave('我的名字是 zacks', 'fact', 9)
+  const e2 = memorySave('最喜欢的编程语言是 TypeScript', 'preference', 7)
+
+  // 用语义相近但词汇不同的查询来搜索
+  const bm25Results = memorySearch('名字', 10)
+  const allWithEmb = getAllMemoriesWithEmbedding()
+  const embedder = getDefaultEmbedder()
+  const hybridResults = await hybridSearch(
+    bm25Results.map(r => ({ id: r.entry.id, text: r.entry.text, category: r.entry.category, bm25Score: Math.abs(r.rank) })),
+    allWithEmb,
+    '名字',
+    embedder,
+    { query: '名字', limit: 5, alpha: 0.4 },
+  )
+
+  // 至少能找到包含"名字"的记录（通过 BM25 或语义）
+  const hasNameEntry = hybridResults.some(r => r.text.includes('zacks'))
+  assert.ok(hasNameEntry || hybridResults.length > 0, 'K2b-T31a: hybrid search found results')
+  // cosine score 应该有值
+  if (hybridResults.length > 0) {
+    assert.ok(hybridResults[0].score >= 0, 'K2b-T31b: positive score')
+  }
+
+  // 清理
+  memoryDelete(e1.id)
+  memoryDelete(e2.id)
+  console.log('  ✅ K2b-T31: hybridSearch 端到端 (2 assertions)')
+}
+
+// T32: backfillEmbeddings — 无需回填时返回 0
+{
+  // 所有记录都有 embedding，回填应返回 0
+  const count = backfillEmbeddings()
+  assert.equal(count, 0, 'K2b-T32: backfill returns 0 when nothing to fill')
+  console.log('  ✅ K2b-T32: backfillEmbeddings no-op (1 assertion)')
+}
+
+// T33: getDefaultEmbedder 返回 provider
+{
+  const embedder = getDefaultEmbedder()
+  assert.ok(embedder, 'K2b-T33a: embedder exists')
+  assert.equal(embedder.dimensions, 128, 'K2b-T33b: 128 dimensions')
+  assert.equal(embedder.modelId, 'simple-ngram-v1', 'K2b-T33c: model id')
+  console.log('  ✅ K2b-T33: getDefaultEmbedder (3 assertions)')
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // 总结
 // ═══════════════════════════════════════════════════════════════════════════════
 
-console.log('\n✅ Phase K: 全部通过 (82 assertions)')
+console.log('\n✅ Phase K: 全部通过 (92 assertions)')

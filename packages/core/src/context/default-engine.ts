@@ -15,7 +15,8 @@ import type { ChatCompletionMessageParam } from 'openai/resources/chat/completio
 import type { ContextEngine, AssembleParams, AssembleResult, AfterTurnParams, AfterToolCallParams, BeforeCompactionParams } from './types.js'
 import { compactIfNeeded } from './compaction.js'
 import { buildSystemPrompt } from '../agent/system-prompt.js'
-import { memorySearch } from '../memory/index.js'
+import { memorySearch, getAllMemoriesWithEmbedding, getDefaultEmbedder, hybridSearch } from '../memory/index.js'
+import type { MemoryRecord } from '../memory/index.js'
 import { getOrCreate } from '../session/store.js'
 import { persist } from '../session/persist.js'
 import { calcMaxToolResultChars } from '../tools/index.js'
@@ -135,23 +136,48 @@ export class DefaultContextEngine implements ContextEngine {
         recalledCount = memoryBlock ? (memoryBlock.match(/^\d+\./gm)?.length ?? 0) : 0
         console.log(`[context-engine] 复用冻结快照: ${recalledCount} 条记忆 (${memoryBlock.length} chars)`)
       } else {
-        // ── 首轮：执行 memorySearch 并冻结 ──
+        // ── 首轮：执行 hybrid search 并冻结（K2） ──
         if (userMessage.trim().length >= 10) {
-          const results = memorySearch(userMessage, 10) // 多取一些，后面按容量截断
-          if (results.length > 0) {
-            // 按 importance DESC, createdAt DESC 排序
-            results.sort((a, b) => {
-              if (b.entry.importance !== a.entry.importance) return b.entry.importance - a.entry.importance
-              return (b.entry.createdAt ?? 0) - (a.entry.createdAt ?? 0)
-            })
+          // K2: BM25 + cosine 混合检索
+          const bm25Results = memorySearch(userMessage, 20)
+          const bm25Records: MemoryRecord[] = bm25Results.map(r => ({
+            id: r.entry.id,
+            text: r.entry.text,
+            category: r.entry.category,
+            bm25Score: Math.abs(r.rank),
+          }))
 
+          let recallResults: Array<{ text: string; category?: string; score: number }> = []
+          try {
+            const allWithEmbedding = getAllMemoriesWithEmbedding()
+            const embedder = getDefaultEmbedder()
+            const hybridResults = await hybridSearch(
+              bm25Records,
+              allWithEmbedding.map(r => ({
+                id: r.id,
+                text: r.text,
+                category: r.category,
+                embedding: r.embedding,
+              })),
+              userMessage,
+              embedder,
+              { query: userMessage, limit: 10, alpha: 0.4 },
+            )
+            recallResults = hybridResults.map(r => ({ text: r.text, category: r.category, score: r.score }))
+          } catch (hybridErr) {
+            // 降级到纯 BM25
+            console.warn('[context-engine] hybrid search 失败，降级到 BM25:', hybridErr)
+            recallResults = bm25Results.map(r => ({ text: r.entry.text, category: r.entry.category, score: 0 }))
+          }
+
+          if (recallResults.length > 0) {
             // 容量截断：保持条目完整性
             const lines: string[] = []
             let totalChars = 0
-            for (let i = 0; i < results.length; i++) {
-              const line = `${i + 1}. [${results[i].entry.category}] ${results[i].entry.text}`
+            for (let i = 0; i < recallResults.length; i++) {
+              const line = `${i + 1}. [${recallResults[i].category ?? 'general'}] ${recallResults[i].text}`
               if (totalChars + line.length > MEMORY_RECALL_MAX_CHARS && lines.length > 0) {
-                console.log(`[context-engine] Memory recall 容量截断: ${i}/${results.length} 条 (${totalChars} chars)`)
+                console.log(`[context-engine] Memory recall 容量截断: ${i}/${recallResults.length} 条 (${totalChars} chars)`)
                 break
               }
               lines.push(line)

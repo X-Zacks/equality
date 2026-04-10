@@ -88,3 +88,63 @@
 现有 `searchMemories(query, limit)` SHOULD 继续可用（向后兼容）。
 新增 `searchHybrid(options)` 作为增强版本。
 （Previously: 仅 FTS5 BM25 搜索）
+
+### Requirement: memorySave 向量化写入
+
+`memorySave()` MUST 在写入时同步计算 embedding 并存储到 BLOB 列。
+embedding 计算失败时 SHOULD 静默降级（embedding 为 NULL），不阻塞写入。
+（Previously: memorySave 只写 text/category/importance/created_at/session_key）
+
+#### Scenario: 保存时计算 embedding
+- GIVEN 调用 `memorySave('用户的名字是 zacks', 'fact', 8)`
+- WHEN 写入 SQLite
+- THEN `embedding` 列包含 Float32Array BLOB
+- AND `text`/`category`/`importance` 字段正常写入
+
+#### Scenario: embedding 计算失败降级
+- GIVEN embedding provider 抛出异常
+- WHEN memorySave 被调用
+- THEN 记忆仍正常写入（embedding 为 NULL）
+- AND 日志打印 warning
+
+### Requirement: memory_search 工具接入混合检索
+
+`memory_search` 工具 MUST 使用 `hybridSearch` 替代纯 BM25 `memorySearch`。
+
+#### Scenario: 语义搜索命中
+- GIVEN 记忆库中存有 "用户的名字是 zacks"
+- WHEN 用户搜索 "叫什么名字"
+- THEN 混合检索应能通过向量相似度命中该记忆
+- AND 纯 BM25 无法命中时，cosine 分数弥补
+
+#### Scenario: 向后兼容
+- GIVEN 旧记忆 embedding 为 NULL
+- WHEN 混合检索执行
+- THEN 该记忆仅使用 BM25 评分（cosineScore = 0）
+- AND 不报错
+
+### Requirement: 自动 Recall 接入混合检索
+
+`DefaultContextEngine.assemble()` 中的自动 Recall MUST 使用混合检索。
+（Previously: 使用纯 BM25 memorySearch）
+
+#### Scenario: Recall 使用混合检索
+- GIVEN 用户发送消息 "还记得我叫什么么"
+- WHEN assemble() 执行首轮 recall
+- THEN 调用 hybridSearch 而非 memorySearch
+- AND 语义相近的记忆能被召回
+
+### Requirement: 旧记忆 embedding 回填
+
+系统启动时 SHOULD 异步扫描 `embedding IS NULL` 的旧记录，计算并回填 embedding。
+
+#### Scenario: 启动回填
+- GIVEN 数据库中有 5 条 embedding 为 NULL 的旧记忆
+- WHEN Core 启动（db 初始化后）
+- THEN 后台异步计算这 5 条记忆的 embedding 并 UPDATE
+- AND 不阻塞正常服务
+
+#### Scenario: 无旧记录
+- GIVEN 所有记忆都有 embedding
+- WHEN Core 启动
+- THEN 回填扫描完成，无操作
