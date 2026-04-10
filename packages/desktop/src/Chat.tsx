@@ -90,7 +90,7 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
     query: string
     triggerPos: number   // @ 或 # 在 input 中的起始位置
   } | null>(null)
-  const [skillTag, setSkillTag] = useState<string | null>(null)    // '@skill-name'
+  const [skillTags, setSkillTags] = useState<string[]>([])         // ['skill-a','skill-b']
   const [toolTags, setToolTags] = useState<string[]>([])           // ['bash','write_file']
   const streamingTextRef = useRef('')
   const activeToolCallsRef = useRef<ToolCallEvent[]>([])
@@ -364,7 +364,7 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
     setInput(before + after)
     setMentionState(null)
     if (mentionState.type === 'skill') {
-      setSkillTag(name)
+      setSkillTags(prev => prev.includes(name) ? prev : [...prev, name])
     } else {
       setToolTags(prev => prev.includes(name) ? prev : [...prev, name])
     }
@@ -411,14 +411,14 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
 
     // ─── 构建 mention 前缀 ────────────────────────────────────────────────
     const prefixParts: string[] = []
-    if (skillTag) prefixParts.push(`[@${skillTag}]`)
+    if (skillTags.length > 0) prefixParts.push(`[${skillTags.map(s => `@${s}`).join(',')}]`)
     if (toolTags.length > 0) prefixParts.push(`[${toolTags.map(t => `#${t}`).join(',')}]`)
     const prefix = prefixParts.length > 0 ? prefixParts.join(' ') + ' ' : ''
     const finalText = prefix + text
 
     setInput('')
     setMentionState(null)
-    setSkillTag(null)
+    setSkillTags([])
     setToolTags([])
     setMessages(prev => [...prev, { role: 'user', content: finalText }])
     streamingTextRef.current = ''
@@ -833,14 +833,17 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
           </div>
         )}
         {/* 附件标签栏（附件 + mention chips 合并在此行） */}
-        {(attachments.length > 0 || skillTag || toolTags.length > 0) && (
+        {(attachments.length > 0 || skillTags.length > 0 || toolTags.length > 0) && (
           <div className="chat-attachments">
-            {/* Skill chip */}
-            {skillTag && (
-              <span className="mention-chip mention-chip-skill">
-                🧩 {skillTag}
-                <button className="mention-chip-remove" onClick={() => setSkillTag(null)}>✕</button>
+            {/* Skill chips（多选） */}
+            {skillTags.map(s => (
+              <span key={s} className="mention-chip mention-chip-skill">
+                🧩 {s}
+                <button className="mention-chip-remove" onClick={() => setSkillTags(prev => prev.filter(x => x !== s))}>✕</button>
               </span>
+            ))}
+            {skillTags.length > 3 && (
+              <span className="mention-chip-warning">⚠ 已选 {skillTags.length} 个 Skill，可能影响响应质量</span>
             )}
             {/* Tool chips */}
             {toolTags.map(t => (

@@ -119,3 +119,10 @@
 .mention-chip-remove:hover {
   opacity: 1;
 }
+
+.mention-chip-warning {
+  font-size: 11px;
+  color: rgba(255, 159, 10, 0.8);
+  padding: 2px 6px;
+  user-select: none;
+}

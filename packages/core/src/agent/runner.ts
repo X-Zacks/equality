@@ -103,8 +103,8 @@ export interface RunAttemptParams {
   workspaceDir?: string
   /** 已加载的 Skills（注入到 system prompt） */
   skills?: import('../skills/types.js').Skill[]
-  /** 用户通过 @ 指定的 Skill 名称（高优先级注入到 system prompt） */
-  activeSkillName?: string
+  /** 用户通过 @ 指定的 Skill 名称列表（高优先级注入到 system prompt） */
+  activeSkillNames?: string[]
   /** 用户通过 # 指定的工具白名单（非空时只暴露这些工具给 LLM） */
   allowedTools?: string[]
   /** 回调：每个 delta 文本片段（最终回复阶段） */
@@ -423,9 +423,11 @@ export async function runAttempt(params: RunAttemptParams): Promise<RunAttemptRe
   autoCapture(actualMessage, sessionKey)
 
   // 5. Context Engine: 组装消息列表（system prompt + memory recall + history + compaction + trim）
-  // 解析 @ Skill 指定
-  const activeSkill = params.activeSkillName && params.skills
-    ? params.skills.find(s => s.name === params.activeSkillName)
+  // 解析 @ Skill 指定（支持多个）
+  const activeSkills = params.activeSkillNames?.length && params.skills
+    ? params.activeSkillNames
+        .map(name => params.skills!.find(s => s.name === name))
+        .filter((s): s is import('../skills/types.js').Skill => s !== undefined)
     : undefined
 
   const contextEngine = new DefaultContextEngine()
@@ -435,7 +437,7 @@ export async function runAttempt(params: RunAttemptParams): Promise<RunAttemptRe
     userMessage: actualMessage,
     workspaceDir: params.workspaceDir,
     skills: params.skills,
-    activeSkill,
+    activeSkills,
     abortSignal: abort.signal,
     onCompaction: (summary) => params.onDelta?.(`\n\n💭 ${summary}\n\n`),
   })

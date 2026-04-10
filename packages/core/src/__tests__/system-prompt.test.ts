@@ -164,8 +164,8 @@ const SCENARIOS: Scenario[] = [
   },
   {
     id: 'S4',
-    label: '带 activeSkill（@ 指定）',
-    options: { activeSkill: mockSkill1 },
+    label: '带 activeSkills（@ 指定，单个）',
+    options: { activeSkills: [mockSkill1] },
   },
   {
     id: 'S5',
@@ -173,7 +173,7 @@ const SCENARIOS: Scenario[] = [
     options: {
       workspaceDir: 'C:\\projects\\my-app',
       skills: [mockSkill1, mockSkill2],
-      activeSkill: mockSkill1,
+      activeSkills: [mockSkill1],
       modelName: 'gpt-5.2',
     },
   },
@@ -181,6 +181,11 @@ const SCENARIOS: Scenario[] = [
     id: 'S6',
     label: '空参数对象',
     options: {},
+  },
+  {
+    id: 'S7',
+    label: '多 activeSkills（@ 指定，2个）',
+    options: { activeSkills: [mockSkill1, mockSkill2] },
   },
 ]
 
@@ -226,6 +231,13 @@ async function run(): Promise<void> {
   const s6 = generated['S6']
   ok(s6.includes('你是 Equality'), 'S6 包含身份声明')
   ok(!s6.includes('工作目录:'), 'S6 无工作目录')
+
+  const s7 = generated['S7']
+  ok(s7.includes('用户指定 Skills（共 2 个）'), 'S7 包含多 Skill 标题')
+  ok(s7.includes('使用顺序'), 'S7 包含编排指引')
+  ok(s7.includes('Skill 1：test-coding'), 'S7 包含 Skill 1 名称')
+  ok(s7.includes('Skill 2：git-workflow'), 'S7 包含 Skill 2 名称')
+  ok(!s7.includes('严格按照以下 Skill'), 'S7 多 Skill 不使用严格模式')
 
   // 3. 快照对比
   console.log('\n── 快照对比 ──')

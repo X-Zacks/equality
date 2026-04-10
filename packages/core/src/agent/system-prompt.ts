@@ -10,8 +10,8 @@ export interface SystemPromptOptions {
   skills?: Skill[]
   /** 当前使用的模型名称（用于 Skill 沉淀时记录） */
   modelName?: string
-  /** 用户通过 @ 指定的高优先级 Skill */
-  activeSkill?: Skill
+  /** 用户通过 @ 指定的高优先级 Skills（可多个） */
+  activeSkills?: Skill[]
   /** 工作区引导文件已格式化的文本块（Phase G1） */
   bootstrapBlock?: string
   /** Agent 自定义身份说明（Phase I2） */
@@ -47,10 +47,12 @@ export function buildSystemPrompt(options?: SystemPromptOptions): string {
     prompt += `\n\n## Agent 身份\n\n${options.agentIdentity}`
   }
 
-  // ─── 用户指定 Skill（@ 触发，高优先级）──────────────────────────────────
-  if (options?.activeSkill) {
-    const sk = options.activeSkill
-    prompt += `\n
+  // ─── 用户指定 Skills（@ 触发，高优先级）─────────────────────────────────
+  if (options?.activeSkills?.length) {
+    const activeList = options.activeSkills
+    if (activeList.length === 1) {
+      const sk = activeList[0]
+      prompt += `\n
 ## 🎯 用户指定 Skill：${sk.name}
 
 用户通过 @ 明确指定了本次使用此 Skill，请**严格按照以下 Skill 的步骤执行**，不要跳过：
@@ -59,6 +61,22 @@ ${sk.body}
 
 ---
 `
+    } else {
+      prompt += `\n
+## 🎯 用户指定 Skills（共 ${activeList.length} 个）
+
+用户通过 @ 指定了以下 Skills，请根据当前任务的实际需要自行决定：
+- **使用顺序**：先用哪个、后用哪个
+- **是否全部使用**：某个 Skill 与当前任务无关时可跳过
+- **组合使用**：一个 Skill 的输出可作为另一个的输入
+
+执行时在回复中说明"正在使用 Skill: xxx"。
+
+`
+      activeList.forEach((sk, i) => {
+        prompt += `### Skill ${i + 1}：${sk.name}\n\n${sk.body}\n\n---\n\n`
+      })
+    }
   }
 
   // ─── 工作区引导文件（Phase G1）──────────────────────────────────────────

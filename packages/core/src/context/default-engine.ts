@@ -95,7 +95,7 @@ export class DefaultContextEngine implements ContextEngine {
   readonly engineId = 'default'
 
   async assemble(params: AssembleParams): Promise<AssembleResult> {
-    const { sessionKey, provider, userMessage, workspaceDir, skills, activeSkill, abortSignal, onCompaction } = params
+    const { sessionKey, provider, userMessage, workspaceDir, skills, activeSkills, abortSignal, onCompaction } = params
 
     // 1. 获取 session
     const session = await getOrCreate(sessionKey)
@@ -119,7 +119,7 @@ export class DefaultContextEngine implements ContextEngine {
       workspaceDir,
       skills,
       modelName: provider.modelId,
-      activeSkill,
+      activeSkills,
       bootstrapBlock,
     })
 

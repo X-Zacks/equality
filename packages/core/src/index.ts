@@ -427,8 +427,10 @@ app.post<{ Body: ChatBody }>('/chat/stream', async (req, reply) => {
 
     const result = await sessionQueue.enqueue(sessionKey, () => {
       // 提取 mention 标记
-      const skillMatch = message.match(/^\[@([a-zA-Z0-9_-]+)\]\s*/)
-      const activeSkillName = skillMatch?.[1]
+      const skillMatch = message.match(/^\[(@[a-zA-Z0-9_-]+(?:,@[a-zA-Z0-9_-]+)*)\]\s*/)
+      const activeSkillNames = skillMatch
+        ? skillMatch[1].split(',').map(s => s.replace(/^@/, '').trim()).filter(Boolean)
+        : undefined
       const toolMatch = message.match(/\[#([a-zA-Z0-9_,#-]+)\]/)
       const allowedTools = toolMatch
         ? toolMatch[1].split(',').map(t => t.replace(/^#/, '').trim()).filter(Boolean)
@@ -445,7 +447,7 @@ app.post<{ Body: ChatBody }>('/chat/stream', async (req, reply) => {
         toolRegistry,
         workspaceDir: getWorkspaceDir(),
         skills: skillsWatcher.getSkills().map(e => e.skill),
-        activeSkillName,
+        activeSkillNames,
         allowedTools,
         steeringQueue,
         beforeToolCall: securityBeforeToolCall,
