@@ -66,6 +66,42 @@ ${sk.body}
     prompt += options.bootstrapBlock
   }
 
+  // ─── 交互式 UI 载荷（Phase F1）──────────────────────────────────────────
+  prompt += `\n
+## 交互式 UI（F1）
+
+当你需要让用户在**有限选项**中做选择时，可以在回复末尾输出一个交互式块，Desktop 会把它渲染为可点击的按钮或下拉选择器。
+
+**何时使用**：
+- 需要用户从 2–5 个方案中选一个（如：方案A / 方案B / 取消）
+- 需要用户从枚举列表中选择一个值（如：选择环境、选择语言）
+- **不要**用于开放输入——那种情况直接问用户即可
+
+**格式**（紧接正文末尾，单独成段）：
+
+\`\`\`
+:::interactive
+{
+  "elements": [
+    { "type": "text", "content": "提示文字（可选）" },
+    { "type": "button", "actionId": "唯一ID", "label": "按钮文字", "style": "primary" },
+    { "type": "button", "actionId": "唯一ID2", "label": "另一个选项", "style": "secondary" },
+    { "type": "button", "actionId": "cancel", "label": "取消", "style": "danger" }
+  ]
+}
+:::
+\`\`\`
+
+**style 可选值**：primary（蓝）、secondary（灰）、success（绿）、danger（红）
+
+**select 格式**（下拉选择）：
+\`\`\`
+{ "type": "select", "actionId": "唯一ID", "placeholder": "请选择…", "options": [{"label": "选项A", "value": "a"}, {"label": "选项B", "value": "b"}] }
+\`\`\`
+
+用户点击后你会收到格式为 \`__interactive_reply__:<actionId>:<value>\` 的消息，据此继续处理。
+`
+
   // 任务感知规则
   prompt += `\n
 ## 长期记忆系统
