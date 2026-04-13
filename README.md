@@ -1,6 +1,6 @@
 # Equality — AI 桌面智能助理
 
-> 面向中国大陆 Windows 用户的 AI Agent 操作系统。25 个子系统 · 28 内置工具 · 7 层安全 · 4 个 SQLite 数据库 · 25MB 安装包
+> 面向 Windows 用户的 AI Agent 操作系统。25 个子系统 · 28 内置工具 · 7 层安全 · 4 个 SQLite 数据库 · 25MB 安装包
 
 <p align="center">
   <strong>Tauri 2 (Rust)</strong> · <strong>Node.js 22 (Fastify)</strong> · <strong>React 19 (TypeScript)</strong>
@@ -142,20 +142,19 @@ Equality 不是聊天机器人。它是 **AI 代理的神经系统**——感知
 
 ---
 
-## 🌏 国内模型 & 本地化
+## 🌏 支持的模型 Provider
 
 | Provider | 模型 | 特点 |
 |----------|------|------|
 | 🐙 **GitHub Copilot** | GPT-4o/4.1/5.x, Claude, Gemini, o3/o4-mini | **免费**（$0 订阅） · Device Flow OAuth |
-| 🔮 **DeepSeek** | V3 / R1 (Reasoner) | api.deepseek.com 直连 · 思考过程可见 |
-| 🌟 **通义千问** | qwen3-coder-plus / qwen3-plus | dashscope.aliyuncs.com 国内端点 |
+| 🔮 **DeepSeek** | V3 / R1 (Reasoner) | api.deepseek.com · 思考过程可见 |
+| 🌟 **通义千问** | qwen3-coder-plus / qwen3-plus | dashscope.aliyuncs.com |
 | 🌋 **火山引擎** | doubao-seed-1-8 / doubao-1.5-pro | 豆包模型 |
 | 🤖 **MiniMax** | MiniMax-M1 | 含「显示思考过程」开关 |
 | 🔌 **自定义** | 任意 OpenAI 兼容 API | URL + Key + Model |
 
-- Skills 安装命令默认国内镜像源（清华 pypi、npmmirror、goproxy.cn）
 - 本地 Embedding：BGE-M3（中英双语，22MB 本地模型）
-- 费用账本以 **人民币** 计价
+- 费用账本支持多币种计价
 
 ---
 
@@ -264,7 +263,7 @@ pnpm build:portable     # 便携版 ZIP
 | 推荐方案 | 操作 | 费用 |
 |----------|------|------|
 | **零成本方案** | 点击 GitHub Copilot 的「登录」按钮 → 浏览器完成 Device Flow 授权 | 免费（需 GitHub 账号） |
-| **国内直连** | 填入 DeepSeek API Key（[platform.deepseek.com](https://platform.deepseek.com)） | ≈ ¥0.002/千 tokens |
+| **DeepSeek** | 填入 DeepSeek API Key（[platform.deepseek.com](https://platform.deepseek.com)） | ≈ ¥0.002/千 tokens |
 | **性能最优** | 同时配置 Copilot + DeepSeek → 开启 Auto 路由 | 智能选择最优模型 |
 
 配置完成后，状态栏会显示 `● copilot (gpt-5.2)` 或对应模型名。
