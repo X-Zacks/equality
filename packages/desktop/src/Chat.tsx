@@ -6,6 +6,8 @@ import { invoke } from '@tauri-apps/api/core'
 import Markdown from './Markdown'
 import InteractiveBlock from './InteractiveBlock'
 import { MentionPicker } from './MentionPicker'
+import WelcomeGuide from './WelcomeGuide'
+import FeatureTip from './FeatureTip'
 import './Chat.css'
 import './MentionPicker.css'
 
@@ -102,6 +104,9 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
   const [paused, setPaused] = useState(false)
   const [pauseIntentVis, setPauseIntentVis] = useState(false)  // 驱动⏳按鈕 re-render
   const [streaming, setStreaming] = useState(false)
+  // ─── Feature Tip 追踪（Onboarding Guide）────────────────────────────────
+  const [hasUsedSkill, setHasUsedSkill] = useState(false)
+  const [hasUsedAttachment, setHasUsedAttachment] = useState(false)
   const [expandedToolCalls, setExpandedToolCalls] = useState<Set<string>>(new Set())
   const { sendMessage, abort, loadSession } = useGateway()
 
@@ -246,6 +251,7 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
       if (paths.length > 0 && newOnes.length === 0 && prev.length >= MAX_ATTACHMENTS) {
         // 已达上限 — 不做操作（可选提示）
       }
+      if (newOnes.length > 0) setHasUsedAttachment(true)
       return [...prev, ...newOnes]
     })
   }, [])
@@ -368,6 +374,7 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
     setMentionState(null)
     if (mentionState.type === 'skill') {
       setSkillTags(prev => prev.includes(name) ? prev : [...prev, name])
+      setHasUsedSkill(true)
     } else {
       setToolTags(prev => prev.includes(name) ? prev : [...prev, name])
     }
@@ -393,6 +400,49 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
       void handleSend()
     }
   }
+
+  /** WelcomeGuide 卡片点击 → 直接发送预设提问 */
+  const handleWelcomePrompt = useCallback((text: string) => {
+    setInput('')
+    setMessages(prev => [...prev, { role: 'user', content: text }])
+    streamingTextRef.current = ''
+    setStreamingText('')
+    activeToolCallsRef.current = []
+    setActiveToolCalls([])
+    setInteractivePayloads([])
+    void sendMessage(
+      text,
+      (chunk) => {
+        streamingTextRef.current += chunk
+        setStreamingText(streamingTextRef.current)
+      },
+      () => {
+        const final = streamingTextRef.current
+        const tools = activeToolCallsRef.current
+        if (final || tools.length > 0) {
+          setMessages(msgs => [...msgs, { role: 'assistant', content: final, toolCalls: tools.length > 0 ? [...tools] : undefined }])
+        }
+        streamingTextRef.current = ''
+        setStreamingText('')
+        activeToolCallsRef.current = []
+        setActiveToolCalls([])
+      },
+      (err) => {
+        const isCopilotExpired = err.includes('Copilot') && err.includes('登录已过期')
+        setMessages(prev => [...prev, {
+          role: 'assistant',
+          content: `⚠️ ${err}`,
+          action: isCopilotExpired ? { label: '去设置重新登录', target: 'settings' as const } : undefined,
+        }])
+        streamingTextRef.current = ''
+        setStreamingText('')
+        activeToolCallsRef.current = []
+        setActiveToolCalls([])
+      },
+      undefined, // onToolCall — use default inline handler below won't work, keep undefined for simplicity
+      sessionKey,
+    )
+  }, [sessionKey, sendMessage])
 
   const handleSend = async () => {
     if ((!input.trim() && attachments.length === 0) || (streaming && !paused)) return
@@ -719,10 +769,7 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
       {/* 消息列表 */}
       <div className="chat-messages">
         {messages.length === 0 && !streaming && (
-          <div className="chat-empty">
-            <span className="chat-empty-icon">💬</span>
-            <p>开始对话吧</p>
-          </div>
+          <WelcomeGuide onSendPrompt={handleWelcomePrompt} />
         )}
         {messages.map((msg, i) => (
           <div key={i} className={`chat-bubble chat-${msg.role}`}>
@@ -874,6 +921,12 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
 
       {/* 输入区 */}
       <div className={`chat-input-area${dragOver ? ' drag-over' : ''}`}>
+        {/* 功能发现提示 */}
+        <FeatureTip
+          messageCount={messages.length}
+          hasUsedSkill={hasUsedSkill}
+          hasUsedAttachment={hasUsedAttachment}
+        />
         {/* 暂停横幅 */}
         {paused && (
           <div className="pause-banner">
