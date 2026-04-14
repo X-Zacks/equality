@@ -13,6 +13,10 @@ import { processManager } from './process-manager.js'
 import { hasSecret, getSecret } from '../../config/secrets.js'
 import type { SecretKey } from '../../config/secrets.js'
 import { validateBashCommand } from '../bash-sandbox.js'
+import { CommandQueue } from '../../process/command-queue.js'
+
+// G6: 前台命令并发队列（限制同时执行的子进程数，防止资源耗尽）
+const commandQueue = new CommandQueue({ maxConcurrent: 5, queueTimeout: 60_000 })
 
 // ─── 默认值 ──────────────────────────────────────────────────────────────────
 const DEFAULT_TIMEOUT_MS = 300_000       // 默认总超时 5 分钟
@@ -145,7 +149,10 @@ export const bashTool: ToolDefinition = {
 
     const startMs = Date.now()
 
-    return new Promise<ToolResult>((resolve) => {
+    // G6: 通过 CommandQueue 限制前台并发
+    let toolResult: ToolResult | undefined
+    await commandQueue.enqueue(command, ctx.workspaceDir, undefined, async () => {
+      toolResult = await new Promise<ToolResult>((resolve) => {
       const chunks: Buffer[] = []
       let killed = false
       let killReason: 'overall' | 'idle' | 'abort' = 'overall'
@@ -245,6 +252,9 @@ export const bashTool: ToolDefinition = {
           metadata: { durationMs: Date.now() - startMs },
         })
       })
-    })
+    }) // end Promise
+    }) // end enqueue executor
+
+    return toolResult!
   },
 }

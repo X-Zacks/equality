@@ -58,6 +58,7 @@ import { getSecret, hasSecret } from '../config/secrets.js'
 import { resolveContextWindow } from '../providers/context-window.js'
 import { createCacheTrace } from '../diagnostics/cache-trace.js'
 import { resolveAgentIdFromSessionKey, resolveAgentConfig } from '../config/agent-scope.js'
+import { globalHookRegistry } from '../hooks/index.js'
 
 // ─── 配置读取工具函数 ─────────────────────────────────────────────────────────
 
@@ -515,6 +516,19 @@ export async function runAttempt(params: RunAttemptParams): Promise<RunAttemptRe
       }
       console.log(`[runner] streamChat: loop=${loopCount}, toolsInParams=${streamParams.tools?.length ?? 0}`)
 
+      // J3: beforeLLMCall hook——异常不阻断主流程
+      try {
+        await globalHookRegistry.invoke('beforeLLMCall', {
+          sessionKey,
+          providerId: provider.providerId,
+          modelId: provider.modelId,
+          messageCount: messages.length,
+          loopCount,
+        })
+      } catch (hookErr) {
+        console.warn('[runner] beforeLLMCall hook error:', hookErr instanceof Error ? hookErr.message : hookErr)
+      }
+
       // I.5-8: 记录 prompt:before 阶段
       cacheTrace?.recordStage('prompt:before', {
         messages: messages as unknown[],
@@ -610,6 +624,21 @@ export async function runAttempt(params: RunAttemptParams): Promise<RunAttemptRe
       totalInputTokens += roundInput
       totalOutputTokens += roundOutput
 
+      // J3: afterLLMCall hook——异常不阻断主流程
+      try {
+        await globalHookRegistry.invoke('afterLLMCall', {
+          sessionKey,
+          providerId: provider.providerId,
+          modelId: provider.modelId,
+          inputTokens: roundInput,
+          outputTokens: roundOutput,
+          toolCallCount: accumulatedToolCalls.size,
+          loopCount,
+        })
+      } catch (hookErr) {
+        console.warn('[runner] afterLLMCall hook error:', hookErr instanceof Error ? hookErr.message : hookErr)
+      }
+
       // I.5-8: 记录 stream:context 阶段
       cacheTrace?.recordStage('stream:context', {
         note: `loop=${loopCount}, inputTokens=${roundInput}, outputTokens=${roundOutput}, toolCalls=${accumulatedToolCalls.size}`,
@@ -698,6 +727,25 @@ export async function runAttempt(params: RunAttemptParams): Promise<RunAttemptRe
             }
           }
 
+          // J3: globalHookRegistry.beforeToolCall（与 params hook 共存，可叠加拦截）
+          if (!blocked) {
+            try {
+              const hookResult = await globalHookRegistry.invoke('beforeToolCall', {
+                toolName: tc.name,
+                args,
+                sessionKey,
+              })
+              if (hookResult.blocked) {
+                resultContent = hookResult.reason ?? 'Blocked by hook'
+                isError = true
+                blocked = true
+                console.log(`[runner] 🚫 globalHook beforeToolCall blocked "${tc.name}": ${hookResult.reason}`)
+              }
+            } catch (hookErr) {
+              console.warn(`[runner] globalHook beforeToolCall error for "${tc.name}":`, hookErr)
+            }
+          }
+
           // 通知：工具开始（block 的工具也发通知，让 UI 知道有这次调用）
           onToolStart?.({ toolCallId: tc.id, name: tc.name, args })
 
@@ -751,6 +799,20 @@ export async function runAttempt(params: RunAttemptParams): Promise<RunAttemptRe
             } catch (hookErr) {
               console.warn(`[runner] afterToolCall hook error for "${tc.name}":`, hookErr)
             }
+          }
+
+          // J3: globalHookRegistry.afterToolCall（通知型，不替换结果）
+          try {
+            await globalHookRegistry.invoke('afterToolCall', {
+              toolName: tc.name,
+              args,
+              result: resultForMessages,
+              isError,
+              sessionKey,
+              durationMs,
+            })
+          } catch (hookErr) {
+            console.warn(`[runner] globalHook afterToolCall error for "${tc.name}":`, hookErr)
           }
 
           return { tc, args, resultContent: resultContent!, resultForMessages, isError, durationMs }

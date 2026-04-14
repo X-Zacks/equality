@@ -28,6 +28,7 @@ import { subagentListTool, setSubagentManagerForList } from './subagent-list.js'
 import { subagentSteerTool, setSubagentManagerForSteer } from './subagent-steer.js'
 import { subagentKillTool, setSubagentManagerForKill } from './subagent-kill.js'
 import { sessionSearchTool } from './session-search.js'
+import { codebaseSearchTool } from './codebase-search.js'
 
 /** 全部内置工具 */
 export const builtinTools: ToolDefinition[] = [
@@ -68,6 +69,8 @@ export const builtinTools: ToolDefinition[] = [
   subagentKillTool,
   // 历史会话搜索 (Phase O4)
   sessionSearchTool,
+  // 代码库语义搜索 (Phase N3)
+  codebaseSearchTool,
 ]
 
 export {
@@ -101,4 +104,5 @@ export {
   setSubagentManagerForSteer,
   setSubagentManagerForKill,
   sessionSearchTool,
+  codebaseSearchTool,
 }

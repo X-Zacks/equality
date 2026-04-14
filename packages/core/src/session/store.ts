@@ -1,5 +1,6 @@
 import { createSession, type Session } from './types.js'
 import { load as loadFromDisk, listSessions as listFromDisk, deleteSession as deleteFromDisk } from './persist.js'
+import { emitSessionEvent } from './lifecycle.js'
 
 const MAX_SESSIONS = 5000
 const IDLE_TTL_MS = 24 * 60 * 60 * 1000 // 24h
@@ -21,6 +22,11 @@ export async function getOrCreate(key: string): Promise<Session> {
       session.createdAt = saved.createdAt ?? Date.now()
       session.title = saved.title
       session.frozenMemorySnapshot = saved.frozenMemorySnapshot
+      // J2: 发射 session:restored 事件
+      emitSessionEvent('session:restored', key, { messageCount: session.messages.length })
+    } else {
+      // J2: 发射 session:created 事件
+      emitSessionEvent('session:created', key)
     }
     store.set(key, session)
   }
@@ -46,6 +52,8 @@ export function reap(): number {
   for (const [key, session] of store) {
     if (session.lastActiveAt < cutoff && !session.runningAbort) {
       store.delete(key)
+      // J2: 发射 session:reaped 事件
+      emitSessionEvent('session:reaped', key, { idleMs: Date.now() - session.lastActiveAt })
       removed++
     }
   }

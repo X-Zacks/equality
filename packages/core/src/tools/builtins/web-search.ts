@@ -5,6 +5,8 @@
  * - Brave Search API（主力）
  * - 回退到 web_fetch + DuckDuckGo HTML scrape
  *
+ * Phase I.5b G5: 支持通过 WebSearchRegistry 搜索，保持原有回退逻辑兼容。
+ *
  * 环境变量:
  *   BRAVE_SEARCH_API_KEY — Brave Search API 密钥（免费版每月 2000 次）
  *
@@ -12,6 +14,8 @@
  */
 
 import type { ToolDefinition, ToolResult, ToolContext } from '../types.js'
+import type { WebSearchRegistry } from '../../search/registry.js'
+import type { WebSearchResult } from '../../search/types.js'
 import { ProxyAgent } from 'undici'
 import { wrapExternalContent } from '../../security/external-content.js'
 
@@ -22,6 +26,10 @@ const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
 // 简单的内存缓存
 const cache = new Map<string, { data: string; ts: number }>()
 const CACHE_TTL_MS = 5 * 60 * 1000 // 5 分钟
+
+// G5: 可选 registry 注入（由 index.ts 在启动时调用 setWebSearchRegistry）
+let _registry: WebSearchRegistry | undefined
+export function setWebSearchRegistry(r: WebSearchRegistry): void { _registry = r }
 
 interface BraveWebResult {
   title?: string
@@ -77,6 +85,21 @@ export const webSearchTool: ToolDefinition = {
     }
 
     const startMs = Date.now()
+
+    // G5: 优先通过 registry 搜索（统一出口）
+    if (_registry) {
+      try {
+        const results = await _registry.search(query, { count, language })
+        if (results.length > 0) {
+          const rawResult = formatRegistryResults(query, results)
+          const { content: result } = wrapExternalContent(rawResult, 'web_search')
+          cache.set(cacheKey, { data: result, ts: Date.now() })
+          return { content: result, metadata: { durationMs: Date.now() - startMs } }
+        }
+      } catch {
+        // registry 搜索失败，回退到原有逻辑
+      }
+    }
 
     // 尝试 Brave Search API
     const braveApiKey = process.env.BRAVE_SEARCH_API_KEY
@@ -261,4 +284,24 @@ function stripHtml(html: string): string {
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
     .replace(/&nbsp;/g, ' ')
+}
+
+/* ── G5: Registry 结果格式化（保持与原有输出一致） ── */
+
+function formatRegistryResults(query: string, results: WebSearchResult[]): string {
+  const provider = results[0]?.source ?? 'Registry'
+  const lines: string[] = [
+    `🔍 搜索: "${query}" (${provider}, ${results.length} 条结果)`,
+    '',
+  ]
+  for (let i = 0; i < results.length; i++) {
+    const r = results[i]
+    lines.push(`${i + 1}. **${r.title}**`)
+    lines.push(`   ${r.url}`)
+    if (r.snippet) {
+      lines.push(`   ${r.snippet}`)
+    }
+    lines.push('')
+  }
+  return lines.join('\n')
 }

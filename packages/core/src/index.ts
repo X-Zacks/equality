@@ -49,6 +49,31 @@ const VERSION = '0.2.1'
 // 初始化 secrets（从环境变量读取）
 initSecrets()
 
+// G9: 结构化日志（替代散落的 console.log）— 尽早初始化，后续所有模块可用
+import { createLogger } from './diagnostics/logger.js'
+const log = createLogger('gateway')
+
+// G4: 配置验证（warn-only，不阻断启动）
+import { validateConfig } from './config/validate.js'
+import { EQUALITY_CONFIG_SCHEMA } from './config/schema.js'
+{
+  // 从 secrets cache 构造 config 对象（只取 schema 中定义的 key）
+  const raw: Record<string, unknown> = {}
+  for (const key of Object.keys(EQUALITY_CONFIG_SCHEMA)) {
+    try {
+      // schema key 与 secrets key 可能不完全一致，安全尝试
+      if (hasSecret(key as any)) raw[key] = getSecret(key as any)
+    } catch { /* ignore */ }
+  }
+  const result = validateConfig(raw, EQUALITY_CONFIG_SCHEMA)
+  if (result.errors.length > 0) {
+    for (const e of result.errors) log.warn(`[config] ⚠️ ${e.key}: ${e.message}`)
+  }
+  if (result.warnings.length > 0) {
+    for (const w of result.warnings) log.warn(`[config] 💡 ${w.key}: ${w.message}`)
+  }
+}
+
 // 用户工作目录：优先读 WORKSPACE_DIR，否则 fallback 到 ~/Equality/workspace
 function getWorkspaceDir(): string {
   if (hasSecret('WORKSPACE_DIR')) {
@@ -90,7 +115,7 @@ async function securityBeforeToolCall(info: BeforeToolCallInfo): Promise<{ block
 
   // 2. C1 变异分类（审计日志，不阻塞执行）
   const mutation = classifyMutation(name, args)
-  console.log(`[security] ${name}: mutation=${mutation.type}/${mutation.confidence}, risk=${decision.risk}, decidedBy=${decision.decidedBy}`)
+  log.info(`[security] ${name}: mutation=${mutation.type}/${mutation.confidence}, risk=${decision.risk}, decidedBy=${decision.decidedBy}`)
 
   return undefined // 允许执行
 }
@@ -98,12 +123,26 @@ async function securityBeforeToolCall(info: BeforeToolCallInfo): Promise<{ block
 // 初始化代理（从 settings.json 或环境变量读取）
 initProxy(hasSecret('HTTPS_PROXY') ? getSecret('HTTPS_PROXY') : undefined)
 
+// G5: Web Search Registry — 注册搜索 providers
+import { WebSearchRegistry } from './search/registry.js'
+import { BraveSearchProvider } from './search/brave-provider.js'
+import { DuckDuckGoSearchProvider } from './search/ddg-provider.js'
+
+const webSearchRegistry = new WebSearchRegistry()
+const proxyUrl = hasSecret('HTTPS_PROXY') ? getSecret('HTTPS_PROXY') : undefined
+webSearchRegistry.register(new BraveSearchProvider({ proxyUrl }))
+webSearchRegistry.register(new DuckDuckGoSearchProvider({ proxyUrl }))
+
+// G5: 注入 registry 到 web_search 工具
+import { setWebSearchRegistry } from './tools/builtins/web-search.js'
+setWebSearchRegistry(webSearchRegistry)
+
 // 初始化工具注册表
 const toolRegistry = new ToolRegistry()
 for (const tool of builtinTools) {
   toolRegistry.register(tool)
 }
-console.log(`[equality-core] 已注册 ${toolRegistry.size} 个工具: ${toolRegistry.list().join(', ')}`)
+log.info(`已注册 ${toolRegistry.size} 个工具: ${toolRegistry.list().join(', ')}`)
 
 // ── MCP 客户端初始化（Phase D.2）───────────────────────────────────────────
 const mcpManager = new McpClientManager(toolRegistry)
@@ -114,16 +153,16 @@ const mcpManager = new McpClientManager(toolRegistry)
       if (json.trim()) {
         const configs = parseMcpServersConfig(json)
         if (configs.length > 0) {
-          console.log(`[equality-core] MCP: 发现 ${configs.length} 个服务器配置，正在连接...`)
+          log.info(`MCP: 发现 ${configs.length} 个服务器配置，正在连接...`)
           await mcpManager.start(configs)
           const status = mcpManager.getStatus()
           const readyCount = status.filter(s => s.status === 'ready').length
-          console.log(`[equality-core] MCP: ${readyCount}/${configs.length} 个服务器已就绪`)
+          log.info(`MCP: ${readyCount}/${configs.length} 个服务器已就绪`)
         }
       }
     }
   } catch (err) {
-    console.warn('[equality-core] MCP 初始化失败（不影响启动）:', (err as Error).message)
+    log.warn(`MCP 初始化失败（不影响启动）: ${(err as Error).message}`)
   }
 })()
 
@@ -131,31 +170,31 @@ const mcpManager = new McpClientManager(toolRegistry)
 try {
   const { seeded, isNewWorkspace } = await ensureWorkspaceBootstrap(getWorkspaceDir())
   if (isNewWorkspace) {
-    console.log('[equality-core] 🚀 全新工作区，已种下引导模板（含 BOOTSTRAP.md 首次引导脚本）')
+    log.info('🚀 全新工作区，已种下引导模板（含 BOOTSTRAP.md 首次引导脚本）')
   } else if (seeded.length > 0) {
-    console.log(`[equality-core] 已补充缺失的引导文件: ${seeded.join(', ')}`)
+    log.info(`已补充缺失的引导文件: ${seeded.join(', ')}`)
   }
 } catch (err) {
-  console.warn('[equality-core] 引导文件初始化失败（不影响启动）:', (err as Error).message)
+  log.warn(`引导文件初始化失败（不影响启动）: ${(err as Error).message}`)
 }
 
 // 初始化 Skills 热加载
 const skillsWatcher = new SkillsWatcher({
   workspaceDir: getWorkspaceDir(),
   onChange: (skills, event) => {
-    console.log(`[equality-core] Skills 已重载: ${skills.length} 个 (v=${event.version}, reason=${event.reason})`)
+    log.info(`Skills 已重载: ${skills.length} 个 (v=${event.version}, reason=${event.reason})`)
   },
 })
 const initialSkills = await skillsWatcher.start()
-console.log(`[equality-core] 已加载 ${initialSkills.length} 个 Skills: ${initialSkills.map(e => e.skill.name).join(', ')}`)
+log.info(`已加载 ${initialSkills.length} 个 Skills: ${initialSkills.map(e => e.skill.name).join(', ')}`)
 
 // ─── 初始化 TaskRegistry（Phase E4.1 → I.5-3: SQLite 优先，fallback JSON）──
 let taskStore: import('./tasks/index.js').TaskStore
 try {
   taskStore = new SqliteTaskStore()
-  console.log('[equality-core] TaskStore: SQLite (node:sqlite)')
+  log.info('TaskStore: SQLite (node:sqlite)')
 } catch (e) {
-  console.warn('[equality-core] SqliteTaskStore 不可用，回退到 JsonTaskStore:', (e as Error).message)
+  log.warn(`SqliteTaskStore 不可用，回退到 JsonTaskStore: ${(e as Error).message}`)
   taskStore = new JsonTaskStore()
 }
 const taskRegistry = new TaskRegistry({
@@ -163,7 +202,7 @@ const taskRegistry = new TaskRegistry({
   flushDebounceMs: 500,
 })
 const restoredTaskCount = await taskRegistry.restore()
-console.log(`[equality-core] TaskRegistry 已恢复 ${restoredTaskCount} 个任务`)
+log.info(`TaskRegistry 已恢复 ${restoredTaskCount} 个任务`)
 
 // ─── 初始化 SubagentManager（Phase E4.3）────────────────────────────────────
 const subagentManager = new SubagentManager({
@@ -181,7 +220,33 @@ setSubagentManagerForSpawn(subagentManager)
 setSubagentManagerForList(subagentManager)
 setSubagentManagerForSteer(subagentManager)
 setSubagentManagerForKill(subagentManager)
-console.log('[equality-core] SubagentManager 已初始化')
+log.info('SubagentManager 已初始化')
+
+// G7: Links beforeLLMCall hook — 检测用户消息中的 URL 并记录
+import { globalHookRegistry } from './hooks/index.js'
+import { detectLinks } from './links/detect.js'
+import { fetchAndSummarize } from './links/understand.js'
+import { get as getSession } from './session/store.js'
+
+globalHookRegistry.register('beforeLLMCall', async (payload) => {
+  try {
+    const session = getSession(payload.sessionKey)
+    if (!session) return
+    // 只检查最后一条 user message
+    const lastUser = [...session.messages].reverse().find(m => m.role === 'user')
+    if (!lastUser || typeof lastUser.content !== 'string') return
+    const links = detectLinks(lastUser.content)
+    if (links.length === 0) return
+    for (const link of links) {
+      const result = await fetchAndSummarize(link.url)
+      if (result && !result.blocked) {
+        log.info(`[links] 预抓取: ${link.url} (${result.charCount} chars)`)
+      }
+    }
+  } catch {
+    // hook 失败不影响主流程
+  }
+})
 
 // ─── 孤儿恢复调度（Phase H1, T5）────────────────────────────────────────────
 scheduleOrphanRecovery({
@@ -208,7 +273,7 @@ function broadcastNotification(title: string, body: string) {
     try { client.write(`data: ${data}\n\n`) } catch { sseClients.delete(client) }
   }
   // 同时输出到控制台
-  console.log(`[CronScheduler] 🔔 ${title}: ${body}`)
+  log.info(`[CronScheduler] 🔔 ${title}: ${body}`)
 }
 
 // ─── TaskEventBus → SSE 广播（Phase E4.1）──────────────────────────────────
@@ -246,7 +311,7 @@ const cronScheduler = new CronScheduler({
       taskId = task.id
       taskRegistry.transition(task.id, 'running')
     } catch (e) {
-      console.warn('[cron] TaskRegistry 注册失败（不影响任务执行）:', e)
+      log.warn(`[cron] TaskRegistry 注册失败（不影响任务执行）: ${e}`)
     }
 
     try {
@@ -379,6 +444,70 @@ app.delete<{ Params: { taskId: string } }>('/tasks/:taskId', async (req, reply) 
   }
 })
 
+// ─── Phase Q: Chat Commands (/ 指令系统) ─────────────────────────────────────
+import { ChatCommandRegistry } from './commands/registry.js'
+import { registerBuiltins } from './commands/builtins/index.js'
+import { isChatCommand, parseChatCommand } from './commands/parser.js'
+import type { ChatCommandContext } from './commands/types.js'
+
+const chatCommandRegistry = new ChatCommandRegistry()
+registerBuiltins(chatCommandRegistry)
+log.info(`已注册 ${chatCommandRegistry.size} 个 Chat Commands: ${chatCommandRegistry.list().join(', ')}`)
+
+// GET /chat/commands — 列出所有可用指令（前端补全用）
+app.get('/chat/commands', async (_req, reply) => {
+  return reply.send({ commands: chatCommandRegistry.listDetails() })
+})
+
+// POST /chat/command — 执行指令
+app.post<{ Body: { sessionKey?: string; input: string } }>('/chat/command', async (req, reply) => {
+  const { sessionKey: rawKey, input } = req.body ?? {}
+  const sessionKey = rawKey || DESKTOP_SESSION_KEY
+
+  if (!input?.trim()) {
+    return reply.status(400).send({ ok: false, error: 'input is required' })
+  }
+
+  if (!isChatCommand(input)) {
+    return reply.send({ ok: false, error: 'Not a command (must start with /)' })
+  }
+
+  const parsed = parseChatCommand(input)
+  if (!parsed) {
+    return reply.send({ ok: false, error: 'Invalid command format' })
+  }
+
+  const definition = chatCommandRegistry.get(parsed.name)
+  if (!definition) {
+    return reply.send({ ok: false, error: `Unknown command: /${parsed.name}` })
+  }
+
+  try {
+    const session = get(sessionKey)
+    const messages = session?.messages ?? []
+    const ctx: ChatCommandContext = {
+      sessionKey,
+      messages: messages.map(m => ({
+        role: m.role,
+        content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
+      })),
+      metadata: session ? { model: (session as any).model, provider: (session as any).provider } : {},
+    }
+
+    const result = await definition.execute(parsed.args, ctx)
+
+    // 处理副作用指令
+    if (result.data.action === 'reset' && session) {
+      session.messages.length = 0
+    }
+
+    return reply.send({ ok: true, command: parsed.name, result })
+  } catch (err) {
+    log.error(`[chat/command] /${parsed.name} failed: ${(err as Error).message}`)
+    return reply.send({ ok: false, error: `Command failed: ${(err as Error).message}` })
+  }
+})
+
 // ─── Chat Abort Registry ──────────────────────────────────────────────────────
 /** sessionKey → 当前活跃请求的 AbortController（借鉴 OpenClaw chat-abort.ts） */
 const activeAborts = new Map<string, AbortController>()
@@ -482,7 +611,7 @@ app.post<{ Body: ChatBody }>('/chat/stream', async (req, reply) => {
         const last = session.messages[session.messages.length - 1]
         if (last.role === 'user') {
           session.messages.pop()
-          console.log('[chat/stream] 回滚失败请求的 user message，防止重复追加')
+          log.info('[chat/stream] 回滚失败请求的 user message，防止重复追加')
         }
       }
     } catch { /* ignore rollback error */ }
@@ -505,7 +634,7 @@ app.post<{ Body: ChatBody }>('/chat/stream', async (req, reply) => {
     } else if (msg.includes('Connection error') || msg.includes('ECONNRESET') || msg.includes('fetch failed') || msg.includes('socket hang up')) {
       send({ type: 'error', message: '❌ 与 AI 模型的网络连接中断。已自动重试 1 次仍失败。\n可能原因：网络不稳定 / 代理中断 / 模型服务暂时不可用。\n建议：稍等片刻后重试，或切换到其他模型。' })
     } else if (msg.includes('Secret not configured:')) {
-      console.error('[chat/stream] internal config error:', msg)
+      log.error(`[chat/stream] internal config error: ${msg}`)
       send({ type: 'error', message: `❌ 内部配置错误：${msg}，请反馈给开发者。` })
     } else {
       send({ type: 'error', message: msg })
@@ -560,7 +689,7 @@ app.post<{ Body: { sessionKey?: string; message: string } }>('/chat/steer', asyn
   }
 
   queue.push(message.trim())
-  console.log(`[chat/steer] 📥 sessionKey=${sessionKey}, queued="${message.slice(0, 60)}", queueLen=${queue.length}`)
+  log.info(`[chat/steer] 📥 sessionKey=${sessionKey}, queued="${message.slice(0, 60)}", queueLen=${queue.length}`)
   return reply.send({ ok: true, queued: true })
 })
 
@@ -1126,29 +1255,29 @@ app.get('/copilot/models', async (_req, reply) => {
 
 // Graceful shutdown: 关闭 MCP 连接
 process.on('SIGINT', async () => {
-  console.log('[equality-core] SIGINT received, shutting down...')
-  try { await taskRegistry.flush() } catch (e) { console.warn('[equality-core] taskRegistry.flush() failed:', e) }
+  log.info('SIGINT received, shutting down...')
+  try { await taskRegistry.flush() } catch (e) { log.warn(`taskRegistry.flush() failed: ${e}`) }
   await mcpManager.stop()
   process.exit(0)
 })
 process.on('SIGTERM', async () => {
-  console.log('[equality-core] SIGTERM received, shutting down...')
-  try { await taskRegistry.flush() } catch (e) { console.warn('[equality-core] taskRegistry.flush() failed:', e) }
+  log.info('SIGTERM received, shutting down...')
+  try { await taskRegistry.flush() } catch (e) { log.warn(`taskRegistry.flush() failed: ${e}`) }
   await mcpManager.stop()
   process.exit(0)
 })
 
 try {
   await app.listen({ port: PORT, host: HOST })
-  console.log(`[equality-core] v${VERSION} listening on ${HOST}:${PORT}`)
+  log.info(`v${VERSION} listening on ${HOST}:${PORT}`)
 
   // K2: 异步回填旧记忆的 embedding（不阻塞启动）
   setTimeout(() => {
     try {
       const count = backfillEmbeddings()
-      if (count > 0) console.log(`[equality-core] embedding 回填完成: ${count} 条`)
+      if (count > 0) log.info(`embedding 回填完成: ${count} 条`)
     } catch (err) {
-      console.warn('[equality-core] embedding 回填失败:', err)
+      log.warn(`embedding 回填失败: ${err}`)
     }
   }, 2000) // 延迟 2s，等数据库初始化稳定后再回填
 
@@ -1157,20 +1286,20 @@ try {
     try {
       const gc = memoryGC()
       if (gc.archived > 0 || gc.deleted > 0) {
-        console.log(`[equality-core] memory GC: archived=${gc.archived}, deleted=${gc.deleted}`)
+        log.info(`memory GC: archived=${gc.archived}, deleted=${gc.deleted}`)
       }
     } catch (err) {
-      console.warn('[equality-core] memory GC 失败:', err)
+      log.warn(`memory GC 失败: ${err}`)
     }
   }, 5000) // 延迟 5s
   setInterval(() => {
     try {
       const gc = memoryGC()
       if (gc.archived > 0 || gc.deleted > 0) {
-        console.log(`[equality-core] memory GC (scheduled): archived=${gc.archived}, deleted=${gc.deleted}`)
+        log.info(`memory GC (scheduled): archived=${gc.archived}, deleted=${gc.deleted}`)
       }
     } catch (err) {
-      console.warn('[equality-core] memory GC 失败:', err)
+      log.warn(`memory GC 失败: ${err}`)
     }
   }, 24 * 3600_000) // 24h
 } catch (err) {
@@ -1180,5 +1309,5 @@ try {
 
 setInterval(() => {
   const removed = reap()
-  if (removed > 0) console.log(`[equality-core] reaped ${removed} idle sessions`)
+  if (removed > 0) log.info(`reaped ${removed} idle sessions`)
 }, 60 * 60 * 1000)

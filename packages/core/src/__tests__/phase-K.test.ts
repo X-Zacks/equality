@@ -411,6 +411,8 @@ import { memorySave, memorySearch, memoryDelete, getAllMemoriesWithEmbedding, ba
 // T30: memorySave 存储 embedding
 {
   const entry = memorySave('K2集成测试：用户名是 test-user-k2', 'fact', 8)
+  assert.ok(!('duplicate' in entry) && !('blocked' in entry), 'K2b-T30: entry is not dup/blocked')
+  if ('duplicate' in entry || 'blocked' in entry) throw new Error('unexpected')
   assert.ok(entry.id, 'K2b-T30a: entry has id')
   // 验证 getAllMemoriesWithEmbedding 能取到刚存的记录
   const allWithEmb = getAllMemoriesWithEmbedding()
@@ -427,6 +429,8 @@ import { memorySave, memorySearch, memoryDelete, getAllMemoriesWithEmbedding, ba
 {
   const e1 = memorySave('我的名字是 zacks', 'fact', 9)
   const e2 = memorySave('最喜欢的编程语言是 TypeScript', 'preference', 7)
+  if ('duplicate' in e1 || 'blocked' in e1) throw new Error('e1 unexpected')
+  if ('duplicate' in e2 || 'blocked' in e2) throw new Error('e2 unexpected')
 
   // 用语义相近但词汇不同的查询来搜索
   const bm25Results = memorySearch('名字', 10)
