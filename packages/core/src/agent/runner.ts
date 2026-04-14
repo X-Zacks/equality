@@ -1038,10 +1038,14 @@ export async function runAttempt(params: RunAttemptParams): Promise<RunAttemptRe
   }
 }
 
-// ─── Memory: 自动 Capture（Phase 12）─────────────────────────────────────────
+// ─── Memory: 自动 Capture（Phase 12 + R1 修正）────────────────────────────────
 
+/**
+ * 正向触发词：只有明确的"指令型"记忆请求才触发自动保存。
+ * "记得" 被移除 —— 它通常是查询型（"你记得吗？"），而非指令（"记住这个"）。
+ */
 const CAPTURE_TRIGGERS = [
-  /记住|记下|记得|别忘/,
+  /记住|记下|别忘/,
   /remember|keep in mind|don'?t forget|note that/i,
   /我(喜欢|偏好|习惯|总是|从不|不喜欢)/,
   /i (like|prefer|hate|always|never|want)/i,
@@ -1050,7 +1054,31 @@ const CAPTURE_TRIGGERS = [
 ]
 
 /**
+ * 反向排除：匹配到这些模式的消息是**查询/回忆型**，不应触发自动保存。
+ * 即使包含 CAPTURE_TRIGGERS 中的某个词，也会被排除。
+ *
+ * 典型场景：
+ *   "还记得我是谁么" → 查询，不保存
+ *   "你记得我说过什么吗" → 查询，不保存
+ *   "do you remember my name" → 查询，不保存
+ *   "上次记住的内容还在吗" → 查询，不保存
+ */
+const CAPTURE_ANTI_PATTERNS = [
+  /还记得|你记得|记得.{0,4}(吗|么|嘛|没|不)/,
+  /记住了?.{0,4}(吗|么|嘛|没|不)/,
+  /上次.{0,6}记住/,
+  /do you remember|can you recall|you still remember/i,
+  /what did (i|we) (say|tell|mention)/i,
+  /^(你|我)?(还)?(记得|记住了?)(吗|么|嘛|没)?[？?]?$/,
+]
+
+/**
  * 检测用户消息是否包含"记住"类触发词，自动存储到长期记忆。
+ *
+ * R1 修正：增加 CAPTURE_ANTI_PATTERNS 反向排除机制。
+ *   先检查反向模式，如果命中则跳过（因为是查询而非指令）。
+ *   "还记得我是谁么" 不再被错误保存。
+ *
  * M1: 传入 agentId + workspaceDir + source='auto-capture'
  * M3/T36: 检查 MEMORY_AUTO_CAPTURE 开关（'off' 时跳过）
  * T22: 成功时调用 onCaptured 回调，通知客户端显示 Toast
@@ -1070,6 +1098,14 @@ function autoCapture(
 
     const text = message.trim()
     if (text.length < 5 || text.length > 500) return
+
+    // R1: 反向排除 —— 查询型语句不应触发自动保存
+    for (const anti of CAPTURE_ANTI_PATTERNS) {
+      if (anti.test(text)) {
+        console.log(`[memory] autoCapture 跳过(查询型): "${text.slice(0, 60)}..."`)
+        return
+      }
+    }
 
     for (const pat of CAPTURE_TRIGGERS) {
       if (pat.test(text)) {
