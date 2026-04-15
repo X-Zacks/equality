@@ -89,6 +89,10 @@ const CORE_TOOL_DEFINITIONS: CoreToolDefinition[] = [
 
   // Automation
   { id: 'cron', label: 'cron', description: 'Schedule recurring tasks', sectionId: 'automation', profiles: ['coding'] },
+
+  // Search
+  { id: 'codebase_search', label: 'codebase_search', description: 'Semantic code search across project', sectionId: 'fs', profiles: ['coding'] },
+  { id: 'session_search', label: 'session_search', description: 'Search past conversation sessions', sectionId: 'sessions', profiles: ['coding'] },
 ]
 
 // ─── Lookup Map ─────────────────────────────────────────────────────────────

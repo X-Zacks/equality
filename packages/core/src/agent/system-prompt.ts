@@ -53,7 +53,12 @@ export function buildSystemPrompt(options?: SystemPromptOptions): string {
 - 需要**查找符号的所有引用/调用方**时 → 用 \`lsp_references(file, symbol)\`
 - 需要**获取文件的类型错误和诊断**时 → 用 \`lsp_diagnostics(file)\`
 - 以上 LSP 工具支持 symbol 参数（直接传函数名/变量名），无需手动计算行列号
-- grep 用于**文本搜索**（找字符串出现位置），不要用 grep + read_file 来获取类型信息`
+
+代码搜索工具选择：
+- 需要**在整个项目中搜索代码片段**（函数实现、类定义、某功能怎么做的）时 → 用 \`codebase_search(query)\`，支持自然语言和符号名混合查询
+- 需要**精确匹配字符串/正则**（找某个变量名的所有出现位置）时 → 用 \`grep(pattern)\`
+- 区分：codebase_search 是语义搜索（理解意图），grep 是文本搜索（精确匹配）
+- **请不要用 grep + read_file 来获取类型信息，用 LSP 工具**`
 
   // ─── Agent 自定义身份说明（Phase I2）─────────────────────────────────────
   if (options?.agentIdentity) {
