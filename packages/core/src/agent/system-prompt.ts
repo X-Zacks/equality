@@ -48,12 +48,12 @@ export function buildSystemPrompt(options?: SystemPromptOptions): string {
 - 当回答涉及 **Git 状态**（是否已推送/提交）、**编译或测试结果**（是否通过）、**服务状态**（是否启动）等事实性问题时，应**优先通过工具获取真实证据**再给出结论，而不是从上下文推测。
 
 代码理解工具选择：
-- 需要查看**符号的类型签名、函数参数类型、变量类型**时 → 优先用 \`lsp_hover\`（精确到行列），而不是 grep + read_file 猜测
-- 需要**跳转到符号定义**（函数/类/变量的实现位置）时 → 优先用 \`lsp_definition\`，而不是 grep 搜索
-- 需要**查找符号的所有引用/调用方**时 → 优先用 \`lsp_references\`，而不是 grep 搜索字符串
-- 需要**获取文件的类型错误和诊断**时 → 优先用 \`lsp_diagnostics\`，而不是 bash 运行 tsc
-- LSP 工具需要精确的 file + line + column（1-based），如果不确定行列号，可以先 grep 定位符号再调 LSP
-- 只有在 LSP 工具不可用（语言服务器未安装）或语言不支持时，才退回 grep + read_file`
+- 需要查看**符号的类型签名、函数参数类型、变量类型**时 → 用 \`lsp_hover(file, symbol)\`，直接传符号名即可
+- 需要**跳转到符号定义**（函数/类/变量的实现位置）时 → 用 \`lsp_definition(file, symbol)\`
+- 需要**查找符号的所有引用/调用方**时 → 用 \`lsp_references(file, symbol)\`
+- 需要**获取文件的类型错误和诊断**时 → 用 \`lsp_diagnostics(file)\`
+- 以上 LSP 工具支持 symbol 参数（直接传函数名/变量名），无需手动计算行列号
+- grep 用于**文本搜索**（找字符串出现位置），不要用 grep + read_file 来获取类型信息`
 
   // ─── Agent 自定义身份说明（Phase I2）─────────────────────────────────────
   if (options?.agentIdentity) {

@@ -98,3 +98,33 @@ export function readLineFromFile(filePath: string, lineNumber: number): string {
     return ''
   }
 }
+
+/**
+ * 通过符号名在文件中定位行列号。
+ * 返回 1-based { line, column }，未找到返回 null。
+ *
+ * 策略：
+ * 1. 精确匹配 word boundary（函数/变量/类定义）
+ * 2. 找到第一处匹配（通常是定义位置，在文件靠前）
+ */
+export function resolveSymbolPosition(absPath: string, symbol: string): { line: number; column: number } | null {
+  try {
+    const content = fs.readFileSync(absPath, 'utf-8')
+    const lines = content.split('\n')
+
+    // 构建 word-boundary 正则，匹配符号名
+    const escaped = symbol.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const pattern = new RegExp(`\\b${escaped}\\b`)
+
+    for (let i = 0; i < lines.length; i++) {
+      const match = pattern.exec(lines[i])
+      if (match) {
+        return { line: i + 1, column: match.index + 1 } // 1-based
+      }
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
