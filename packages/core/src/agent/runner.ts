@@ -275,6 +275,228 @@ function guardUnsupportedSuccessClaims(text: string, executedToolNames: Set<stri
   return text
 }
 
+// ─── Phase S: Answer Evidence Guard（事实断言证据守卫）─────────────────────────
+
+/**
+ * 事实断言的证据类别。
+ * 当模型回答中包含这些类别的断言，但本轮没有对应工具证据时，触发改写。
+ */
+export type EvidenceCategory = 'git_status' | 'file_change' | 'command_result' | 'compile_result' | 'service_status'
+
+/**
+ * 每个证据类别的断言检测模式。
+ * 关键设计：只匹配"事实性断言"（已X / X成功 / X通过），不匹配"建议/计划"（建议你X / 我将X）。
+ */
+const CLAIM_PATTERNS: Record<EvidenceCategory, RegExp[]> = {
+  git_status: [
+    /(已经?|已|成功|现已).{0,8}(推送|push|提交|commit|合并|merge)/i,
+    /(代码|修改|变更|改动).{0,12}(已经?|已|成功).{0,8}(推送|push|提交|commit|合并|merge)/i,
+    /(尚未|还没有?|没有).{0,8}(推送|push|提交|commit|合并|merge)/i,
+    /pushed?\s+(to|successfully)/i,
+    /commit(ted)?\s+(successfully|to)/i,
+  ],
+  file_change: [
+    // 已被 guardUnsupportedSuccessClaims 覆盖的场景不重复检测
+    // 这里聚焦于"有部分工具但证据不匹配"的软性场景
+    /(文件|代码|配置).{0,8}(已|已经|成功).{0,6}(保存|同步)/,
+    /changes?\s+(have been|are)\s+saved/i,
+  ],
+  command_result: [
+    // 已被 guardUnsupportedSuccessClaims 覆盖的"完全没工具"场景
+    // 这里检测"有工具但不是 bash 却声称命令执行了"
+    /(命令|脚本|程序).{0,8}(已|已经|成功).{0,6}(运行|执行|完成)/,
+    /command\s+(executed|completed|succeeded)\s+successfully/i,
+  ],
+  compile_result: [
+    /(编译|构建|build|tsc|eslint).{0,8}(通过|成功|没有错误|passed|succeeded)/i,
+    /(测试|test).{0,8}(全部通过|通过|passed|succeeded)/i,
+    /compilation\s+(succeeded|passed)/i,
+    /build\s+(succeeded|passed|successful)/i,
+    /no\s+(?:compile|compilation|type)\s*errors?/i,
+    /(编译|构建|build).{0,8}(失败|错误|failed)/i,
+  ],
+  service_status: [
+    /(服务|server|端口|port).{0,8}(已启动|正在运行|已停止|running|started|stopped)/i,
+    /(服务|server).{0,8}(可以?访问|可达|reachable|accessible)/i,
+    /listening\s+on\s+port/i,
+  ],
+}
+
+/**
+ * 排除模式：匹配这些模式的句子不算事实断言（是建议/计划/条件/假设）。
+ */
+const CLAIM_ANTI_PATTERNS = [
+  /^(建议|推荐|可以|应该|需要|我将|我准备|让我|如果|假如|是否)/,
+  /^(suggest|recommend|should|could|would|if|let me|I will|I('ll| shall))/i,
+  /(要不要|是否需要|需要我|可以帮你|want me to)/,
+]
+
+/**
+ * 从模型回答中检测事实性断言的证据类别。
+ * 返回检测到的类别集合。空集 = 没有事实断言。
+ */
+export function detectFactualClaims(text: string): Set<EvidenceCategory> {
+  const result = new Set<EvidenceCategory>()
+  const trimmed = text.trim()
+  if (!trimmed) return result
+
+  // 按句子级别检测（中文句号/问号/感叹号/英文句号/换行）
+  const sentences = trimmed.split(/[。！？\n.!?]+/).filter(s => s.trim().length > 0)
+
+  for (const sentence of sentences) {
+    const s = sentence.trim()
+
+    // 排除计划/建议类表述
+    if (CLAIM_ANTI_PATTERNS.some(p => p.test(s))) continue
+
+    for (const [category, patterns] of Object.entries(CLAIM_PATTERNS) as [EvidenceCategory, RegExp[]][]) {
+      if (patterns.some(p => p.test(s))) {
+        result.add(category)
+      }
+    }
+  }
+
+  return result
+}
+
+/**
+ * 证据类别 → 能提供证据的工具名映射。
+ * 'bash' 工具需要进一步匹配命令内容。
+ */
+const EVIDENCE_TOOL_MAP: Record<EvidenceCategory, { directTools: string[]; bashKeywords?: RegExp }> = {
+  git_status: {
+    directTools: [],
+    bashKeywords: /\bgit\s+(status|log|push|pull|diff|remote|branch|rev-parse|cherry)\b/i,
+  },
+  file_change: {
+    directTools: ['write_file', 'edit_file', 'apply_patch'],
+    bashKeywords: /\b(echo|cat|tee|cp|mv|sed|>>?)\b.*\./i,
+  },
+  command_result: {
+    directTools: ['bash'],
+  },
+  compile_result: {
+    directTools: [],
+    bashKeywords: /\b(tsc|npx\s+tsc|eslint|npm\s+run\s+build|pnpm\s+(run\s+)?build|cargo\s+build|go\s+build|pytest|jest|vitest|mocha)\b/i,
+  },
+  service_status: {
+    directTools: ['web_fetch'],
+    bashKeywords: /\b(curl|wget|netstat|ss\s|lsof|Test-NetConnection|Invoke-WebRequest|Start-Process|pm2|systemctl|docker)\b/i,
+  },
+}
+
+/**
+ * 检查每个断言类别是否有匹配的工具证据。
+ *
+ * @param claims - 检测到的事实断言类别集合
+ * @param executedToolNames - 本轮执行过的工具名集合
+ * @param messages - 本轮完整消息列表（用于检查 bash 命令内容）
+ * @returns Map<category, hasEvidence>
+ */
+export function hasMatchingEvidence(
+  claims: Set<EvidenceCategory>,
+  executedToolNames: Set<string>,
+  messages: ChatCompletionMessageParam[],
+): Map<EvidenceCategory, boolean> {
+  const result = new Map<EvidenceCategory, boolean>()
+  if (claims.size === 0) return result
+
+  // 收集所有 bash 工具的参数和结果文本（用于关键词匹配）
+  let bashContent = ''
+  for (const msg of messages) {
+    // tool messages 中含有 bash 结果
+    if ('role' in msg && msg.role === 'tool' && typeof msg.content === 'string') {
+      bashContent += '\n' + msg.content
+    }
+    // assistant messages 中的 tool_calls 含有 bash 参数
+    if ('role' in msg && msg.role === 'assistant' && 'tool_calls' in msg && Array.isArray((msg as any).tool_calls)) {
+      for (const tc of (msg as any).tool_calls) {
+        if (tc?.function?.name === 'bash') {
+          bashContent += '\n' + (tc.function.arguments ?? '')
+        }
+      }
+    }
+  }
+
+  for (const category of claims) {
+    const mapping = EVIDENCE_TOOL_MAP[category]
+    let hasEvidence = false
+
+    // 检查直接工具
+    if (mapping.directTools.some(t => executedToolNames.has(t))) {
+      hasEvidence = true
+    }
+
+    // 检查 bash + 关键词
+    if (!hasEvidence && executedToolNames.has('bash') && mapping.bashKeywords) {
+      hasEvidence = mapping.bashKeywords.test(bashContent)
+    }
+
+    result.set(category, hasEvidence)
+  }
+
+  return result
+}
+
+/**
+ * 证据类别的中文描述 + 建议操作。
+ */
+const EVIDENCE_HINTS: Record<EvidenceCategory, { label: string; suggestion: string }> = {
+  git_status: { label: 'Git 状态', suggestion: '需要我帮你检查一下 Git 状态吗？' },
+  file_change: { label: '文件改动', suggestion: '需要我确认一下文件是否已保存/同步吗？' },
+  command_result: { label: '命令执行结果', suggestion: '需要我实际运行这个命令来确认吗？' },
+  compile_result: { label: '编译/测试结果', suggestion: '需要我执行编译或测试来验证吗？' },
+  service_status: { label: '服务状态', suggestion: '需要我检查一下服务是否正常运行吗？' },
+}
+
+/**
+ * Phase S 核心守卫：检查模型回答中的事实性断言是否有工具证据支撑。
+ * 无证据时在回答末尾追加提示。
+ *
+ * 与 guardUnsupportedSuccessClaims 的区别：
+ * - 前者：拦截"完全没工具却说已执行"的硬性违规（替换整个回答）
+ * - 本函数：检测"有部分工具但证据不匹配断言"的软性问题（追加提示）
+ */
+export function guardUnverifiedClaims(
+  text: string,
+  executedToolNames: Set<string>,
+  messages: ChatCompletionMessageParam[],
+): string {
+  const trimmed = text.trim()
+  if (!trimmed) return text
+
+  // 如果已被硬性守卫替换（以 ⚠️ 开头的定型提示），不再二次处理
+  if (trimmed.startsWith('⚠️ 我还没有') || trimmed.startsWith('⚠️ 我本轮没有')) {
+    return text
+  }
+
+  const claims = detectFactualClaims(trimmed)
+  if (claims.size === 0) return text
+
+  const evidenceMap = hasMatchingEvidence(claims, executedToolNames, messages)
+
+  // 收集缺少证据的类别
+  const unverified: EvidenceCategory[] = []
+  for (const [category, hasEvidence] of evidenceMap) {
+    if (!hasEvidence) {
+      unverified.push(category)
+    }
+  }
+
+  if (unverified.length === 0) return text
+
+  // 追加证据缺失提示（不替换原回答）
+  const hints = unverified.map(c => `- ${EVIDENCE_HINTS[c].label}：${EVIDENCE_HINTS[c].suggestion}`)
+  const warning = [
+    '',
+    '---',
+    `⚠️ 以上回答中涉及以下内容的判断尚未经过工具实际核验，可能不准确：`,
+    ...hints,
+  ].join('\n')
+
+  return text + warning
+}
+
 // ─── 编译错误检测与自动重试（Phase A.1）─────────────────────────────────────
 
 /**
@@ -1003,6 +1225,13 @@ export async function runAttempt(params: RunAttemptParams): Promise<RunAttemptRe
   if (guardedText !== fullText) {
     console.warn(`[runner] ⚠️ 命中执行证据 Guard: tools=${[...executedToolNames].join(',') || 'none'}`)
     fullText = guardedText
+  }
+
+  // 9.3 Phase S: Answer Evidence Guard（事实断言证据守卫）
+  const verifiedText = guardUnverifiedClaims(fullText, executedToolNames, messages)
+  if (verifiedText !== fullText) {
+    console.warn(`[runner] ⚠️ 命中事实断言证据 Guard: tools=${[...executedToolNames].join(',') || 'none'}`)
+    fullText = verifiedText
   }
 
   // 9.5 Interactive Payload 检测（Phase F1）
