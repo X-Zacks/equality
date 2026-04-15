@@ -97,9 +97,11 @@ function searchFile(
 export const grepTool: ToolDefinition = {
   name: 'grep',
   description:
-    '在文件中搜索文本模式。支持正则表达式和字面量搜索。' +
+    '用正则表达式或字面量在文件中搜索文本。' +
     '返回匹配行及其行号和文件路径。' +
-    '默认搜索工作区内所有文本文件，可通过 include 参数过滤。',
+    '默认搜索工作区内所有文本文件，可通过 include 参数过滤。' +
+    'Use when: 需要正则表达式匹配、或搜索非代码内容（日志、配置值、URL 等）。' +
+    '代码搜索优先用 codebase_search。',
   inputSchema: {
     type: 'object',
     properties: {

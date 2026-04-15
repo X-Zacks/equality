@@ -75,11 +75,10 @@ export function resetCodebaseIndex(): void {
 export const codebaseSearchTool: ToolDefinition = {
   name: 'codebase_search',
   description:
-    '搜索项目代码库中的相关代码片段。使用语义+关键词+符号混合检索。' +
-    '适用于查找函数实现、类定义、配置位置、某功能怎么实现的等。' +
-    'Use when: 需要在整个项目中搜索代码片段，支持自然语言查询（如 "处理用户登录的逻辑"）和符号名（如 "handleNewChat"）。' +
-    '首次调用会自动构建项目索引。' +
-    'NOT for: 精确的文本/正则搜索用 grep，查类型签名用 lsp_hover，查定义用 lsp_definition。',
+    '在项目代码库中搜索代码。这是搜索代码的首选工具，支持符号名、关键词和自然语言查询。' +
+    '直接返回匹配的代码片段和上下文，无需再用 read_file 读取。' +
+    'Use when: 搜索函数、变量、类的使用位置，查找某功能的实现，以及任何代码搜索任务。' +
+    'NOT for: 正则表达式搜索用 grep，查类型签名用 lsp_hover，查定义用 lsp_definition。',
   inputSchema: {
     type: 'object',
     properties: {
