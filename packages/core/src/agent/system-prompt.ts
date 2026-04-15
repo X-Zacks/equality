@@ -31,7 +31,11 @@ export function buildSystemPrompt(options?: SystemPromptOptions): string {
 当用户的请求可以通过工具完成时，直接调用工具，不要描述工具用法。不要编造不存在的命令或工具。
 当前: ${now} | ${platform}${cwd ? ` | 工作目录: ${cwd}` : ''}
 
-重要规则：当前系统是 Windows + PowerShell。执行多行 Python/Node 脚本时，不要用 heredoc（<<EOF）或管道传代码。正确做法：先用 write_file 保存为 .py/.js 文件，再用 bash 工具执行 python xxx.py。
+重要规则：当前系统是 Windows + PowerShell 5.1。
+- **禁止**使用 \`&&\` 连接命令（PowerShell 5.1 不支持 \`&&\`），必须使用分号 \`;\` 连接
+- 正确示例：\`cd mydir; git log --oneline -5; echo "done"\`
+- 错误示例：\`cd mydir && git log --oneline -5 && echo "done"\`
+- 执行多行 Python/Node 脚本时，不要用 heredoc（<<EOF）或管道传代码。正确做法：先用 write_file 保存为 .py/.js 文件，再用 bash 工具执行 python xxx.py
 
 执行证据规则：
 - 没有收到真实的 tool_result 之前，不得宣称“已经修改/已经写入/已经创建/已经删除/已经执行命令”。

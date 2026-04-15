@@ -269,6 +269,81 @@ const PROVIDER_ICON: Record<string, string> = {
   minimax: '🤖',
 }
 
+// ─── Provider 默认模型映射 ─────────────────────────────────────────────────
+const PROVIDER_DEFAULT_MODEL: Record<string, string> = {
+  deepseek: 'deepseek-chat',
+  qwen: 'qwen-plus',
+  volc: 'doubao-1.5-pro-256k',
+  minimax: 'MiniMax-M2.7',
+}
+
+// ─── R2: Intent Judge 开关组件 ────────────────────────────────────────────────
+function IntentJudgeToggle({ providerId, settings, onSaveKey, onRefresh }: {
+  providerId: string
+  settings: SettingsState
+  onSaveKey: (key: SecretKey, value: string) => Promise<boolean>
+  onRefresh: () => Promise<void>
+}) {
+  const isActive = settings.intentJudge?.provider === providerId
+  const [toggling, setToggling] = useState(false)
+
+  // 获取该 Provider 的默认模型
+  const getModelForProvider = () => {
+    if (providerId === 'copilot') {
+      // Copilot 使用当前选中的模型
+      const sel = settings.selectedModel
+      if (sel) {
+        const parts = sel.split('/')
+        return parts.length > 1 ? parts[1] : sel
+      }
+      return 'gpt-4o'
+    }
+    if (providerId === 'custom') {
+      // Custom 使用 CUSTOM_MODEL
+      const found = settings.configured.find(c => c.key === 'CUSTOM_MODEL')
+      return found?.masked || 'gpt-4o'
+    }
+    return PROVIDER_DEFAULT_MODEL[providerId] ?? 'unknown'
+  }
+
+  const handleToggle = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    setToggling(true)
+    try {
+      if (e.target.checked) {
+        const model = getModelForProvider()
+        await onSaveKey('INTENT_JUDGE_PROVIDER' as SecretKey, providerId)
+        await onSaveKey('INTENT_JUDGE_MODEL' as SecretKey, model)
+      } else {
+        await onSaveKey('INTENT_JUDGE_PROVIDER' as SecretKey, '')
+        await onSaveKey('INTENT_JUDGE_MODEL' as SecretKey, '')
+      }
+      await onRefresh()
+    } finally {
+      setToggling(false)
+    }
+  }
+
+  return (
+    <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: toggling ? 'wait' : 'pointer', fontSize: 13 }}>
+        <input
+          type="checkbox"
+          checked={isActive}
+          onChange={handleToggle}
+          disabled={toggling}
+          style={{ width: 15, height: 15 }}
+        />
+        <span>🧠 用于意图判断</span>
+      </label>
+      <p style={{ margin: '6px 0 0 25px', fontSize: 11, color: '#888', lineHeight: 1.4 }}>
+        {isActive
+          ? `✅ 当前使用 ${settings.intentJudge?.model ?? '?'} 判断记忆意图`
+          : '开启后，自动记忆功能将使用此模型判断用户意图（而非主对话模型）。同时只能有一个 Provider 启用。'}
+      </p>
+    </div>
+  )
+}
+
 // ─── ProviderRow: 固定高度48px的列表行 ──────────────────────────────────────
 interface ProviderRowProps {
   id: string
@@ -394,6 +469,16 @@ function ProviderDrawer({
                 </button>
               </>
             )}
+
+            {/* R2: 意图判断模型开关 */}
+            {copilot.phase === 'logged-in' && (
+              <IntentJudgeToggle
+                providerId="copilot"
+                settings={settings}
+                onSaveKey={onSaveKey}
+                onRefresh={onRefresh}
+              />
+            )}
           </div>
         </div>
       </div>
@@ -468,6 +553,16 @@ function ProviderDrawer({
                 开启后 MiniMax-M2.7 的推理内容将保留在回复中（&lt;think&gt; 格式）。默认关闭。
               </p>
             </div>
+          )}
+
+          {/* R2: 意图判断模型开关（所有已配置 provider 可见） */}
+          {hasAny && (
+            <IntentJudgeToggle
+              providerId={providerId}
+              settings={settings}
+              onSaveKey={onSaveKey}
+              onRefresh={onRefresh}
+            />
           )}
         </div>
       </div>

@@ -184,6 +184,7 @@ export function MemoryTab() {
   const [editingEntry, setEditingEntry] = useState<MemoryEntry | null | 'new'>(null)
   const [loading, setLoading] = useState(false)
   const [actionBusy, setActionBusy] = useState(false)
+  const [confirmDialog, setConfirmDialog] = useState<{ text: string; onConfirm: () => void } | null>(null)
   const [toast, setToast] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -218,19 +219,29 @@ export function MemoryTab() {
 
   const totalPages = Math.ceil(total / pageSize) || 1
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('确定删除这条记忆？')) return
-    await deleteMemory(id)
-    setSelected(prev => { const n = new Set(prev); n.delete(id); return n })
-    refresh()
+  const handleDelete = (id: string) => {
+    setConfirmDialog({
+      text: '确定删除这条记忆？',
+      onConfirm: async () => {
+        setConfirmDialog(null)
+        await deleteMemory(id)
+        setSelected(prev => { const n = new Set(prev); n.delete(id); return n })
+        refresh()
+      },
+    })
   }
 
-  const handleBulkDelete = async () => {
+  const handleBulkDelete = () => {
     if (selected.size === 0) return
-    if (!confirm(`确定删除 ${selected.size} 条记忆？`)) return
-    await deleteMemories([...selected])
-    setSelected(new Set())
-    refresh()
+    setConfirmDialog({
+      text: `确定删除 ${selected.size} 条记忆？`,
+      onConfirm: async () => {
+        setConfirmDialog(null)
+        await deleteMemories([...selected])
+        setSelected(new Set())
+        refresh()
+      },
+    })
   }
 
   const handleTogglePin = async (entry: MemoryEntry) => {
@@ -503,6 +514,25 @@ export function MemoryTab() {
           onSave={handleSaveDialog}
           onClose={() => setEditingEntry(null)}
         />
+      )}
+
+      {/* 删除确认弹窗 */}
+      {confirmDialog && (
+        <div className="memory-dialog-overlay" onClick={() => setConfirmDialog(null)}>
+          <div className="memory-dialog" onClick={e => e.stopPropagation()} style={{ width: 360 }}>
+            <div className="memory-dialog-header">
+              <h3>确认操作</h3>
+              <button className="memory-dialog-close" onClick={() => setConfirmDialog(null)}>✕</button>
+            </div>
+            <div className="memory-dialog-body" style={{ padding: '20px 18px', textAlign: 'center' }}>
+              <p style={{ margin: 0, fontSize: 14 }}>{confirmDialog.text}</p>
+            </div>
+            <div className="memory-dialog-footer">
+              <button className="btn-secondary" onClick={() => setConfirmDialog(null)}>取消</button>
+              <button className="btn-danger" onClick={confirmDialog.onConfirm}>删除</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

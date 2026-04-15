@@ -425,8 +425,8 @@ export async function runAttempt(params: RunAttemptParams): Promise<RunAttemptRe
   // 4. 追加用户消息（使用剥离 @model 后的消息）
   session.messages.push({ role: 'user', content: actualMessage })
 
-  // 4.5 Memory: 自动 Capture（检测"记住/remember"等关键词）
-  autoCapture(actualMessage, sessionKey, agentId, params.workspaceDir, params.onMemoryCaptured)
+  // 4.5 Memory: LLM 意图判断 + 自动 Capture（并行，不阻塞主流程）
+  void autoCapture(actualMessage, provider, sessionKey, agentId, params.workspaceDir, params.onMemoryCaptured)
 
   // 5. Context Engine: 组装消息列表（system prompt + memory recall + history + compaction + trim）
   // 解析 @ Skill 指定（支持多个）
@@ -1038,58 +1038,50 @@ export async function runAttempt(params: RunAttemptParams): Promise<RunAttemptRe
   }
 }
 
-// ─── Memory: 自动 Capture（Phase 12 + R1 修正）────────────────────────────────
+// ─── Memory: LLM 意图判断 + 自动 Capture（Phase R1 重构）──────────────────────
 
 /**
- * 正向触发词：只有明确的"指令型"记忆请求才触发自动保存。
- * "记得" 被移除 —— 它通常是查询型（"你记得吗？"），而非指令（"记住这个"）。
+ * 快速预过滤：如果消息完全不包含任何记忆相关关键词，直接跳过 LLM 判断。
+ * 这是性能优化，避免每条普通消息都调 LLM。
  */
-const CAPTURE_TRIGGERS = [
-  /记住|记下|别忘/,
-  /remember|keep in mind|don'?t forget|note that/i,
-  /我(喜欢|偏好|习惯|总是|从不|不喜欢)/,
-  /i (like|prefer|hate|always|never|want)/i,
-  /以后都?用|以后都?别/,
-  /我的(名字|邮箱|手机|电话|地址|公司)/,
-]
+const MEMORY_KEYWORD_PREFILTER = /记住|记下|别忘|记得|remember|keep in mind|don'?t forget|note that|我(喜欢|偏好|习惯|总是|从不|不喜欢)|i (like|prefer|hate|always|never|want)|以后都?用|以后都?别|我的(名字|邮箱|手机|电话|地址|公司)/i
+
+/** LLM 意图判断 prompt：判断用户消息是否包含应当保存到长期记忆的信息 */
+const INTENT_JUDGE_PROMPT = `你是一个意图判断器。判断用户消息是否包含应当保存到长期记忆的信息。
+
+保存记忆的条件（满足任一即可）：
+- 用户明确要求记住某事（"记住我叫…"、"别忘了…"、"remember that…"）
+- 用户表达了个人偏好或习惯（"我喜欢用…"、"我偏好…"、"I prefer…"）
+- 用户提供了个人信息（姓名、邮箱、时区等）
+
+不应保存记忆的条件：
+- 用户在询问/查询是否记得（"还记得我是谁吗"、"你记得吗"、"do you remember"）
+- 用户在问自己喜欢什么（"我喜欢什么"、"我的偏好是什么"）
+- 普通的对话、提问、任务请求
+- 对过去记忆的检索/回忆请求
+
+只回复一个 JSON 对象，不要有其他内容：
+{"save": true/false, "text": "要保存的精炼文本（仅 save=true 时需要）", "category": "general/preference/decision/fact/project"}
+
+如果 save=false，回复：{"save": false}`
 
 /**
- * 反向排除：匹配到这些模式的消息是**查询/回忆型**，不应触发自动保存。
- * 即使包含 CAPTURE_TRIGGERS 中的某个词，也会被排除。
+ * 使用 LLM 进行意图判断，决定是否自动保存记忆。
+ * 并行执行，不阻塞主对话流程。
  *
- * 典型场景：
- *   "还记得我是谁么" → 查询，不保存
- *   "你记得我说过什么吗" → 查询，不保存
- *   "do you remember my name" → 查询，不保存
- *   "上次记住的内容还在吗" → 查询，不保存
+ * R1 重构：废弃纯正则匹配方式，改为：
+ *   1. 关键词预过滤（性能优化，无关消息直接跳过）
+ *   2. LLM 意图判断（区分"记住这个" vs "你记得吗" vs "我喜欢什么"）
+ *   3. 保存时使用 LLM 提炼后的文本，而非用户原始提问
  */
-const CAPTURE_ANTI_PATTERNS = [
-  /还记得|你记得|记得.{0,4}(吗|么|嘛|没|不)/,
-  /记住了?.{0,4}(吗|么|嘛|没|不)/,
-  /上次.{0,6}记住/,
-  /do you remember|can you recall|you still remember/i,
-  /what did (i|we) (say|tell|mention)/i,
-  /^(你|我)?(还)?(记得|记住了?)(吗|么|嘛|没)?[？?]?$/,
-]
-
-/**
- * 检测用户消息是否包含"记住"类触发词，自动存储到长期记忆。
- *
- * R1 修正：增加 CAPTURE_ANTI_PATTERNS 反向排除机制。
- *   先检查反向模式，如果命中则跳过（因为是查询而非指令）。
- *   "还记得我是谁么" 不再被错误保存。
- *
- * M1: 传入 agentId + workspaceDir + source='auto-capture'
- * M3/T36: 检查 MEMORY_AUTO_CAPTURE 开关（'off' 时跳过）
- * T22: 成功时调用 onCaptured 回调，通知客户端显示 Toast
- */
-function autoCapture(
+async function autoCapture(
   message: string,
+  provider: LLMProvider,
   sessionKey?: string,
   agentId?: string,
   workspaceDir?: string,
   onCaptured?: (info: { id: string; text: string; category: string }) => void,
-): void {
+): Promise<void> {
   try {
     // M3/T36: 检查自动记忆开关
     if (hasSecret('MEMORY_AUTO_CAPTURE') && getSecret('MEMORY_AUTO_CAPTURE') === 'off') {
@@ -1099,35 +1091,71 @@ function autoCapture(
     const text = message.trim()
     if (text.length < 5 || text.length > 500) return
 
-    // R1: 反向排除 —— 查询型语句不应触发自动保存
-    for (const anti of CAPTURE_ANTI_PATTERNS) {
-      if (anti.test(text)) {
-        console.log(`[memory] autoCapture 跳过(查询型): "${text.slice(0, 60)}..."`)
-        return
-      }
+    // Step 1: 关键词预过滤 —— 没有任何记忆相关词的消息直接跳过
+    if (!MEMORY_KEYWORD_PREFILTER.test(text)) {
+      return
     }
 
-    for (const pat of CAPTURE_TRIGGERS) {
-      if (pat.test(text)) {
-        const result = memorySave(text, {
-          category: 'general',
-          importance: 6,
-          sessionKey,
-          agentId: agentId ?? 'default',
-          workspaceDir,
-          source: 'auto-capture',
-        })
-        // 去重或安全拦截时静默跳过
-        if ('blocked' in result || 'duplicate' in result) {
-          console.log(`[memory] autoCapture 跳过: ${('blocked' in result) ? '安全拦截' : '去重'}`)
-          return
-        }
-        console.log(`[memory] 自动 Capture: "${text.slice(0, 60)}..." (agent=${agentId ?? 'default'})`)
-        // T22: 通知客户端
-        onCaptured?.({ id: result.id, text: text.slice(0, 100), category: 'general' })
-        return
+    // Step 2: LLM 意图判断（使用 intent judge provider 或当前 provider）
+    let intentProvider: LLMProvider = provider
+    try {
+      if (hasSecret('INTENT_JUDGE_PROVIDER') && hasSecret('INTENT_JUDGE_MODEL')) {
+        const judgeProviderId = getSecret('INTENT_JUDGE_PROVIDER')
+        const judgeModelId = getSecret('INTENT_JUDGE_MODEL')
+        const { getProviderById } = await import('../providers/index.js')
+        intentProvider = getProviderById(judgeProviderId, judgeModelId)
       }
+    } catch (err) {
+      console.warn('[memory] intent judge provider 加载失败，降级到当前 provider:', err)
     }
+
+    console.log(`[memory] 意图判断开始: "${text.slice(0, 60)}..." (provider=${intentProvider.providerId}/${intentProvider.modelId})`)
+
+    const response = await intentProvider.chat({
+      messages: [
+        { role: 'system', content: INTENT_JUDGE_PROMPT },
+        { role: 'user', content: text },
+      ],
+    })
+
+    // Step 3: 解析 LLM 返回的 JSON 判断结果
+    let judgment: { save: boolean; text?: string; category?: string }
+    try {
+      // 兼容 LLM 可能在 JSON 外包裹 markdown 代码块
+      const jsonStr = response.content.replace(/```json?\s*/g, '').replace(/```\s*/g, '').trim()
+      judgment = JSON.parse(jsonStr)
+    } catch {
+      console.warn('[memory] 意图判断返回非 JSON，跳过:', response.content.slice(0, 100))
+      return
+    }
+
+    if (!judgment.save) {
+      console.log(`[memory] 意图判断: 不保存 ("${text.slice(0, 40)}...")`)
+      return
+    }
+
+    // Step 4: 保存 LLM 提炼后的文本（而非用户原始提问）
+    const saveText = (judgment.text ?? text).trim()
+    const category = judgment.category ?? 'general'
+
+    const result = memorySave(saveText, {
+      category,
+      importance: 6,
+      sessionKey,
+      agentId: agentId ?? 'default',
+      workspaceDir,
+      source: 'auto-capture',
+    })
+
+    // 去重或安全拦截时静默跳过
+    if ('blocked' in result || 'duplicate' in result) {
+      console.log(`[memory] autoCapture 跳过: ${('blocked' in result) ? '安全拦截' : '去重'}`)
+      return
+    }
+
+    console.log(`[memory] 自动 Capture（LLM 意图确认）: "${saveText.slice(0, 60)}..." (category=${category})`)
+    // T22: 通知客户端
+    onCaptured?.({ id: result.id, text: saveText.slice(0, 100), category })
   } catch (err) {
     console.warn('[memory] autoCapture 失败:', err)
   }

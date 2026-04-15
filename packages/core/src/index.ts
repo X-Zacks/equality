@@ -986,7 +986,14 @@ app.get('/settings', async (_req, reply) => {
   }
   const modelRouting = hasSecret('MODEL_ROUTING') ? getSecret('MODEL_ROUTING') : 'auto'
   const selectedModel = hasSecret('SELECTED_MODEL') ? getSecret('SELECTED_MODEL') : ''
-  return reply.send({ configured, activeProvider, modelRouting, selectedModel, storageMode: getStorageMode() })
+
+  // R2: Intent Judge 配置
+  const intentJudge = (hasSecret('INTENT_JUDGE_PROVIDER') && hasSecret('INTENT_JUDGE_MODEL')
+    && getSecret('INTENT_JUDGE_PROVIDER') && getSecret('INTENT_JUDGE_MODEL'))
+    ? { provider: getSecret('INTENT_JUDGE_PROVIDER'), model: getSecret('INTENT_JUDGE_MODEL') }
+    : null
+
+  return reply.send({ configured, activeProvider, modelRouting, selectedModel, storageMode: getStorageMode(), intentJudge })
 })
 
 // ─── Settings: delete a key ───────────────────────────────────────────────────

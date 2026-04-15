@@ -56,7 +56,9 @@ function killTree(pid: number) {
 export const bashTool: ToolDefinition = {
   name: 'bash',
   description:
-    '在本地执行 shell 命令。Windows 下默认使用 PowerShell。返回 stdout + stderr 合并输出。' +
+    '在本地执行 shell 命令。Windows 下使用 PowerShell 5.1。返回 stdout + stderr 合并输出。' +
+    '⚠️ 重要：当前系统是 Windows PowerShell，不支持 && 连接符，请使用分号 ; 连接多条命令。' +
+    '示例：cd mydir; git log --oneline -5; echo "---"。' +
     '设置 background=true 可后台执行长时间命令，返回进程 ID，之后用 process 工具查看状态。',
   inputSchema: {
     type: 'object',
@@ -79,8 +81,9 @@ export const bashTool: ToolDefinition = {
     // 构造 shell 命令
     const isWindows = process.platform === 'win32'
     const shell = isWindows ? 'powershell.exe' : '/bin/sh'
+    // Windows PowerShell: 强制 UTF-8 输出编码（解决中文乱码）+ 禁用 profile 加速启动
     const shellArgs = isWindows
-      ? ['-NoProfile', '-NonInteractive', '-Command', command]
+      ? ['-NoProfile', '-NonInteractive', '-Command', `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; $OutputEncoding = [System.Text.Encoding]::UTF8; ${command}`]
       : ['-c', command]
 
     // 环境变量：继承当前进程 + 注入代理 + 自定义

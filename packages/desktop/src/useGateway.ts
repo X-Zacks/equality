@@ -58,6 +58,7 @@ export interface SettingsState {
   modelRouting?: 'auto' | 'manual'
   selectedModel?: string
   storageMode?: 'plaintext' | 'dpapi'
+  intentJudge?: { provider: string; model: string } | null
 }
 
 interface DeltaEvent {

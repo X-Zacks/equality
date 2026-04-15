@@ -40,6 +40,8 @@ const KEY_NAMES = [
   'WORKSPACE_DIR',
   'MCP_SERVERS',
   'MEMORY_AUTO_CAPTURE',
+  'INTENT_JUDGE_PROVIDER',
+  'INTENT_JUDGE_MODEL',
 ] as const
 export type SecretKey = (typeof KEY_NAMES)[number]
 
