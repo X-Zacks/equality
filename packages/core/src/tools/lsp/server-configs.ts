@@ -17,8 +17,11 @@ import path from 'node:path'
 
 export interface LspServerConfig {
   language: string
-  /** 检测工作区是否适用该语言 */
-  detect(workspaceDir: string): boolean
+  /**
+   * 检测工作区是否适用该语言
+   * @param filePath 目标文件绝对路径（可选）。提供时会从文件所在目录向上搜索项目配置。
+   */
+  detect(workspaceDir: string, filePath?: string): boolean
   /** 构建启动命令 */
   command(workspaceDir: string): { cmd: string; args: string[]; env?: Record<string, string> }
   /** 初始化参数（传给 initialize 请求的 initializationOptions） */
@@ -31,13 +34,52 @@ export interface LspServerConfig {
 
 // ─── TypeScript / JavaScript ──────────────────────────────────────────────────
 
+/** 从 startDir 向上搜索配置文件，直到 boundary（含）为止 */
+function findConfigUp(startDir: string, boundary: string, configNames: string[]): boolean {
+  let dir = startDir
+  const root = path.parse(dir).root
+  while (true) {
+    for (const name of configNames) {
+      if (fs.existsSync(path.join(dir, name))) return true
+    }
+    // 到达工作区根目录边界，停止
+    if (path.resolve(dir) === path.resolve(boundary)) break
+    const parent = path.dirname(dir)
+    if (parent === dir || parent === root) break
+    dir = parent
+  }
+  return false
+}
+
+/** TypeScript/JavaScript 文件扩展名 */
+const TS_JS_EXTS = new Set(['.ts', '.tsx', '.js', '.jsx', '.mts', '.cts', '.mjs', '.cjs'])
+
 const typescriptConfig: LspServerConfig = {
   language: 'typescript',
 
-  detect(dir) {
-    return fs.existsSync(path.join(dir, 'tsconfig.json'))
+  detect(dir, filePath?) {
+    // 1. 先检查工作区根目录（原有逻辑）
+    if (fs.existsSync(path.join(dir, 'tsconfig.json'))
       || fs.existsSync(path.join(dir, 'jsconfig.json'))
-      || fs.existsSync(path.join(dir, 'package.json'))
+      || fs.existsSync(path.join(dir, 'package.json'))) {
+      return true
+    }
+
+    // 2. 如果有目标文件路径，从文件所在目录向上搜索配置文件
+    if (filePath) {
+      const fileDir = path.dirname(filePath)
+      if (findConfigUp(fileDir, dir, ['tsconfig.json', 'jsconfig.json', 'package.json'])) {
+        return true
+      }
+
+      // 3. fallback：文件扩展名是 TS/JS → 允许无配置启动
+      //    typescript-language-server 支持无 tsconfig 的散文件模式
+      if (TS_JS_EXTS.has(path.extname(filePath).toLowerCase())) {
+        return true
+      }
+    }
+
+    return false
   },
 
   command(dir) {
@@ -71,11 +113,20 @@ const typescriptConfig: LspServerConfig = {
 const pythonConfig: LspServerConfig = {
   language: 'python',
 
-  detect(dir) {
+  detect(dir, filePath?) {
     // 存在 .py 文件或 pyproject.toml / requirements.txt
-    return fs.existsSync(path.join(dir, 'pyproject.toml'))
+    if (fs.existsSync(path.join(dir, 'pyproject.toml'))
       || fs.existsSync(path.join(dir, 'requirements.txt'))
-      || fs.existsSync(path.join(dir, 'setup.py'))
+      || fs.existsSync(path.join(dir, 'setup.py'))) {
+      return true
+    }
+    // 从文件目录向上搜索，或扩展名 fallback
+    if (filePath) {
+      const fileDir = path.dirname(filePath)
+      if (findConfigUp(fileDir, dir, ['pyproject.toml', 'requirements.txt', 'setup.py'])) return true
+      if (path.extname(filePath).toLowerCase() === '.py') return true
+    }
+    return false
   },
 
   command(_dir) {
@@ -92,8 +143,14 @@ const pythonConfig: LspServerConfig = {
 const goConfig: LspServerConfig = {
   language: 'go',
 
-  detect(dir) {
-    return fs.existsSync(path.join(dir, 'go.mod'))
+  detect(dir, filePath?) {
+    if (fs.existsSync(path.join(dir, 'go.mod'))) return true
+    if (filePath) {
+      const fileDir = path.dirname(filePath)
+      if (findConfigUp(fileDir, dir, ['go.mod'])) return true
+      if (path.extname(filePath).toLowerCase() === '.go') return true
+    }
+    return false
   },
 
   command(_dir) {

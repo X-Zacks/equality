@@ -80,12 +80,14 @@ export class LspLifecycle {
   /**
    * 获取或启动 LSP 服务器
    *
+   * @param filePath  目标文件绝对路径（可选）。传给 detect() 做向上搜索 + 扩展名 fallback。
    * @param forceRetry 若为 true，忽略 notInstalledLanguages 缓存（安装依赖后重试）
    * @returns LspClient | MissingDependency | null
    */
   async getOrStart(
     workspaceDir: string,
     language: string,
+    filePath?: string,
     forceRetry = false,
   ): Promise<LspClient | MissingDependency | null> {
     const key = `${workspaceDir}:${language}`
@@ -121,7 +123,7 @@ export class LspLifecycle {
     const runningStart = this.startingLocks.get(key)
     if (runningStart) return runningStart
 
-    const startPromise = this.startServer(workspaceDir, language, key)
+    const startPromise = this.startServer(workspaceDir, language, key, filePath)
     this.startingLocks.set(key, startPromise)
     try {
       return await startPromise
@@ -205,6 +207,7 @@ export class LspLifecycle {
     workspaceDir: string,
     language: string,
     key: string,
+    filePath?: string,
   ): Promise<LspClient | MissingDependency | null> {
     const config = getConfigByLanguage(language)
     if (!config) {
@@ -212,9 +215,9 @@ export class LspLifecycle {
       return null
     }
 
-    // 检测工作区适用性
-    if (!config.detect(workspaceDir)) {
-      console.log(`[lsp-lifecycle] 工作区 ${workspaceDir} 不适用 ${language}`)
+    // 检测工作区适用性（传入文件路径做向上搜索 + 扩展名 fallback）
+    if (!config.detect(workspaceDir, filePath)) {
+      console.log(`[lsp-lifecycle] 工作区 ${workspaceDir} 不适用 ${language} (file: ${filePath ?? 'N/A'})`)
       return null
     }
 

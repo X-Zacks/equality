@@ -51,7 +51,7 @@ export async function getClientOrError(
   }
 
   const lifecycle = LspLifecycle.getInstance()
-  const result = await lifecycle.getOrStart(ctx.workspaceDir, lang)
+  const result = await lifecycle.getOrStart(ctx.workspaceDir, lang, absPath)
 
   // 缺失依赖
   if (isMissingDependency(result)) {
