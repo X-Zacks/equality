@@ -1,4 +1,5 @@
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions'
+import type { SessionPurpose } from '../agent/purpose.js'
 
 export type Message = ChatCompletionMessageParam
 
@@ -13,6 +14,8 @@ export interface Session {
   runningAbort: AbortController | null
   /** O1: 冻结的记忆快照 — 首轮 assemble 时生成，后续轮复用 */
   frozenMemorySnapshot?: string
+  /** 会话级目的（替代旧 SOUL/IDENTITY/USER.md） */
+  purpose?: SessionPurpose
 }
 
 export function createSession(key: string): Session {

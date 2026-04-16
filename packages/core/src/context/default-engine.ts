@@ -22,6 +22,7 @@ import { persist } from '../session/persist.js'
 import { calcMaxToolResultChars } from '../tools/index.js'
 import { resolveContextWindow } from '../providers/context-window.js'
 import { loadWorkspaceBootstrapFiles, formatBootstrapBlock } from '../agent/workspace-bootstrap.js'
+import { inferPurpose, formatPurposeBlock } from '../agent/purpose.js'
 import { indexTurn } from '../session/search-db.js'
 
 // ─── 常量 ─────────────────────────────────────────────────────────────────────
@@ -115,6 +116,16 @@ export class DefaultContextEngine implements ContextEngine {
       }
     }
 
+    // 1.6 会话级 Purpose 推断
+    if (!session.purpose && userMessage) {
+      const purpose = inferPurpose(userMessage)
+      if (purpose) {
+        session.purpose = purpose
+        console.log(`[context-engine] 推断会话目的: ${purpose.goal}`)
+      }
+    }
+    const purposeBlock = formatPurposeBlock(session.purpose)
+
     // 2. 构造 system prompt
     let systemContent = buildSystemPrompt({
       workspaceDir,
@@ -122,6 +133,7 @@ export class DefaultContextEngine implements ContextEngine {
       modelName: provider.modelId,
       activeSkills,
       bootstrapBlock,
+      purposeBlock: purposeBlock || undefined,
     })
 
     // 3. Memory Recall：冻结快照模式（O1）

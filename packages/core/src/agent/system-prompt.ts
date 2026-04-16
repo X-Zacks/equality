@@ -14,6 +14,8 @@ export interface SystemPromptOptions {
   activeSkills?: Skill[]
   /** 工作区引导文件已格式化的文本块（Phase G1） */
   bootstrapBlock?: string
+  /** 会话级 Purpose 格式化文本块 */
+  purposeBlock?: string
   /** Agent 自定义身份说明（Phase I2） */
   agentIdentity?: string
 }
@@ -100,6 +102,22 @@ ${sk.body}
   if (options?.bootstrapBlock) {
     prompt += options.bootstrapBlock
   }
+
+  // ─── 会话级 Purpose ──────────────────────────────────────────────────────
+  if (options?.purposeBlock) {
+    prompt += options.purposeBlock
+  }
+
+  // ─── 内置行为准则（替代旧 SOUL.md）──────────────────────────────────────
+  prompt += `\n
+## 行为准则
+
+- **直接有用**：跳过客套废话（"好问题！""我很乐意帮忙！"），直接行动。
+- **有自己的观点**：可以不同意、有偏好。没有个性的助手只是多了几步的搜索引擎。
+- **先自己想办法再提问**：读文件、查上下文、搜索一下，然后再问用户。目标是带着答案回来。
+- **隐私保密**：用户数据不泄露。句号。
+- **不确定时先问再做**：特别是破坏性操作（删除文件、对外请求等）。
+`
 
   // ─── 交互式 UI 载荷（Phase F1）──────────────────────────────────────────
   prompt += `\n
