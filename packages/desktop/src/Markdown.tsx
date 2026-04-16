@@ -61,8 +61,14 @@ function CodeBlockHeader({ language, children }: { language: string | null; chil
   )
 }
 
+/** 剥离 :::interactive ... ::: 块（已由 InteractiveBlock 渲染，不需要原文） */
+function stripInteractiveBlocks(text: string): string {
+  return text.replace(/:::interactive[\s\S]*?:::/g, '').replace(/\n{3,}/g, '\n\n').trim()
+}
+
 /** Markdown 渲染组件，支持 GFM（表格/删除线/任务列表）和代码高亮 */
 const Markdown = memo(function Markdown({ content }: MarkdownProps) {
+  const cleaned = stripInteractiveBlocks(content)
   return (
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
@@ -88,7 +94,7 @@ const Markdown = memo(function Markdown({ content }: MarkdownProps) {
         },
       }}
     >
-      {content}
+      {cleaned}
     </ReactMarkdown>
   )
 })

@@ -15,8 +15,8 @@ interface Message {
   role: 'user' | 'assistant'
   content: string
   toolCalls?: ToolCallEvent[]
-  /** 错误消息关联的操作（如跳转到设置页） */
-  action?: { label: string; target: 'settings' }
+  /** 错误消息关联的操作（如跳转到设置页或重试） */
+  action?: { label: string; target: 'settings' } | { label: string; target: 'retry'; retryMessage: string }
 }
 
 /** 从工具参数中提取可读摘要 */
@@ -428,11 +428,24 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
         setActiveToolCalls([])
       },
       (err) => {
+        const partial = streamingTextRef.current
+        const tools = activeToolCallsRef.current
+        if (partial || tools.length > 0) {
+          setMessages(msgs => [...msgs, {
+            role: 'assistant',
+            content: partial || '',
+            toolCalls: tools.length > 0 ? tools.map(t =>
+              t.status === 'running' ? { ...t, status: 'error' as const, result: '⚠️ 中断' } : t
+            ) : undefined,
+          }])
+        }
         const isCopilotExpired = err.includes('Copilot') && err.includes('登录已过期')
         setMessages(prev => [...prev, {
           role: 'assistant',
           content: `⚠️ ${err}`,
-          action: isCopilotExpired ? { label: '去设置重新登录', target: 'settings' as const } : undefined,
+          action: isCopilotExpired
+            ? { label: '去设置重新登录', target: 'settings' as const }
+            : { label: '🔄 重试', target: 'retry' as const, retryMessage: text },
         }])
         streamingTextRef.current = ''
         setStreamingText('')
@@ -500,11 +513,25 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
         // 任务结束：清除快照，下次切回走磁盘历史（保证看到完整持久化数据）
       },
       (err) => {
+        // 保留已流式输出的内容（文字 + 工具调用卡片）
+        const partial = streamingTextRef.current
+        const tools = activeToolCallsRef.current
+        if (partial || tools.length > 0) {
+          setMessages(msgs => [...msgs, {
+            role: 'assistant',
+            content: partial || '',
+            toolCalls: tools.length > 0 ? tools.map(t =>
+              t.status === 'running' ? { ...t, status: 'error' as const, result: '⚠️ 中断' } : t
+            ) : undefined,
+          }])
+        }
         const isCopilotExpired = err.includes('Copilot') && err.includes('登录已过期')
         setMessages(prev => [...prev, {
           role: 'assistant',
           content: `⚠️ ${err}`,
-          action: isCopilotExpired ? { label: '去设置重新登录', target: 'settings' as const } : undefined,
+          action: isCopilotExpired
+            ? { label: '去设置重新登录', target: 'settings' as const }
+            : { label: '🔄 重试', target: 'retry' as const, retryMessage: finalText },
         }])
         streamingTextRef.current = ''
         setStreamingText('')
@@ -598,9 +625,26 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
         setActiveToolCalls([])
       },
       (err) => {
-        setMessages(prev => [...prev, { role: 'assistant', content: `⚠️ ${err}` }])
+        const partial = streamingTextRef.current
+        const tools = activeToolCallsRef.current
+        if (partial || tools.length > 0) {
+          setMessages(msgs => [...msgs, {
+            role: 'assistant',
+            content: partial || '',
+            toolCalls: tools.length > 0 ? tools.map(t =>
+              t.status === 'running' ? { ...t, status: 'error' as const, result: '⚠️ 中断' } : t
+            ) : undefined,
+          }])
+        }
+        setMessages(prev => [...prev, {
+          role: 'assistant',
+          content: `⚠️ ${err}`,
+          action: { label: '🔄 重试', target: 'retry' as const, retryMessage: reply },
+        }])
         streamingTextRef.current = ''
         setStreamingText('')
+        activeToolCallsRef.current = []
+        setActiveToolCalls([])
       },
       undefined,
       sessionKey,
@@ -675,11 +719,24 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
         setActiveToolCalls([])
       },
       (err) => {
+        const partial = streamingTextRef.current
+        const tools = activeToolCallsRef.current
+        if (partial || tools.length > 0) {
+          setMessages(msgs => [...msgs, {
+            role: 'assistant',
+            content: partial || '',
+            toolCalls: tools.length > 0 ? tools.map(t =>
+              t.status === 'running' ? { ...t, status: 'error' as const, result: '⚠️ 中断' } : t
+            ) : undefined,
+          }])
+        }
         const isCopilotExpired = err.includes('Copilot') && err.includes('登录已过期')
         setMessages(prev => [...prev, {
           role: 'assistant',
           content: `⚠️ ${err}`,
-          action: isCopilotExpired ? { label: '去设置重新登录', target: 'settings' as const } : undefined,
+          action: isCopilotExpired
+            ? { label: '去设置重新登录', target: 'settings' as const }
+            : { label: '🔄 重试', target: 'retry' as const, retryMessage: userText },
         }])
         streamingTextRef.current = ''
         setStreamingText('')
@@ -825,6 +882,61 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
                 onClick={onOpenSettings}
               >
                 {msg.action.label} →
+              </button>
+            )}
+            {msg.action && msg.action.target === 'retry' && !streaming && (
+              <button
+                className="msg-action-link retry-btn"
+                onClick={async () => {
+                  const retryMsg = (msg.action as { retryMessage: string }).retryMessage
+                  // 移除错误消息，重发请求（不重复追加用户消息）
+                  setMessages(prev => prev.filter((_, j) => j !== i))
+                  streamingTextRef.current = ''
+                  setStreamingText('')
+                  activeToolCallsRef.current = []
+                  setActiveToolCalls([])
+                  setInteractivePayloads([])
+                  await sendMessage(
+                    retryMsg,
+                    (chunk) => { streamingTextRef.current += chunk; setStreamingText(streamingTextRef.current) },
+                    () => {
+                      const final = streamingTextRef.current
+                      const tools = activeToolCallsRef.current
+                      if (final || tools.length > 0) {
+                        setMessages(msgs => [...msgs, { role: 'assistant', content: final, toolCalls: tools.length > 0 ? [...tools] : undefined }])
+                      }
+                      streamingTextRef.current = ''
+                      setStreamingText('')
+                      activeToolCallsRef.current = []
+                      setActiveToolCalls([])
+                    },
+                    (retryErr) => {
+                      const partial = streamingTextRef.current
+                      const tools = activeToolCallsRef.current
+                      if (partial || tools.length > 0) {
+                        setMessages(msgs => [...msgs, { role: 'assistant', content: partial || '', toolCalls: tools.length > 0 ? [...tools] : undefined }])
+                      }
+                      setMessages(prev => [...prev, {
+                        role: 'assistant',
+                        content: `⚠️ ${retryErr}`,
+                        action: { label: '🔄 重试', target: 'retry' as const, retryMessage: retryMsg },
+                      }])
+                      streamingTextRef.current = ''
+                      setStreamingText('')
+                      activeToolCallsRef.current = []
+                      setActiveToolCalls([])
+                    },
+                    undefined,
+                    sessionKey,
+                    undefined,
+                    undefined,
+                    (s) => setStreaming(s),
+                    (payload) => setInteractivePayloads(prev => [...prev, payload]),
+                    handleMemoryCaptured,
+                  )
+                }}
+              >
+                {msg.action.label}
               </button>
             )}
             {/* 消息操作按钮 */}

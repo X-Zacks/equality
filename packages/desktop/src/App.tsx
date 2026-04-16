@@ -54,7 +54,7 @@ function App() {
   })
   const [themePreference, setThemePreference] = useState<ThemePreference>(() => {
     const saved = localStorage.getItem(THEME_KEY)
-    return saved === 'light' || saved === 'dark' ? saved : 'system'
+    return saved === 'light' || saved === 'dark' || saved === 'system' ? saved : 'dark'
   })
   const [systemTheme, setSystemTheme] = useState<EffectiveTheme>(() => {
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
