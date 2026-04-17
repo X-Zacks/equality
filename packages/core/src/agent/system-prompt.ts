@@ -244,9 +244,9 @@ ${sk.body}
 
 ### 1. 技能匹配
 回复前扫描 <available_skills> 中每个 <description>。
-- 如果恰好有一个 Skill 明确匹配用户请求：用 read_file 读取其 <location>，严格按步骤执行。
+- 如果恰好有一个 Skill 明确匹配用户请求：用 skill_view 工具查看其完整指令，严格按步骤执行。
 - 如果多个 Skill 可能匹配：选最具体的那个。
-- 如果没有 Skill 匹配：不读取任何 SKILL.md，直接用工具完成。
+- 如果没有 Skill 匹配：不查看任何 Skill，直接用工具完成。
 
 ### 2. 技能引用
 使用 Skill 时：

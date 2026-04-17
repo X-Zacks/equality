@@ -29,6 +29,7 @@ import { subagentSteerTool, setSubagentManagerForSteer } from './subagent-steer.
 import { subagentKillTool, setSubagentManagerForKill } from './subagent-kill.js'
 import { sessionSearchTool } from './session-search.js'
 import { codebaseSearchTool } from './codebase-search.js'
+import { skillViewTool, setWorkspaceDirForSkillView } from './skill-view.js'
 
 /** 全部内置工具 */
 export const builtinTools: ToolDefinition[] = [
@@ -71,6 +72,8 @@ export const builtinTools: ToolDefinition[] = [
   sessionSearchTool,
   // 代码库语义搜索 (Phase N3)
   codebaseSearchTool,
+  // Skill 按需查看 (Phase T2)
+  skillViewTool,
 ]
 
 export {
@@ -105,4 +108,6 @@ export {
   setSubagentManagerForKill,
   sessionSearchTool,
   codebaseSearchTool,
+  skillViewTool,
+  setWorkspaceDirForSkillView,
 }

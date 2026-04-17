@@ -92,6 +92,7 @@ const CORE_TOOL_DEFINITIONS: CoreToolDefinition[] = [
 
   // Search
   { id: 'codebase_search', label: 'codebase_search', description: 'Semantic code search across project', sectionId: 'fs', profiles: ['coding'] },
+  { id: 'skill_view', label: 'skill_view', description: 'View full content of a skill by name', sectionId: 'agent', profiles: ['coding', 'full'] },
   { id: 'session_search', label: 'session_search', description: 'Search past conversation sessions', sectionId: 'sessions', profiles: ['coding'] },
 ]
 
