@@ -47,6 +47,7 @@ async function logToolCall(
 import { routeModel } from '../providers/router.js'
 import { applyDecorators, buildDecoratorPipeline } from './stream.js'
 import { record, calcCost, formatCostLine } from '../cost/ledger.js'
+import { routerTierToModelTier, checkQuota, formatQuotaWarning } from '../cost/request-quota.js'
 import type { LLMProvider, ChatDelta, ToolCallDelta } from '../providers/types.js'
 import type { ToolRegistry, ToolContext, OpenAIToolSchema } from '../tools/index.js'
 import { truncateToolResult, calcMaxToolResultChars, LoopDetector, computeArgsHash, computeResultHash, cleanToolSchemas } from '../tools/index.js'
@@ -167,6 +168,7 @@ export interface RunAttemptResult {
   modelUsed: string
   costLine: string
   toolCallCount: number
+  quotaWarning?: string  // Phase U: 配额预警
 }
 
 // ─── 累积的完整 tool call ─────────────────────────────────────────────────────
@@ -1206,6 +1208,7 @@ export async function runAttempt(params: RunAttemptParams): Promise<RunAttemptRe
   const durationMs = Date.now() - startMs
 
   // 9. 记录成本
+  const modelTier = routerTierToModelTier(route.tier)
   const entry = record({
     sessionKey,
     runId,
@@ -1217,9 +1220,14 @@ export async function runAttempt(params: RunAttemptParams): Promise<RunAttemptRe
     outputTokens: totalOutputTokens,
     totalTokens,
     totalCny,
+    modelTier,
   })
 
   const costLine = formatCostLine(entry)
+
+  // 9.1 Phase U: 配额检查 + 预警
+  const quotaStatus = checkQuota(provider.providerId, modelTier)
+  const quotaWarning = formatQuotaWarning(quotaStatus) ?? undefined
 
   const guardedText = guardUnsupportedSuccessClaims(fullText, executedToolNames)
   if (guardedText !== fullText) {
@@ -1264,6 +1272,7 @@ export async function runAttempt(params: RunAttemptParams): Promise<RunAttemptRe
     modelUsed: provider.modelId,
     costLine,
     toolCallCount: totalToolCalls,
+    quotaWarning,
   }
 }
 

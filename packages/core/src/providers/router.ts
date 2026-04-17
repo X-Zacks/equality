@@ -18,6 +18,7 @@ import {
 } from './index.js'
 import { hasSecret } from '../config/secrets.js'
 import { isCopilotLoggedIn } from './copilot-auth.js'
+import { shouldDowngrade, routerTierToModelTier } from '../cost/request-quota.js'
 
 // ─── 类型 ─────────────────────────────────────────────────────────────────────
 
@@ -251,7 +252,15 @@ export function routeModel(
 
   // 3. 复杂度分类 + 路由表
   const msg = override?.strippedMessage ?? userMessage
-  const tier = classifyComplexity(msg, historyLength)
+  let tier = classifyComplexity(msg, historyLength)
+
+  // 3.5 Phase U: 配额检查 —— 如果当前 tier 配额已耗尽，自动降级
+  const downgradeReason = shouldDowngrade('copilot', routerTierToModelTier(tier))
+  if (downgradeReason && tier === 'heavy') {
+    console.warn(`[router] Phase U: ${downgradeReason}，降级 heavy → standard`)
+    tier = 'standard'
+  }
+
   const preferences = MODEL_TIERS[tier]
 
   const providers: LLMProvider[] = []

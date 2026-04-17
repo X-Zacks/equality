@@ -16,6 +16,7 @@ export interface CostEntry {
   outputTokens: number
   totalTokens: number
   totalCny: number
+  modelTier: string  // Phase U: 'premium' | 'standard' | 'basic'
 }
 
 // ─── Pricing table (CNY per 1K tokens) ────────────────────────────────────────
@@ -70,11 +71,17 @@ function db(): Database.Database {
       input_tokens  INTEGER NOT NULL,
       output_tokens INTEGER NOT NULL,
       total_tokens  INTEGER NOT NULL,
-      total_cny     REAL NOT NULL
+      total_cny     REAL NOT NULL,
+      model_tier    TEXT NOT NULL DEFAULT 'standard'
     );
     CREATE INDEX IF NOT EXISTS idx_session ON cost_entries(session_key);
     CREATE INDEX IF NOT EXISTS idx_ts ON cost_entries(timestamp);
   `)
+  // Phase U: 兼容旧数据库迁移
+  const cols = _db.pragma('table_info(cost_entries)') as Array<{ name: string }>
+  if (!cols.some(c => c.name === 'model_tier')) {
+    _db.exec(`ALTER TABLE cost_entries ADD COLUMN model_tier TEXT NOT NULL DEFAULT 'standard'`)
+  }
   return _db
 }
 
@@ -83,7 +90,8 @@ export function record(entry: Omit<CostEntry, 'entryId'>): CostEntry {
   db().prepare(`
     INSERT INTO cost_entries VALUES (
       @entryId, @sessionKey, @runId, @timestamp, @durationMs,
-      @provider, @model, @inputTokens, @outputTokens, @totalTokens, @totalCny
+      @provider, @model, @inputTokens, @outputTokens, @totalTokens, @totalCny,
+      @modelTier
     )
   `).run({
     entryId: full.entryId,
@@ -97,6 +105,7 @@ export function record(entry: Omit<CostEntry, 'entryId'>): CostEntry {
     outputTokens: full.outputTokens,
     totalTokens: full.totalTokens,
     totalCny: full.totalCny,
+    modelTier: full.modelTier ?? 'standard',
   })
   return full
 }
@@ -106,6 +115,7 @@ export interface DailySummary {
   totalCny: number
   totalTokens: number
   callCount: number
+  premiumCallCount: number  // Phase U
 }
 
 export function dailySummary(days = 7): DailySummary[] {
@@ -114,7 +124,8 @@ export function dailySummary(days = 7): DailySummary[] {
       date(timestamp / 1000, 'unixepoch', 'localtime') AS date,
       SUM(total_cny)     AS totalCny,
       SUM(total_tokens)  AS totalTokens,
-      COUNT(*)           AS callCount
+      COUNT(*)           AS callCount,
+      SUM(CASE WHEN model_tier = 'premium' THEN 1 ELSE 0 END) AS premiumCallCount
     FROM cost_entries
     WHERE timestamp >= ?
     GROUP BY date
@@ -130,6 +141,7 @@ export interface SessionCostSummary {
   totalInputTokens: number
   totalOutputTokens: number
   callCount: number
+  premiumCallCount: number  // Phase U
   firstCall: number
   lastCall: number
 }
@@ -143,6 +155,7 @@ export function sessionCostSummary(sessionKey: string): SessionCostSummary | nul
       SUM(input_tokens) AS totalInputTokens,
       SUM(output_tokens) AS totalOutputTokens,
       COUNT(*)          AS callCount,
+      SUM(CASE WHEN model_tier = 'premium' THEN 1 ELSE 0 END) AS premiumCallCount,
       MIN(timestamp)    AS firstCall,
       MAX(timestamp)    AS lastCall
     FROM cost_entries
@@ -162,6 +175,7 @@ export function allSessionsCostSummary(): SessionCostSummary[] {
       SUM(input_tokens) AS totalInputTokens,
       SUM(output_tokens) AS totalOutputTokens,
       COUNT(*)          AS callCount,
+      SUM(CASE WHEN model_tier = 'premium' THEN 1 ELSE 0 END) AS premiumCallCount,
       MIN(timestamp)    AS firstCall,
       MAX(timestamp)    AS lastCall
     FROM cost_entries

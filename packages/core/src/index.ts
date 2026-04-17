@@ -13,6 +13,7 @@ import { initSecrets, setSecret, getSecret, listSecrets, hasSecret } from './con
 import type { SecretKey } from './config/secrets.js'
 import { initProxy, setProxyUrl } from './config/proxy.js'
 import { dailySummary, sessionCostSummary, allSessionsCostSummary, globalCostSummary } from './cost/ledger.js'
+import { allQuotaStatuses, setQuotaConfig, listQuotaConfigs, type QuotaConfig } from './cost/request-quota.js'
 import { startDeviceFlow, pollForToken, clearCopilotAuth, isCopilotLoggedIn, getPollingInterval } from './providers/copilot-auth.js'
 import { COPILOT_MODELS, fetchCopilotModels } from './providers/copilot.js'
 import { ToolRegistry, builtinTools, resolvePolicyForTool, classifyMutation, McpClientManager, parseMcpServersConfig, setSubagentManagerForSpawn, setSubagentManagerForList, setSubagentManagerForSteer, setSubagentManagerForKill } from './tools/index.js'
@@ -599,8 +600,11 @@ app.post<{ Body: ChatBody }>('/chat/stream', async (req, reply) => {
       })
     })
     send({ type: 'delta', content: `\n\n${result.costLine}` })
+    if (result.quotaWarning) {
+      send({ type: 'delta', content: `\n${result.quotaWarning}` })
+    }
     done = true
-    send({ type: 'done', usage: { inputTokens: result.inputTokens, outputTokens: result.outputTokens, totalCny: result.totalCny, toolCallCount: result.toolCallCount } })
+    send({ type: 'done', usage: { inputTokens: result.inputTokens, outputTokens: result.outputTokens, totalCny: result.totalCny, toolCallCount: result.toolCallCount, quotaWarning: result.quotaWarning } })
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err)
 
@@ -1026,6 +1030,30 @@ app.get('/cost/sessions', async (_req, reply) => {
 /** 全局费用总计 */
 app.get('/cost/global', async (_req, reply) => {
   return reply.send(globalCostSummary())
+})
+
+// ─── Phase U: Request Quota API ──────────────────────────────────────────
+app.get('/quota', async (_req, reply) => {
+  return reply.send({
+    configs: listQuotaConfigs(),
+    statuses: allQuotaStatuses(),
+  })
+})
+
+app.put<{ Body: QuotaConfig }>('/quota', async (req, reply) => {
+  const config = req.body
+  if (!config?.provider || !config?.tier || !config?.monthlyLimit) {
+    return reply.status(400).send({ error: 'provider, tier, monthlyLimit are required' })
+  }
+  setQuotaConfig({
+    provider: config.provider,
+    tier: config.tier,
+    monthlyLimit: config.monthlyLimit,
+    warnPct: config.warnPct ?? 0.8,
+    criticalPct: config.criticalPct ?? 0.95,
+    autoDowngrade: config.autoDowngrade ?? true,
+  })
+  return reply.send({ ok: true })
 })
 
 // ─── Security Audit（Phase I3, T21）────────────────────────────────────────
