@@ -2,6 +2,22 @@
 
 ## 1. 数据模型
 
+### 1.0 Copilot 高级请求倍率表
+
+Copilot 的高级请求按模型倍率计费，而非简单次数：
+
+| 模型 | 倍率 | 含义 |
+|------|------|------|
+| GPT-4.1 / GPT-4o | 0x | 免费（已含订阅） |
+| Claude Haiku 4.5 / Gemini 3 Flash / GPT-5.4 mini | 0.33x | 每次消耗 0.33 个配额 |
+| Claude Sonnet 4/4.5/4.6 / GPT-5.2/5.4 / Gemini Pro | 1x | 每次消耗 1 个配额 |
+| Claude Opus 4.5 / 4.6 | 3x | 每次消耗 3 个配额 |
+| Claude Opus 4.7 | 7.5x | 每次消耗 7.5 个配额 |
+| Claude Opus 4.6 (fast mode) | 30x | 每次消耗 30 个配额 |
+
+> 注意：Copilot 目前没有公开的个人配额查询 API。VS Code 插件通过私有通道获取配额信息。
+> 我们的方案：**本地计算**（根据记录的每次调用 + 模型倍率表加权求和） + **用户自定义配额上限**。
+
 ### 1.1 cost_entries 表扩展
 
 ```sql

@@ -254,11 +254,11 @@ export function routeModel(
   const msg = override?.strippedMessage ?? userMessage
   let tier = classifyComplexity(msg, historyLength)
 
-  // 3.5 Phase U: 配额检查 —— 如果当前 tier 配额已耗尽，自动降级
+  // 3.5 Phase U: Copilot 配额检查 —— 如果高级请求配额已耗尽，降级到免费模型
   const downgradeReason = shouldDowngrade('copilot', routerTierToModelTier(tier))
-  if (downgradeReason && tier === 'heavy') {
-    console.warn(`[router] Phase U: ${downgradeReason}，降级 heavy → standard`)
-    tier = 'standard'
+  if (downgradeReason && (tier === 'heavy' || tier === 'standard')) {
+    console.warn(`[router] Phase U: ${downgradeReason}，降级到 light tier (GPT-4o 等 0x 模型)`)
+    tier = 'light'
   }
 
   const preferences = MODEL_TIERS[tier]

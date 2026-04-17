@@ -8,7 +8,7 @@ import { strict as assert } from 'node:assert'
 // 因为 request-quota 依赖 SQLite（better-sqlite3），且需要真实 DB，
 // 我们测试纯逻辑层（routerTierToModelTier + formatQuotaWarning + QuotaStatus 判定）
 
-import { routerTierToModelTier, formatQuotaWarning, type QuotaStatus, type ModelTier } from '../cost/request-quota.js'
+import { routerTierToModelTier, formatQuotaWarning, getPremiumMultiplier, type QuotaStatus, type ModelTier } from '../cost/request-quota.js'
 
 let passed = 0
 
@@ -21,6 +21,28 @@ let passed = 0
   assert.equal(routerTierToModelTier('light'), 'basic', 'U1c — light → basic')
   passed++
   assert.equal(routerTierToModelTier('unknown'), 'standard', 'U1d — unknown → standard')
+  passed++
+}
+
+// U11.1b: Copilot 高级请求倍率
+{
+  assert.equal(getPremiumMultiplier('gpt-4o'), 0, 'U1e — GPT-4o = 0x (免费)')
+  passed++
+  assert.equal(getPremiumMultiplier('gpt-4.1'), 0, 'U1f — GPT-4.1 = 0x')
+  passed++
+  assert.equal(getPremiumMultiplier('gpt-5.2'), 1, 'U1g — GPT-5.2 = 1x')
+  passed++
+  assert.equal(getPremiumMultiplier('claude-sonnet-4'), 1, 'U1h — Claude Sonnet 4 = 1x')
+  passed++
+  assert.equal(getPremiumMultiplier('claude-opus-4.6'), 3, 'U1i — Claude Opus 4.6 = 3x')
+  passed++
+  assert.equal(getPremiumMultiplier('claude-opus-4.7'), 7.5, 'U1j — Claude Opus 4.7 = 7.5x')
+  passed++
+  assert.equal(getPremiumMultiplier('claude-haiku-4.5'), 0.33, 'U1k — Claude Haiku 4.5 = 0.33x')
+  passed++
+  assert.equal(getPremiumMultiplier('gpt-4.1-mini'), 0, 'U1l — GPT-4.1-mini = 0x (fallback)')
+  passed++
+  assert.equal(getPremiumMultiplier('unknown-model-xyz'), 1, 'U1m — 未知模型 = 1x 默认')
   passed++
 }
 

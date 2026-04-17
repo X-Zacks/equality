@@ -1,7 +1,10 @@
 /**
  * cost/request-quota.ts — Phase U: LLM 请求次数追踪与配额预警
  *
- * 按 provider + tier 追踪月度请求次数，支持配额配置、预警、自动降级。
+ * 按 provider + model 追踪月度高级请求消耗，支持配额配置、预警、自动降级。
+ * 
+ * Copilot 高级请求按模型倍率计费：
+ *   GPT-4o = 0x (免费)，GPT-5.2 = 1x，Claude Opus 4.6 = 3x，等等。
  */
 
 import Database from 'better-sqlite3'
@@ -25,11 +28,59 @@ export interface QuotaConfig {
 export interface QuotaStatus {
   provider: string
   tier: ModelTier
-  used: number
+  used: number          // 加权后的高级请求消耗量
   limit: number
   remaining: number
   pct: number
   level: 'ok' | 'warn' | 'critical' | 'exhausted'
+}
+
+// ─── Copilot 高级请求倍率表 ──────────────────────────────────────────────────
+// 来源：VS Code Copilot 模型选择器（2026-04-17 截图）
+// 0x = 不消耗高级请求 (included)，1x = 1次，3x = 3次，etc.
+
+export const COPILOT_PREMIUM_MULTIPLIER: Record<string, number> = {
+  // 0x — 免费（已包含在订阅中）
+  'gpt-4.1':                        0,
+  'gpt-4o':                         0,
+  'gpt-5-mini':                     0,   // GPT-5 mini 0x
+  // 0.33x — 低消耗
+  'claude-haiku-4.5':               0.33,
+  'gemini-3-flash':                 0.33, // Gemini 3 Flash (Preview)
+  'gpt-5.4-mini':                   0.33,
+  // 1x — 标准高级
+  'claude-sonnet-4':                1,
+  'claude-sonnet-4.5':              1,
+  'claude-sonnet-4.6':              1,
+  'gemini-2.5-pro':                 1,
+  'gemini-3.1-pro':                 1,
+  'gpt-5.2':                        1,
+  'gpt-5.2-codex':                  1,
+  'gpt-5.3-codex':                  1,
+  'gpt-5.4':                        1,
+  // 3x — 高消耗
+  'claude-opus-4.5':                3,
+  'claude-opus-4.6':                3,
+  // 7.5x — 极高消耗
+  'claude-opus-4.7':                7.5,
+  // 30x — 超高消耗
+  'claude-opus-4.6-fast':           30,
+}
+
+/** 获取模型的高级请求倍率。未知模型默认 1x */
+export function getPremiumMultiplier(model: string): number {
+  // 精确匹配
+  if (model in COPILOT_PREMIUM_MULTIPLIER) {
+    return COPILOT_PREMIUM_MULTIPLIER[model]
+  }
+  // 模糊匹配（Copilot 模型 ID 可能有后缀变体）
+  const lower = model.toLowerCase()
+  for (const [key, mult] of Object.entries(COPILOT_PREMIUM_MULTIPLIER)) {
+    if (lower.includes(key) || key.includes(lower)) return mult
+  }
+  // 未知模型：如果是 gpt-4o 系列则免费，否则 1x
+  if (lower.startsWith('gpt-4o') || lower === 'gpt-4.1-mini') return 0
+  return 1
 }
 
 // ─── Tier 映射 ────────────────────────────────────────────────────────────────
@@ -119,10 +170,27 @@ export function listQuotaConfigs(): QuotaConfig[] {
 
 // ─── 月度用量查询 ─────────────────────────────────────────────────────────────
 
-/** 获取本月指定 provider+tier 的请求次数 */
+/** 获取本月指定 provider+tier 的高级请求消耗（加权） */
 export function getMonthlyUsage(provider: string, tier: ModelTier): number {
   const now = new Date()
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime()
+
+  if (provider === 'copilot') {
+    // Copilot: 按模型倍率加权计算
+    const rows = db().prepare(`
+      SELECT model, COUNT(*) AS cnt FROM cost_entries
+      WHERE provider = 'copilot' AND model_tier = ? AND timestamp >= ?
+      GROUP BY model
+    `).all(tier, monthStart) as Array<{ model: string; cnt: number }>
+
+    let weighted = 0
+    for (const row of rows) {
+      weighted += row.cnt * getPremiumMultiplier(row.model)
+    }
+    return Math.ceil(weighted)
+  }
+
+  // 其他 provider: 简单计数
   const row = db().prepare(`
     SELECT COUNT(*) AS cnt FROM cost_entries
     WHERE provider = ? AND model_tier = ? AND timestamp >= ?
@@ -181,14 +249,14 @@ export function shouldDowngrade(provider: string, tier: ModelTier): string | nul
 export function formatQuotaWarning(status: QuotaStatus): string | null {
   if (status.level === 'ok' || status.limit === Infinity) return null
 
-  const pctStr = (status.pct * 100).toFixed(0)
+  const pctStr = (status.pct * 100).toFixed(1)
   switch (status.level) {
     case 'warn':
-      return `⚠️ ${status.provider} ${status.tier} 本月已用 ${status.used}/${status.limit} 次 (${pctStr}%)`
+      return `⚠️ ${status.provider} 高级请求 ${pctStr}% (${status.used}/${status.limit})，剩余 ${status.remaining}`
     case 'critical':
-      return `🔴 ${status.provider} ${status.tier} 仅剩 ${status.remaining} 次，建议切换到基础模型`
+      return `🔴 ${status.provider} 高级请求仅剩 ${status.remaining}/${status.limit}，建议使用 GPT-4o 等免费模型`
     case 'exhausted':
-      return `🚫 ${status.provider} ${status.tier} 配额已用尽 (${status.used}/${status.limit})，已自动降级`
+      return `🚫 ${status.provider} 高级请求已用尽 (${status.used}/${status.limit})，已自动降级到免费模型`
     default:
       return null
   }

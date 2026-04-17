@@ -547,9 +547,17 @@ export class CopilotProvider implements LLMProvider {
 
     let response: OpenAI.ChatCompletion
     try {
-      response = await client.chat.completions.create(createParams, {
+      const result = await client.chat.completions.create(createParams, {
         signal: params.abortSignal,
-      })
+      }).withResponse()
+      response = result.data
+      // Phase U: 尝试捕获 Copilot 配额相关的响应头
+      const headers = result.response.headers
+      const rlRemaining = headers.get('x-ratelimit-remaining')
+      const rlLimit = headers.get('x-ratelimit-limit')
+      if (rlRemaining != null || rlLimit != null) {
+        console.log(`[copilot] ratelimit headers: remaining=${rlRemaining}, limit=${rlLimit}`)
+      }
     } catch (err: unknown) {
       if (err instanceof OpenAI.APIError && err.status === 401) {
         await forceRefreshBearerToken()
