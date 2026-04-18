@@ -22,6 +22,7 @@ export interface SkillInstallSpec {
 export interface SkillMetadata {
   name: string
   description: string
+  category?: 'development' | 'data' | 'document' | 'communication' | 'workflow' | 'infra' | 'other'
   tools?: string[]
   userInvocable?: boolean
   always?: boolean

@@ -887,8 +887,9 @@ export default function Settings({
   const [toolsList, setToolsList] = useState<ToolSchema[]>([])
   // 当前查看详情的工具
   const [toolDetail, setToolDetail] = useState<ToolSchema | null>(null)
-  const [skillsList, setSkillsList] = useState<Array<{ name: string; description: string; source: string; body?: string }>>([])
+  const [skillsList, setSkillsList] = useState<Array<{ name: string; description: string; source: string; body?: string; category?: string }>>([])
   const [expandedSkill, setExpandedSkill] = useState<string | null>(null)
+  const [skillCategory, setSkillCategory] = useState<string>('all')
 
   // 配额状态 (V4.1)
   const [quotaConfigs, setQuotaConfigs] = useState<Array<{ provider: string; tier: string; monthlyLimit: number; warnPct: number; criticalPct: number; autoDowngrade: boolean }>>([])
@@ -1210,28 +1211,52 @@ export default function Settings({
       {tab === 'skills' && (
         <>
           <div className="settings-section-title">已加载 Skills（{skillsList.length}）</div>
+          {/* 分类筛选 Tab */}
+          <div className="skill-category-tabs">
+            {[
+              { id: 'all', label: '🏷️ 全部' },
+              { id: 'development', label: '🛠️ 开发' },
+              { id: 'data', label: '📊 数据' },
+              { id: 'document', label: '📄 文档' },
+              { id: 'communication', label: '💬 通信' },
+              { id: 'workflow', label: '🔄 工作流' },
+              { id: 'infra', label: '🌐 网络' },
+              { id: 'other', label: '📦 其他' },
+            ].map(c => {
+              const count = c.id === 'all' ? skillsList.length : skillsList.filter(s => s.category === c.id).length
+              if (c.id !== 'all' && count === 0) return null
+              return (
+                <button key={c.id}
+                  className={`skill-category-tab ${skillCategory === c.id ? 'active' : ''}`}
+                  onClick={() => setSkillCategory(c.id)}
+                >
+                  {c.label} <span className="skill-category-count">{count}</span>
+                </button>
+              )
+            })}
+          </div>
           {skillsList.length === 0 ? (
             <p className="settings-hint">加载中…</p>
           ) : (
             <div className="skills-list">
-              {skillsList.map(s => {
-                const isExpanded = expandedSkill === s.name
-                return (
-                  <div key={s.name} className={`skill-item ${isExpanded ? 'skill-item-expanded' : ''}`}
-                       onClick={() => setExpandedSkill(isExpanded ? null : s.name)}
+              {skillsList
+                .filter(s => skillCategory === 'all' || s.category === skillCategory)
+                .map(s => (
+                  <div key={s.name} className="skill-item"
+                       onClick={() => setExpandedSkill(expandedSkill === s.name ? null : s.name)}
                        style={{ cursor: 'pointer' }}>
                     <div className="skill-header">
-                      <span className="skill-expand">{isExpanded ? '▼' : '▶'}</span>
                       <span className="skill-name">{s.name}</span>
-                      <span className="skill-source">{s.source}</span>
+                      <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                        <span className="skill-category-badge">{
+                          { development: '🛠️', data: '📊', document: '📄', communication: '💬', workflow: '🔄', infra: '🌐', other: '📦' }[s.category || 'other'] || '📦'
+                        }</span>
+                        <span className="skill-source">{s.source}</span>
+                      </div>
                     </div>
                     <div className="skill-desc">{s.description}</div>
-                    {isExpanded && s.body && (
-                      <pre className="skill-body">{s.body}</pre>
-                    )}
                   </div>
-                )
-              })}
+                ))}
             </div>
           )}
           <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
@@ -1246,6 +1271,34 @@ export default function Settings({
               🔄 重新加载
             </button>
           </div>
+          {/* Skill 详情抽屉 */}
+          {expandedSkill && (() => {
+            const skill = skillsList.find(s => s.name === expandedSkill)
+            if (!skill) return null
+            return (
+              <>
+                <div className="skill-drawer-overlay" onClick={() => setExpandedSkill(null)} />
+                <div className="skill-drawer">
+                  <div className="skill-drawer-header">
+                    <div>
+                      <div className="skill-drawer-title">{skill.name}</div>
+                      <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                        <span className="skill-category-badge">{
+                          { development: '🛠️ 开发', data: '📊 数据', document: '📄 文档', communication: '💬 通信', workflow: '🔄 工作流', infra: '🌐 网络', other: '📦 其他' }[skill.category || 'other'] || '📦 其他'
+                        }</span>
+                        <span className="skill-source">{skill.source}</span>
+                      </div>
+                    </div>
+                    <button className="skill-drawer-close" onClick={() => setExpandedSkill(null)}>✕</button>
+                  </div>
+                  <div className="skill-drawer-desc">{skill.description}</div>
+                  {skill.body && (
+                    <pre className="skill-drawer-body">{skill.body}</pre>
+                  )}
+                </div>
+              </>
+            )
+          })()}
         </>
       )}
 

@@ -49,6 +49,9 @@ function formatSkillsXml(skills: Skill[]): string {
     xml += '  <skill>\n'
     xml += `    <name>${escapeXml(skill.name)}</name>\n`
     xml += `    <description>${escapeXml(skill.description)}</description>\n`
+    if (skill.metadata.category) {
+      xml += `    <category>${escapeXml(skill.metadata.category)}</category>\n`
+    }
     xml += `    <location>${escapeXml(skill.filePath)}</location>\n`
     xml += '  </skill>\n'
   }

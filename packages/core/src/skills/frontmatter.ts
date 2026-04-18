@@ -67,6 +67,7 @@ export function parseSkillFile(filePath: string): Skill | null {
     const metadata: SkillMetadata = {
       name,
       description: descTrimmed,
+      category: (typeof eq.category === 'string' ? eq.category : inferSkillCategory(name, descTrimmed)) as SkillMetadata['category'],
       tools: asStringArray(meta.tools),
       userInvocable: meta['user-invocable'] !== false,
       always: eq.always === true,
@@ -131,3 +132,15 @@ function parseInstallSpecs(val: unknown): SkillInstallSpec[] | undefined {
 
 // Re-export type for convenience
 type SkillInstallSpec = import('./types.js').SkillInstallSpec
+
+/** 根据 Skill 名称和描述自动推断分类 */
+function inferSkillCategory(name: string, desc: string): string {
+  const t = `${name} ${desc}`.toLowerCase()
+  if (/cod(ing|e)|python|nodejs|node\.js|git\b|typescript|java|rust|review|testing-workflow|test/.test(t)) return 'development'
+  if (/excel|csv|data|cost-diff|quarterly|数据/.test(t)) return 'data'
+  if (/markdown|pdf|pptx?|docx?|report|document|文档|contract|extract|award|summary/.test(t)) return 'document'
+  if (/wechat|dingtalk|钉钉|微信|push|通知|notification/.test(t)) return 'communication'
+  if (/workflow|supervisor|openspec|skill-creator|project-dev|流程/.test(t)) return 'workflow'
+  if (/web-fetch|aliyun|oss|browser|http|url|网络/.test(t)) return 'infra'
+  return 'other'
+}

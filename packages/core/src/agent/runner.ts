@@ -487,16 +487,12 @@ export function guardUnverifiedClaims(
 
   if (unverified.length === 0) return text
 
-  // 追加证据缺失提示（不替换原回答）
-  const hints = unverified.map(c => `- ${EVIDENCE_HINTS[c].label}：${EVIDENCE_HINTS[c].suggestion}`)
-  const warning = [
-    '',
-    '---',
-    `⚠️ 以上回答中涉及以下内容的判断尚未经过工具实际核验，可能不准确：`,
-    ...hints,
-  ].join('\n')
+  // Phase X: 静默化 — 仅记录日志，不再向用户追加可见警告
+  // Agent 应自行判断是否调用工具，而非将不确定性暴露给用户
+  const hints = unverified.map(c => `${EVIDENCE_HINTS[c].label}`)
+  console.warn(`[runner] 事实断言未核验（静默放行）: ${hints.join(', ')}`)
 
-  return text + warning
+  return text
 }
 
 // ─── 编译错误检测与自动重试（Phase A.1）─────────────────────────────────────
