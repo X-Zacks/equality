@@ -18,7 +18,7 @@ import { processTool } from './process-tool.js'
 import { applyPatchTool } from './apply-patch.js'
 import { cronTool } from './cron.js'
 import { browserTool } from './browser.js'
-import { memorySaveTool, memorySearchTool } from './memory.js'
+import { memorySaveTool, memorySearchTool, memoryListTool, memoryDeleteTool } from './memory.js'
 import { lspHoverTool } from './lsp-hover.js'
 import { lspDefinitionTool } from './lsp-definition.js'
 import { lspReferencesTool } from './lsp-references.js'
@@ -30,6 +30,8 @@ import { subagentKillTool, setSubagentManagerForKill } from './subagent-kill.js'
 import { sessionSearchTool } from './session-search.js'
 import { codebaseSearchTool } from './codebase-search.js'
 import { skillViewTool, setWorkspaceDirForSkillView } from './skill-view.js'
+import { imageGenerateTool } from './image-generate.js'
+import { todoTool } from './todo.js'
 
 /** 全部内置工具 */
 export const builtinTools: ToolDefinition[] = [
@@ -49,6 +51,7 @@ export const builtinTools: ToolDefinition[] = [
   // 媒体
   readImageTool,
   readPdfTool,
+  imageGenerateTool,
   // 高级
   applyPatchTool,
   // 定时任务 (Phase 4)
@@ -74,6 +77,10 @@ export const builtinTools: ToolDefinition[] = [
   codebaseSearchTool,
   // Skill 按需查看 (Phase T2)
   skillViewTool,
+  // 图片生成 (Phase Y3.1)
+  imageGenerateTool,
+  // 待办事项 (Phase Y1.1)
+  todoTool,
 ]
 
 export {
@@ -110,4 +117,8 @@ export {
   codebaseSearchTool,
   skillViewTool,
   setWorkspaceDirForSkillView,
+  imageGenerateTool,
+  todoTool,
+  memoryListTool,
+  memoryDeleteTool,
 }

@@ -223,6 +223,138 @@ export function validatePath(inputPath: string, config: SandboxConfig): SandboxR
   }
 }
 
+// ─── Step 4: 解释器命令安全检查（Phase Y0）──────────────────────────────────
+
+/**
+ * 已知脚本解释器 — 可通过 -c/-e 参数执行任意代码
+ */
+const INTERPRETER_COMMANDS = new Set([
+  'python', 'python3', 'py', 'node', 'ruby', 'perl', 'php',
+  'curl', 'wget', 'invoke-webrequest', 'invoke-restmethod',
+  'iwr', 'irm',
+])
+
+/**
+ * 内联脚本中的危险路径模式（表示试图访问 workspace 外的敏感区域）
+ */
+const DANGEROUS_PATH_PATTERNS = [
+  // Unix 敏感目录
+  /(?:^|['"(\s])\/etc\//i,
+  /(?:^|['"(\s])\/root\//i,
+  /(?:^|['"(\s])\/home\/[^/]+\/\./i,  // /home/user/.ssh 等
+  /(?:^|['"(\s])\/var\/(?:log|run|spool)\//i,
+  /(?:^|['"(\s])\/proc\//i,
+  /(?:^|['"(\s])\/sys\//i,
+  // Windows 敏感目录
+  /C:\\Windows/i,
+  /C:\\Users\\[^\\]+\\AppData/i,
+  /C:\\ProgramData/i,
+  // 通用敏感路径
+  /['"(\s]~\/\.\w/,  // ~/.ssh, ~/.aws, ~/.gnupg 等
+  /\.ssh[\/\\]/i,
+  /\.aws[\/\\]/i,
+  /\.gnupg[\/\\]/i,
+  /\.kube[\/\\]/i,
+  // file:// 协议（用于 curl 读取本地文件）
+  /file:\/\/\//i,
+  // 环境变量泄露（读取 API Key）
+  /\$env:.*(?:KEY|TOKEN|SECRET|PASSWORD)/i,
+  /\$(?:MINIMAX|DEEPSEEK|OPENAI|COPILOT|CUSTOM|VOLCENGINE|DASHSCOPE|QWEN)_/i,
+  /echo\s+\$\w*(?:KEY|TOKEN|SECRET|PASSWORD)/i,
+]
+
+/**
+ * 检测解释器命令中的危险路径访问
+ */
+export function checkInterpreterSafety(command: string, config: SandboxConfig): SandboxResult {
+  const parts = command.split(/\s*(?:&&|\|\||[;\n|])\s*/)
+
+  for (const part of parts) {
+    const trimmed = part.trim()
+    if (!trimmed) continue
+
+    const tokens = trimmed.split(/\s+/)
+
+    // 跳过 sudo/env 等前缀
+    let cmdIndex = 0
+    while (cmdIndex < tokens.length) {
+      const tok = tokens[cmdIndex]
+      if (/^[A-Za-z_][A-Za-z0-9_]*=/.test(tok)) { cmdIndex++; continue }
+      if (tok === 'sudo' || tok === 'env' || tok === 'nohup') { cmdIndex++; continue }
+      break
+    }
+    if (cmdIndex >= tokens.length) continue
+
+    const cmdWord = tokens[cmdIndex].toLowerCase().replace(/\.exe$/, '')
+
+    // 检查是否是解释器命令
+    if (!INTERPRETER_COMMANDS.has(cmdWord)) continue
+
+    // 收集该子命令的剩余部分作为"脚本内容"
+    const scriptContent = tokens.slice(cmdIndex + 1).join(' ')
+
+    // 在脚本内容中扫描危险路径
+    for (const pattern of DANGEROUS_PATH_PATTERNS) {
+      if (pattern.test(scriptContent) || pattern.test(trimmed)) {
+        return {
+          allowed: false,
+          reason: `解释器命令 "${cmdWord}" 中检测到敏感路径访问: ${pattern.source}`,
+        }
+      }
+    }
+
+    // 检查解释器命令中的绝对路径是否在 workspace 外
+    const absPathMatches = scriptContent.match(/(?:['"])?([A-Za-z]:\\[^\s'"]+|\/[^\s'"]+)/g)
+    if (absPathMatches) {
+      for (const rawPath of absPathMatches) {
+        const cleanPath = rawPath.replace(/^['"]|['"]$/g, '')
+        const result = validatePath(cleanPath, config)
+        if (!result.allowed) {
+          return {
+            allowed: false,
+            reason: `解释器命令 "${cmdWord}" 试图访问 workspace 外路径: ${cleanPath}`,
+          }
+        }
+      }
+    }
+  }
+
+  return { allowed: true }
+}
+
+// ─── Step 5: 环境变量安全清洗（Phase Y0）────────────────────────────────────
+
+/**
+ * 从环境变量中剔除敏感 API Key，防止脚本通过 $env:XXX_KEY 泄露
+ */
+export function sanitizeEnvForBash(env: Record<string, string>): Record<string, string> {
+  const SENSITIVE_PATTERN = /_(KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL)$/i
+  const KEEP_LIST = new Set([
+    'PATH', 'HOME', 'USERPROFILE', 'TEMP', 'TMP', 'TMPDIR',
+    'HTTPS_PROXY', 'HTTP_PROXY', 'https_proxy', 'http_proxy',
+    'NO_PROXY', 'no_proxy',
+    'LANG', 'LC_ALL', 'TERM', 'SHELL',
+    'COMPUTERNAME', 'USERNAME', 'LOGNAME', 'USER',
+    'SYSTEMROOT', 'WINDIR', 'COMSPEC', 'APPDATA', 'LOCALAPPDATA',
+    'PROGRAMFILES', 'PROGRAMFILES(X86)', 'PROGRAMDATA',
+    'NODE_PATH', 'NODE_ENV', 'PYTHONPATH', 'PYTHONDONTWRITEBYTECODE',
+    'GIT_AUTHOR_NAME', 'GIT_AUTHOR_EMAIL', 'GIT_COMMITTER_NAME', 'GIT_COMMITTER_EMAIL',
+  ])
+
+  const sanitized: Record<string, string> = {}
+  for (const [key, val] of Object.entries(env)) {
+    if (KEEP_LIST.has(key)) {
+      sanitized[key] = val
+    } else if (SENSITIVE_PATTERN.test(key)) {
+      // 剔除敏感变量
+      continue
+    } else {
+      sanitized[key] = val
+    }
+  }
+  return sanitized
+}
+
 // ─── 主函数 ──────────────────────────────────────────────────────────────────
 
 /**
@@ -239,14 +371,20 @@ export function validateBashCommand(command: string, config: SandboxConfig): San
     return { allowed: false, reason: injection }
   }
 
-  // Step 2: 提取路径参数
+  // Step 2: 解释器命令安全检查（Phase Y0）
+  const interpreterCheck = checkInterpreterSafety(command, config)
+  if (!interpreterCheck.allowed) {
+    return interpreterCheck
+  }
+
+  // Step 3: 提取路径参数
   const paths = extractPathArgs(command)
   if (paths.length === 0) {
     // 无路径参数（如 echo hello, whoami 等）→ 允许
     return { allowed: true, paths: [] }
   }
 
-  // Step 3: 验证每个路径
+  // Step 4: 验证每个路径
   for (const p of paths) {
     const result = validatePath(p, config)
     if (!result.allowed) {

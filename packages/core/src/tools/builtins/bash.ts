@@ -13,6 +13,7 @@ import { processManager } from './process-manager.js'
 import { hasSecret, getSecret } from '../../config/secrets.js'
 import type { SecretKey } from '../../config/secrets.js'
 import { validateBashCommand } from '../bash-sandbox.js'
+import { sanitizeEnvForBash } from '../bash-sandbox.js'
 import { CommandQueue } from '../../process/command-queue.js'
 
 // G6: 前台命令并发队列（限制同时执行的子进程数，防止资源耗尽）
@@ -86,8 +87,8 @@ export const bashTool: ToolDefinition = {
       ? ['-NoProfile', '-NonInteractive', '-Command', `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; $OutputEncoding = [System.Text.Encoding]::UTF8; ${command}`]
       : ['-c', command]
 
-    // 环境变量：继承当前进程 + 注入代理 + 自定义
-    const env: Record<string, string> = {
+    // 环境变量：继承当前进程 + 注入代理 + 自定义 + 安全清洗（Phase Y0）
+    const rawEnv: Record<string, string> = {
       ...process.env as Record<string, string>,
       ...(ctx.proxyUrl ? {
         HTTPS_PROXY: ctx.proxyUrl,
@@ -97,6 +98,7 @@ export const bashTool: ToolDefinition = {
       } : {}),
       ...ctx.env,
     }
+    const env = sanitizeEnvForBash(rawEnv)
 
     // ── 沙箱路径隔离（Phase C.2）────────────
     const sandbox = validateBashCommand(command, { workspaceDir: ctx.workspaceDir })

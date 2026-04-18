@@ -76,6 +76,8 @@ const CORE_TOOL_DEFINITIONS: CoreToolDefinition[] = [
   // Memory
   { id: 'memory_save', label: 'memory_save', description: 'Save to memory', sectionId: 'memory', profiles: ['coding'] },
   { id: 'memory_search', label: 'memory_search', description: 'Semantic memory search', sectionId: 'memory', profiles: ['coding'] },
+  { id: 'memory_list', label: 'memory_list', description: 'List all saved memories', sectionId: 'memory', profiles: ['coding'] },
+  { id: 'memory_delete', label: 'memory_delete', description: 'Delete a specific memory', sectionId: 'memory', profiles: ['coding'] },
 
   // Sessions
   { id: 'subagent_spawn', label: 'subagent_spawn', description: 'Spawn sub-agent', sectionId: 'sessions', profiles: ['coding'] },
@@ -86,6 +88,7 @@ const CORE_TOOL_DEFINITIONS: CoreToolDefinition[] = [
   // UI
   { id: 'browser', label: 'browser', description: 'Control web browser', sectionId: 'ui', profiles: ['coding'] },
   { id: 'read_image', label: 'read_image', description: 'Understand images', sectionId: 'media', profiles: ['coding'] },
+  { id: 'image_generate', label: 'image_generate', description: 'Generate images from text (MiniMax)', sectionId: 'media', profiles: ['coding', 'full'] },
 
   // Automation
   { id: 'cron', label: 'cron', description: 'Schedule recurring tasks', sectionId: 'automation', profiles: ['coding'] },
@@ -93,6 +96,7 @@ const CORE_TOOL_DEFINITIONS: CoreToolDefinition[] = [
   // Search
   { id: 'codebase_search', label: 'codebase_search', description: 'Semantic code search across project', sectionId: 'fs', profiles: ['coding'] },
   { id: 'skill_view', label: 'skill_view', description: 'View full content of a skill by name', sectionId: 'agent', profiles: ['coding', 'full'] },
+  { id: 'todo', label: 'todo', description: 'Manage todo list for multi-step tasks', sectionId: 'agent', profiles: ['coding', 'full'] },
   { id: 'session_search', label: 'session_search', description: 'Search past conversation sessions', sectionId: 'sessions', profiles: ['coding'] },
 ]
 

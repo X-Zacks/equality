@@ -194,3 +194,85 @@ export const memorySearchTool: ToolDefinition = {
     }
   },
 }
+
+// ─── memory_list ──────────────────────────────────────────────────────────────
+
+export const memoryListTool: ToolDefinition = {
+  name: 'memory_list',
+  description:
+    'List all saved memories, optionally filtered by category. ' +
+    'Use this to show the user what memories exist or to audit stored information.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      category: {
+        type: 'string',
+        description: '按分类筛选（可选）: preference, decision, fact, project, general',
+        enum: ['preference', 'decision', 'fact', 'project', 'general'],
+      },
+      limit: {
+        type: 'number',
+        description: '最大返回条数（默认 20，最大 50）',
+      },
+    },
+    required: [],
+  },
+
+  async execute(args: Record<string, unknown>, _ctx: ToolContext): Promise<ToolResult> {
+    const limit = Math.min(50, Math.max(1, Number(args.limit) || 20))
+    const total = memoryCount()
+    let entries = memoryList(limit * 2) // fetch more, then filter
+
+    const cat = args.category ? String(args.category) : undefined
+    if (cat) {
+      entries = entries.filter(e => e.category === cat)
+    }
+    entries = entries.slice(0, limit)
+
+    if (entries.length === 0) {
+      return { content: cat ? `没有分类为 "${cat}" 的记忆 (共 ${total} 条)` : `记忆库为空` }
+    }
+
+    const lines = entries.map((e, i) => {
+      const date = new Date(e.createdAt).toLocaleString('zh-CN')
+      return `${i + 1}. [${e.category}] ${e.text.slice(0, 120)}${e.text.length > 120 ? '...' : ''}\n   ID: ${e.id.slice(0, 8)} | 重要性: ${e.importance} | ${date}`
+    })
+
+    return { content: `📋 记忆列表 (${entries.length}/${total} 条)${cat ? ` [${cat}]` : ''}:\n\n${lines.join('\n\n')}` }
+  },
+}
+
+// ─── memory_delete ────────────────────────────────────────────────────────────
+
+export const memoryDeleteTool: ToolDefinition = {
+  name: 'memory_delete',
+  description:
+    'Delete a specific memory by ID. Use when the user asks to forget something ' +
+    'or when outdated/incorrect memories need to be removed. ' +
+    'Use memory_list or memory_search first to find the memory ID.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      id: {
+        type: 'string',
+        description: '要删除的记忆 ID（memory_list/memory_search 返回的 ID，至少 8 位前缀即可匹配）',
+      },
+    },
+    required: ['id'],
+  },
+
+  async execute(args: Record<string, unknown>, _ctx: ToolContext): Promise<ToolResult> {
+    const id = String(args.id ?? '').trim()
+    if (!id) return { content: 'Error: id is required', isError: true }
+
+    // 支持前缀匹配
+    const all = memoryList(1000)
+    const match = all.find(e => e.id.startsWith(id))
+    if (!match) return { content: `Error: 未找到 ID 以 "${id}" 开头的记忆`, isError: true }
+
+    memoryDelete(match.id)
+    return {
+      content: `🗑️ 已删除记忆\nID: ${match.id.slice(0, 8)}\n内容: ${match.text.slice(0, 100)}`,
+    }
+  },
+}
