@@ -724,6 +724,7 @@ app.get('/skills', async (_req, reply) => {
     description: e.skill.description,
     source: e.source,
     filePath: e.skill.filePath,
+    body: (e.skill.body || '').slice(0, 2000),
   })))
 })
 

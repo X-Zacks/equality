@@ -6,8 +6,8 @@ import Settings from './Settings'
 import './App.css'
 
 type Page = 'chat' | 'settings'
-type ThemePreference = 'system' | 'light' | 'dark'
-type EffectiveTheme = 'light' | 'dark'
+type ThemePreference = 'system' | 'purple' | 'dark'
+type EffectiveTheme = 'purple' | 'dark'
 
 const ZOOM_KEY = 'equality-zoom'
 const THEME_KEY = 'equality-theme'
@@ -54,10 +54,11 @@ function App() {
   })
   const [themePreference, setThemePreference] = useState<ThemePreference>(() => {
     const saved = localStorage.getItem(THEME_KEY)
-    return saved === 'light' || saved === 'dark' || saved === 'system' ? saved : 'dark'
+    if (saved === 'light') return 'purple'  // 迁移旧值
+    return saved === 'purple' || saved === 'dark' || saved === 'system' ? saved : 'dark'
   })
   const [systemTheme, setSystemTheme] = useState<EffectiveTheme>(() => {
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'purple'
   })
 
   const effectiveTheme: EffectiveTheme = themePreference === 'system' ? systemTheme : themePreference
@@ -69,16 +70,16 @@ function App() {
   }, [zoom])
 
   useEffect(() => {
-    document.body.style.background = effectiveTheme === 'light' ? '#ffffff' : '#1c1c1e'
+    document.body.style.background = effectiveTheme === 'purple' ? '#1a0a2e' : '#1c1c1e'
   }, [effectiveTheme])
 
   // 跟随系统主题变化
   useEffect(() => {
     const media = window.matchMedia('(prefers-color-scheme: dark)')
     const onChange = (event: MediaQueryListEvent) => {
-      setSystemTheme(event.matches ? 'dark' : 'light')
+      setSystemTheme(event.matches ? 'dark' : 'purple')
     }
-    setSystemTheme(media.matches ? 'dark' : 'light')
+    setSystemTheme(media.matches ? 'dark' : 'purple')
     media.addEventListener('change', onChange)
     return () => media.removeEventListener('change', onChange)
   }, [])
@@ -175,7 +176,7 @@ function App() {
   }, [handleKeyboard, handleWheel])
 
   return (
-    <div className={`app-root ${effectiveTheme === 'light' ? 'theme-light' : 'theme-dark'}`}>
+    <div className={`app-root ${effectiveTheme === 'purple' ? 'theme-purple' : 'theme-dark'}`}>
       {/* 侧边栏 */}
       <nav className="sidebar">
         <button

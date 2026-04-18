@@ -66,7 +66,7 @@ interface DeltaEvent {
   sessionKey?: string
   content?: string
   message?: string
-  usage?: { inputTokens: number; outputTokens: number; totalCny: number; toolCallCount?: number }
+  usage?: { inputTokens: number; outputTokens: number; totalCny: number; toolCallCount?: number; quotaWarning?: string }
   // tool_start fields
   name?: string
   args?: Record<string, unknown>

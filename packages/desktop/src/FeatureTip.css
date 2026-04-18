@@ -45,17 +45,17 @@
 
 /* ─── 亮色主题 ────────────────────────────────────────────── */
 
-.theme-light .feature-tip {
-  color: rgba(15,23,42,0.7);
+.theme-purple .feature-tip {
+  color: rgba(168,85,247,0.7);
   background: rgba(59,130,246,0.08);
   border-bottom-color: rgba(59,130,246,0.12);
 }
 
-.theme-light .feature-tip-close {
-  color: rgba(15,23,42,0.35);
+.theme-purple .feature-tip-close {
+  color: rgba(168,85,247,0.35);
 }
 
-.theme-light .feature-tip-close:hover {
-  color: rgba(15,23,42,0.7);
-  background: rgba(15,23,42,0.06);
+.theme-purple .feature-tip-close:hover {
+  color: rgba(168,85,247,0.7);
+  background: rgba(168,85,247,0.06);
 }

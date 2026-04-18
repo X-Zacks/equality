@@ -1,9 +1,9 @@
 # Equality Desktop — UI 验证操作手册
 
-> **适用范围**：Phase A ～ O 全功能验证  
-> **应用版本**：feat/phase-O-self-evolution  
+> **适用范围**：Phase A ～ V 全功能验证  
+> **应用版本**：feat/phase-V-ui-integration  
 > **测试环境**：Tauri v2 + React 桌面端 · Core 服务 `http://localhost:18790`  
-> **文档更新**：2025-07
+> **文档更新**：2026-04
 
 ---
 
@@ -28,6 +28,9 @@
 17. [API 端点直接验证](#17-api-端点直接验证)
 18. [已知限制与待集成项](#18-已知限制与待集成项)
 19. [Phase O 自进化循环](#19-phase-o-自进化循环)
+20. [Phase T Purpose 持久化与技能渐进披露](#20-phase-t-purpose-持久化与技能渐进披露)
+21. [Phase U 请求配额追踪](#21-phase-u-请求配额追踪)
+22. [Phase V UI 集成与增强](#22-phase-v-ui-集成与增强)
 
 ---
 
@@ -366,13 +369,15 @@
 | # | 检查点 | 预期结果 |
 |---|--------|----------|
 | 13.3.1 | Skill 列表 | 显示已加载的技能：supervisor-workflow / testing-workflow / review-workflow |
-| 13.3.2 | 技能详情 | 展开可查看 SKILL.md 描述 |
+| 13.3.2 | 技能展开箭头 | 每个 skill 左侧显示 ▶/▼ 箭头，点击切换展开/折叠 |
+| 13.3.3 | 技能详情 | 展开后显示 SKILL.md 正文（前 2000 字符，pre 块渲染） |
+| 13.3.4 | 重新加载 | 点击「🔄 重新加载」按钮后列表刷新 |
 
 ### 13.4 高级标签页（advanced）
 
 | # | 检查点 | 预期结果 |
 |---|--------|----------|
-| 13.4.1 | 主题切换 | system / light / dark 三选一 |
+| 13.4.1 | 主题切换 | system / 💜紫色 / 深色 三选一 |
 | 13.4.2 | 重置设置 | 提供重置为默认值的功能 |
 
 ### 13.5 关于标签页（about）
@@ -390,10 +395,11 @@
 
 | # | 操作 | 预期结果 |
 |---|------|----------|
-| 14.1.1 | 设置中切换为 **浅色** | 整个应用切换为白色背景主题 |
+| 14.1.1 | 设置中切换为 **紫色** | 整个应用切换为紫色背景主题（深紫 #1a0a2e） |
 | 14.1.2 | 切换为 **深色** | 整个应用切换为深色背景主题 |
-| 14.1.3 | 切换为 **跟随系统** | 跟随 OS 深浅色设置自动切换 |
+| 14.1.3 | 切换为 **跟随系统** | 跟随 OS 深浅色设置自动切换（系统深色→深色，系统浅色→紫色） |
 | 14.1.4 | 主题持久化 | 重启应用后主题偏好保持（localStorage `equality-theme`） |
+| 14.1.5 | 旧值迁移 | 已保存的 `light` 值自动迁移为 `purple` |
 
 ### 14.2 界面缩放
 
@@ -561,6 +567,13 @@ curl http://localhost:18790/sessions/:key/snapshots
 | `/tasks/tree` | GET | 树形任务结构（含父子关系） |
 | `/tasks/:id` | GET | 单个任务详情（含 DAG 节点状态） |
 
+### 配额端点（Phase U）
+
+| 端点 | 方法 | 预期响应 |
+|------|------|----------|
+| `/quota` | GET | 所有 provider 配额配置 + 当前状态（used/limit/level） |
+| `/quota` | PUT | 设置配额配置（body: QuotaConfig JSON） |
+
 ### 诊断端点（Phase N6）
 
 | 端点 | 方法 | 预期响应 |
@@ -579,34 +592,35 @@ curl http://localhost:18790/sessions/:key/snapshots
 
 ## 18. 已知限制与待集成项
 
-### 18.1 SessionTreeView 未集成到 SessionPanel
+### ~~18.0 Phase U 前端配额 UI~~ ✅ 已完成（Phase V）
 
-**状态**：Phase N4 组件已创建，但 `SessionPanel.tsx` 仍使用平铺列表。
+**状态**：Phase V 已实现：
+- ✅ 设置页模型 Tab 底部显示配额进度条（`GET /quota` 数据驱动）
+- ✅ Chat 对话 `done` 事件解析 `quotaWarning`，渲染黄/红色提示条（可关闭）
+- ⚠️ 配额配置仍需通过 `PUT /quota` API 设置（前端输入框待后续优化）
 
-**影响**：子 Agent 会话（含 `::sub::` 的 key）在左侧面板中以普通列表项显示，不展示层级关系。
+### ~~18.1 SessionTreeView 未集成到 SessionPanel~~ ✅ 已实现
 
-**临时验证方法**：
+**状态**：`SessionPanel.tsx` 已自带树形实现（`buildTree()` + `ParentItem` / `ChildItem`），
+子 Agent 会话以 `::sub::` 分隔，父节点可折叠展开子会话。`SessionTreeView.tsx` 为独立实现，
+可作为未来替换方案。
 
-1. 查看会话 key 中是否含 `::sub::`（DevTools → localStorage 或 API `/sessions`）
-2. 直接渲染 `SessionTreeView` 组件进行单元测试
+### ~~18.2 DiffPreview 未集成~~ ✅ 已完成（Phase V）
 
-**计划**：下一阶段将 `parseSessionHierarchy()` 的结果传入 `SessionTreeView` 替换当前的 flat list。
-
-### 18.2 DiffPreview 未集成到 write_file 工具流程
-
-**状态**：`DiffPreview.tsx` 已创建，但 `write_file` 工具调用目前不弹出 Diff 预览。
-
-**计划**：Phase O 中在工具调用卡片内集成 DiffPreview，支持 Accept/Reject 文件写入。
+**状态**：Phase V 已在 `Chat.tsx` 的 write_file / edit_file / replace_in_file 工具卡片展开体中
+集成 `DiffPreview.tsx` 组件，`tc.status === 'done'` 时渲染新文件内容预览。
+Accept/Reject 按钮暂为无操作（文件已写入）。
 
 ### 18.3 TaskProgressBar 尚未与 PlanDAG 状态绑定
 
 **状态**：组件已创建，但 PlanDAG 执行进度尚未通过 SSE 推送到前端。
 
-**计划**：通过 SSE `plan_progress` 事件将进度数据绑定到 TaskProgressBar。
+**计划**：通过 SSE `plan_progress` 事件将进度数据绑定到 TaskProgressBar（Phase V5 待实施）。
 
 ### 18.4 RoleIcon / StatusBadge 仅在 SessionTreeView 内使用
 
-目前这两个组件仅被 `SessionTreeView.tsx` 引用，在主界面不可见。随 18.1 集成后即可验证。
+目前这两个组件仅被 `SessionTreeView.tsx` 引用。`SessionPanel.tsx` 使用自己的简化图标（箭头 ▸/▾）。
+未来可迁移到统一使用 RoleIcon/StatusBadge。
 
 ---
 
@@ -817,6 +831,208 @@ curl http://localhost:18790/diagnostics/bootstrap  # 目前可观察内存日志
 
 ---
 
+## 20. Phase T Purpose 持久化与技能渐进披露
+
+> **核心思路**：会话 purpose 跨重启保持 → Skill 仅索引披露 + skill_view 按需读取 → 子代理深度严格受限
+
+### 20.1 T1 — Purpose 持久化
+
+**原理**：Agent 首轮推断用户 purpose（goal + constraints + source），写入 session JSON；重启或切换回该会话时自动恢复。
+
+#### 验证方式
+
+1. 发送明确目标的消息：
+   ```
+   请帮我重构 auth 模块，要求简洁回复
+   ```
+2. 等待 AI 完成首轮回复（purpose 在 context-engine assemble 阶段推断）
+3. 关闭应用并重新启动，切换回该会话
+
+| # | 检查点 | 预期结果 |
+|---|--------|----------|
+| 20.1.1 | Core 日志 | 首轮出现 `[context-engine] purpose inferred` |
+| 20.1.2 | 重启后切换到旧会话 | AI 仍然知道目标是「重构 auth 模块」 |
+| 20.1.3 | Session JSON | `%APPDATA%\Equality\sessions\*.json` 包含 `purpose` 字段（goal / constraints / source） |
+| 20.1.4 | 新会话无 purpose | 新建会话在用户发送首条消息前 `purpose` 字段为空 |
+
+### 20.2 T2 — Skills 渐进式披露 + skill_view 工具
+
+**原理**：System prompt 中仅列出 Skill 元数据索引（名称 + 简短描述），Agent 需要详情时调用 `skill_view` 工具读取 SKILL.md 全文。
+
+#### 验证方式
+
+```
+请列出你有哪些技能
+```
+
+然后使用 `@supervisor-workflow` 之类的指令，观察 Agent 是否调用 skill_view。
+
+| # | 检查点 | 预期结果 |
+|---|--------|----------|
+| 20.2.1 | System prompt 中 skill 部分 | 仅含 `<available_skills>` 元数据索引，不含 SKILL.md 全文 |
+| 20.2.2 | Agent 需要技能详情时 | 工具卡片出现 `skill_view`，参数为 skill 名称 |
+| 20.2.3 | skill_view 返回结果 | 展开可见 SKILL.md 完整内容 |
+| 20.2.4 | 不存在的 skill 名 | 返回错误提示 `Skill 'xxx' not found` |
+
+### 20.3 T3 — 子代理深度限制
+
+| # | 检查点 | 预期结果 |
+|---|--------|----------|
+| 20.3.1 | 子 Agent 内再次 spawn | depth ≥ maxDepth 时拒绝，返回错误 |
+| 20.3.2 | 深度 = 3 时 | 已达上限，无法继续嵌套 |
+
+---
+
+## 21. Phase U 请求配额追踪
+
+> **核心思路**：按 provider + model_tier 追踪月度 LLM 调用量，Copilot 按模型倍率加权计费，配额预警 + 自动降级。
+
+### 21.1 配额 API 端点
+
+| 端点 | 方法 | 说明 |
+|------|------|------|
+| `/quota` | GET | 返回所有 provider 的配额配置 + 当前状态 |
+| `/quota` | PUT | 设置/更新配额配置 |
+
+#### 设置配额
+
+```bash
+curl -X PUT http://localhost:18790/quota \
+  -H 'Content-Type: application/json' \
+  -d '{"provider":"copilot","tier":"premium","monthlyLimit":300,"warnPct":0.8,"criticalPct":0.95,"autoDowngrade":true}'
+```
+
+#### 查看配额状态
+
+```bash
+curl http://localhost:18790/quota
+```
+
+**预期响应结构**：
+
+```json
+{
+  "configs": [
+    { "provider": "copilot", "tier": "premium", "monthlyLimit": 300, "warnPct": 0.8, "criticalPct": 0.95, "autoDowngrade": true }
+  ],
+  "statuses": [
+    { "provider": "copilot", "tier": "premium", "used": 45, "limit": 300, "remaining": 255, "pct": 0.15, "level": "ok" }
+  ]
+}
+```
+
+### 21.2 Copilot 高级请求倍率
+
+**原理**：Copilot 不同模型消耗不同数量的高级请求，按倍率表加权计算月度用量。
+
+| 模型 | 倍率 | 含义 |
+|------|------|------|
+| GPT-4.1 / GPT-4o | 0x | 免费（已含订阅） |
+| Claude Haiku 4.5 / Gemini 3 Flash / GPT-5.4 mini | 0.33x | 每次消耗 0.33 个配额 |
+| Claude Sonnet 4/4.5/4.6 / GPT-5.2/5.4 / Gemini Pro | 1x | 每次消耗 1 个配额 |
+| Claude Opus 4.5 / 4.6 | 3x | 每次消耗 3 个配额 |
+| Claude Opus 4.7 | 7.5x | 每次消耗 7.5 个配额 |
+| Claude Opus 4.6 (fast mode) | 30x | 每次消耗 30 个配额 |
+
+> ⚠️ Copilot 目前**无公开个人配额查询 API**。VS Code 中的百分比显示通过插件私有通道获取。
+> 本地方案：通过 `cost_entries` 中记录的每次调用 + 模型倍率表加权求和。
+
+### 21.3 对话中的配额预警
+
+**原理**：每次 LLM 调用完成后 `runner.ts` 执行 `checkQuota()`，当用量达到阈值时在 SSE `done` 事件中附带 `quotaWarning`，同时作为 `delta` 追加到对话末尾。
+
+#### 验证方式
+
+先设置较低配额：
+
+```bash
+curl -X PUT http://localhost:18790/quota \
+  -d '{"provider":"copilot","tier":"premium","monthlyLimit":5,"warnPct":0.5,"criticalPct":0.8,"autoDowngrade":true}'
+```
+
+然后发送几条消息，使用高倍率模型。
+
+| # | 检查点 | 预期结果 |
+|---|--------|----------|
+| 21.3.1 | 用量 ≥ 50%（warnPct） | 对话末尾出现 `⚠️ copilot 高级请求 XX.X%` 黄色预警 |
+| 21.3.2 | 用量 ≥ 80%（criticalPct） | 预警升级为 `🔴 copilot 高级请求仅剩 N/5` |
+| 21.3.3 | 用量 ≥ 100% | 提示 `🚫 copilot 高级请求已用尽`，自动降级 |
+| 21.3.4 | 自动降级行为 | 路由器将 heavy/standard 请求降级到 light 层（0x 免费模型如 GPT-4o） |
+| 21.3.5 | SSE done 事件 | `usage` 字段包含 `quotaWarning` 属性 |
+
+### 21.4 /usage 命令配额显示
+
+在对话中输入 `/usage`，查看输出。
+
+| # | 检查点 | 预期结果 |
+|---|--------|----------|
+| 21.4.1 | 无配额配置时 | 显示「未配置配额」或不显示配额部分 |
+| 21.4.2 | 已配置配额时 | 显示各 provider 的用量进度（图标 + 百分比 + 用量/上限） |
+| 21.4.3 | 配额图标 | ✅ ok / ⚠️ warn / 🔴 critical / 🚫 exhausted |
+
+### 21.5 Copilot x-ratelimit 头捕获
+
+**诊断用**：`copilot.ts` 在非流式调用中尝试捕获 `x-ratelimit-remaining` 和 `x-ratelimit-limit` 响应头并记录到 Core 日志。
+
+| # | 检查点 | 预期结果 |
+|---|--------|----------|
+| 21.5.1 | 使用 Copilot 发送消息 | Core 日志中如果出现 `x-ratelimit` 信息则记录（目前 Copilot 不一定返回这些头） |
+
+---
+
+---
+
+## 22. Phase V UI 集成与增强
+
+> **核心变更**：Skills 详情展开 + 紫色主题 + DiffPreview 集成 + 配额 UI
+
+### 22.1 Skills 详情展开（V1）
+
+| # | 操作 | 预期结果 |
+|---|------|----------|
+| 22.1.1 | 设置页 → Skills Tab | 每个 skill 左侧显示 ▶ 箭头 |
+| 22.1.2 | 点击 skill 项 | 箭头变为 ▼，下方展开显示 SKILL.md 正文（pre 块，最多 2000 字符） |
+| 22.1.3 | 再次点击 | 折叠回去 |
+| 22.1.4 | API 验证 | `GET /skills` 返回 JSON 包含 `body` 字段 |
+
+### 22.2 紫色主题（V2）
+
+| # | 操作 | 预期结果 |
+|---|------|----------|
+| 22.2.1 | 设置 → 高级 → 主题切换 | 显示 💜紫色 / 深色 / 跟随系统 三个按钮 |
+| 22.2.2 | 选择紫色 | 背景变为深紫 `#1a0a2e`，侧边栏 `#140822`，强调色 `#a855f7` |
+| 22.2.3 | 所有界面元素 | Chat 气泡、工具卡片、Session 面板、Settings 均适配紫色 |
+| 22.2.4 | 旧值迁移 | 之前保存 `light` 的自动变为 `purple` |
+
+### 22.3 DiffPreview 集成（V3）
+
+| # | 操作 | 预期结果 |
+|---|------|----------|
+| 22.3.1 | AI 调用 write_file 完成后 | 展开工具卡片，底部出现 DIFF PREVIEW 区域 |
+| 22.3.2 | DiffPreview 内容 | 新文件显示绿色新增行（全文 `+` 前缀） |
+| 22.3.3 | edit_file / replace_in_file | 同样展示 DiffPreview |
+| 22.3.4 | Accept/Reject 按钮 | 可见但点击无实际操作（文件已写入，后续可扩展为撤销） |
+
+### 22.4 配额 UI（V4）
+
+#### 设置页
+
+| # | 检查点 | 预期结果 |
+|---|--------|----------|
+| 22.4.1 | 模型 Tab 底部 | 显示 "📊 月度请求配额" 区域 |
+| 22.4.2 | 无配额时 | 显示提示文字 |
+| 22.4.3 | 已配额时 | 每行显示 provider·tier + 用量/上限 + 进度条（绿/黄/红色） |
+
+#### Chat 预警条
+
+| # | 检查点 | 预期结果 |
+|---|--------|----------|
+| 22.4.4 | 配额 ≥ warn 阈值 | 对话结束后显示黄色预警条 |
+| 22.4.5 | 配额 ≥ critical 阈值 | 红色预警条 |
+| 22.4.6 | 点击 ✕ 关闭 | 预警条消失 |
+
+---
+
 ## 附录 A：快速回归检查单
 
 完整的冒烟测试（约 15 分钟）：
@@ -830,13 +1046,21 @@ curl http://localhost:18790/diagnostics/bootstrap  # 目前可观察内存日志
 - [ ] 7.1 `@` 触发 Mention Picker
 - [ ] 13.1.2 模型选择器下拉
 - [ ] 14.2.1 `Ctrl++` 放大，`Ctrl+0` 重置
-- [ ] 14.1.1 浅色主题切换
+- [ ] 14.1.1 紫色主题切换
 - [ ] 17 `/health` 端点返回 ok
 - [ ] 19.1.1 Core 日志出现「冻结记忆快照」
 - [ ] 19.2.1 长任务触发预算警告（70%）
 - [ ] 19.3.1 长对话触发压缩（日志出现 `[compressor] Step 1`）
 - [ ] 19.4.3 多步骤任务后 AI 建议沉淀技能
 - [ ] 19.5.1 新会话中 `session_search` 找到历史会话
+- [ ] 20.1.2 重启后 purpose 仍保留
+- [ ] 20.2.2 Agent 使用 `skill_view` 读取技能详情
+- [ ] 21.3.1 配额预警在对话末尾显示
+- [ ] 21.4.2 `/usage` 命令显示配额进度
+- [ ] 22.1.2 Skills 展开显示 SKILL.md 正文
+- [ ] 22.2.2 紫色主题切换正常
+- [ ] 22.3.1 write_file 卡片展开显示 DiffPreview
+- [ ] 22.4.4 配额预警条正确显示
 
 ---
 
@@ -885,6 +1109,23 @@ $env:CONTEXT_COMPRESS_THRESHOLD_MESSAGES = '8'
 $env:AGENT_MAX_LLM_TURNS = '10'
 ```
 
+### Phase T/U 相关调试
+
+```powershell
+# 查看 session 的 purpose 字段
+$sessions = Get-ChildItem "$env:APPDATA\Equality\sessions\*.json"
+foreach ($f in $sessions) { $d = Get-Content $f | ConvertFrom-Json; if ($d.purpose) { Write-Host "$($d.key): goal=$($d.purpose.goal)" } }
+
+# 查看配额状态
+curl http://localhost:18790/quota
+
+# 设置 Copilot 高级请求配额为 300
+curl -X PUT http://localhost:18790/quota -H 'Content-Type: application/json' -d '{"provider":"copilot","tier":"premium","monthlyLimit":300,"warnPct":0.8,"criticalPct":0.95,"autoDowngrade":true}'
+
+# 查看用量统计（含配额信息）
+curl http://localhost:18790/usage
+```
+
 ### 常用测试 Prompt
 
 ```
@@ -908,4 +1149,13 @@ $env:AGENT_MAX_LLM_TURNS = '10'
 
 # 触发压缩（O2）—— 需先设置 CONTEXT_COMPRESS_THRESHOLD_MESSAGES=8
 请逐步分析这 5 个文件并给出建议：App.tsx / Chat.tsx / SessionPanel.tsx / ToolCallCard.tsx / StatusBar.tsx
+
+# 触发 skill_view 工具（T2）
+@supervisor-workflow 请帮我分析项目结构
+
+# 验证配额预警（U）—— 需先通过 PUT /quota 设置低配额
+请帮我分析这段代码的性能问题...
+
+# 查看配额状态（U）
+/usage
 ```

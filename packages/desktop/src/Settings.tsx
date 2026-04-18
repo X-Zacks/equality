@@ -6,8 +6,8 @@ import { MemoryTab } from './MemoryTab'
 import './Settings.css'
 
 type SettingsTab = 'model' | 'tools' | 'skills' | 'memory' | 'advanced' | 'about'
-type ThemePreference = 'system' | 'light' | 'dark'
-type EffectiveTheme = 'light' | 'dark'
+type ThemePreference = 'system' | 'purple' | 'dark'
+type EffectiveTheme = 'purple' | 'dark'
 
 // ─── 模型路由选择器组件 ───────────────────────────────────────────────────────
 
@@ -887,7 +887,12 @@ export default function Settings({
   const [toolsList, setToolsList] = useState<ToolSchema[]>([])
   // 当前查看详情的工具
   const [toolDetail, setToolDetail] = useState<ToolSchema | null>(null)
-  const [skillsList, setSkillsList] = useState<Array<{ name: string; description: string; source: string }>>([])
+  const [skillsList, setSkillsList] = useState<Array<{ name: string; description: string; source: string; body?: string }>>([])
+  const [expandedSkill, setExpandedSkill] = useState<string | null>(null)
+
+  // 配额状态 (V4.1)
+  const [quotaConfigs, setQuotaConfigs] = useState<Array<{ provider: string; tier: string; monthlyLimit: number; warnPct: number; criticalPct: number; autoDowngrade: boolean }>>([])
+  const [quotaStatuses, setQuotaStatuses] = useState<Array<{ provider: string; tier: string; used: number; limit: number; remaining: number; pct: number; level: string }>>([])
 
   // 费用统计
   const [globalCost, setGlobalCost] = useState<{ totalCny: number; totalTokens: number; callCount: number; sessionCount: number } | null>(null)
@@ -906,6 +911,12 @@ export default function Settings({
     }
     if (tab === 'about') {
       fetch('http://localhost:18790/cost/global').then(r => r.json()).then(setGlobalCost).catch(() => {})
+    }
+    if (tab === 'model') {
+      fetch('http://localhost:18790/quota').then(r => r.json()).then((data: any) => {
+        setQuotaConfigs(data.configs || [])
+        setQuotaStatuses(data.statuses || [])
+      }).catch(() => {})
     }
   }, [tab])
 
@@ -1059,6 +1070,33 @@ export default function Settings({
           />
         )}
 
+        {/* ─── 月度配额区域 (V4.1) ────────────────────────────────────── */}
+        <div className="settings-section-title" style={{ marginTop: 12 }}>📊 月度请求配额</div>
+        {quotaStatuses.length === 0 && quotaConfigs.length === 0 ? (
+          <p className="settings-hint">暂无配额配置。通过 <code>PUT /quota</code> API 设置，或在下方添加。</p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {quotaStatuses.map(s => {
+              const pct = Math.min(s.pct * 100, 100)
+              const levelIcon = s.level === 'ok' ? '✅' : s.level === 'warn' ? '⚠️' : s.level === 'critical' ? '🔴' : '🚫'
+              const barColor = s.level === 'ok' ? '#30d158' : s.level === 'warn' ? '#ff9f0a' : '#ff453a'
+              return (
+                <div key={`${s.provider}-${s.tier}`} className="provider-card" style={{ padding: '8px 10px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                    <span style={{ fontSize: 12, fontWeight: 500 }}>{levelIcon} {s.provider} · {s.tier}</span>
+                    <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>{s.used} / {s.limit === Infinity ? '∞' : s.limit}</span>
+                  </div>
+                  {s.limit !== Infinity && (
+                    <div style={{ height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
+                      <div style={{ height: '100%', width: `${pct}%`, background: barColor, borderRadius: 2, transition: 'width 0.3s' }} />
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+
       </>)}
 
       {/* ━━━ 工具 Tab ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
@@ -1176,15 +1214,24 @@ export default function Settings({
             <p className="settings-hint">加载中…</p>
           ) : (
             <div className="skills-list">
-              {skillsList.map(s => (
-                <div key={s.name} className="skill-item">
-                  <div className="skill-header">
-                    <span className="skill-name">{s.name}</span>
-                    <span className="skill-source">{s.source}</span>
+              {skillsList.map(s => {
+                const isExpanded = expandedSkill === s.name
+                return (
+                  <div key={s.name} className={`skill-item ${isExpanded ? 'skill-item-expanded' : ''}`}
+                       onClick={() => setExpandedSkill(isExpanded ? null : s.name)}
+                       style={{ cursor: 'pointer' }}>
+                    <div className="skill-header">
+                      <span className="skill-expand">{isExpanded ? '▼' : '▶'}</span>
+                      <span className="skill-name">{s.name}</span>
+                      <span className="skill-source">{s.source}</span>
+                    </div>
+                    <div className="skill-desc">{s.description}</div>
+                    {isExpanded && s.body && (
+                      <pre className="skill-body">{s.body}</pre>
+                    )}
                   </div>
-                  <div className="skill-desc">{s.description}</div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
           <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
@@ -1213,14 +1260,14 @@ export default function Settings({
             <div className="advanced-item">
               <div className="advanced-item-header">
                 <span className="advanced-item-label">界面风格</span>
-                <span className="advanced-item-unit">当前：{effectiveTheme === 'light' ? '白色' : '深色'}</span>
+                <span className="advanced-item-unit">当前：{effectiveTheme === 'purple' ? '紫色' : '深色'}</span>
               </div>
               <div className="theme-switch" role="group" aria-label="主题选择">
                 <button
-                  className={`theme-btn ${themePreference === 'light' ? 'active' : ''}`}
-                  onClick={() => onThemeChange('light')}
+                  className={`theme-btn ${themePreference === 'purple' ? 'active' : ''}`}
+                  onClick={() => onThemeChange('purple')}
                 >
-                  白色
+                  💜 紫色
                 </button>
                 <button
                   className={`theme-btn ${themePreference === 'dark' ? 'active' : ''}`}
@@ -1236,7 +1283,7 @@ export default function Settings({
                   跟随系统
                 </button>
               </div>
-              <p className="advanced-item-desc">默认会跟随系统主题。选择白色或深色后将固定，并在重启后保持。</p>
+              <p className="advanced-item-desc">默认会跟随系统主题。选择紫色或深色后将固定，并在重启后保持。</p>
             </div>
           </div>
 

@@ -6,6 +6,7 @@ import { invoke } from '@tauri-apps/api/core'
 import Markdown from './Markdown'
 import InteractiveBlock from './InteractiveBlock'
 import { MentionPicker } from './MentionPicker'
+import DiffPreview from './DiffPreview'
 import WelcomeGuide from './WelcomeGuide'
 import FeatureTip from './FeatureTip'
 import './Chat.css'
@@ -108,6 +109,7 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
   const [hasUsedSkill, setHasUsedSkill] = useState(false)
   const [hasUsedAttachment, setHasUsedAttachment] = useState(false)
   const [expandedToolCalls, setExpandedToolCalls] = useState<Set<string>>(new Set())
+  const [quotaWarning, setQuotaWarning] = useState<string | null>(null)
   const { sendMessage, abort, loadSession } = useGateway()
 
   const toggleToolCall = useCallback((id: string) => {
@@ -416,7 +418,7 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
         streamingTextRef.current += chunk
         setStreamingText(streamingTextRef.current)
       },
-      () => {
+      (usage) => {
         const final = streamingTextRef.current
         const tools = activeToolCallsRef.current
         if (final || tools.length > 0) {
@@ -426,6 +428,7 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
         setStreamingText('')
         activeToolCallsRef.current = []
         setActiveToolCalls([])
+        setQuotaWarning(usage?.quotaWarning ?? null)
       },
       (err) => {
         const partial = streamingTextRef.current
@@ -866,6 +869,18 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
                               <pre className="tool-call-pre">{tc.result}</pre>
                             </div>
                           )}
+                          {(tc.name === 'write_file' || tc.name === 'edit_file' || tc.name === 'replace_in_file') && tc.args?.content && tc.status === 'done' && (
+                            <div className="tool-call-section">
+                              <div className="tool-call-section-label">DIFF PREVIEW</div>
+                              <DiffPreview
+                                filePath={String(tc.args.path || tc.args.file_path || '')}
+                                originalContent={null}
+                                newContent={String(tc.args.content)}
+                                onAccept={() => {}}
+                                onReject={() => {}}
+                              />
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -1006,6 +1021,18 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
                               <pre className="tool-call-pre">{tc.result}</pre>
                             </div>
                           )}
+                          {(tc.name === 'write_file' || tc.name === 'edit_file' || tc.name === 'replace_in_file') && tc.args?.content && tc.status === 'done' && (
+                            <div className="tool-call-section">
+                              <div className="tool-call-section-label">DIFF PREVIEW</div>
+                              <DiffPreview
+                                filePath={String(tc.args.path || tc.args.file_path || '')}
+                                originalContent={null}
+                                newContent={String(tc.args.content)}
+                                onAccept={() => {}}
+                                onReject={() => {}}
+                              />
+                            </div>
+                          )}
                         </div>
                       )}
                       {!expanded && tc.partial && tc.status === 'running' && (
@@ -1030,6 +1057,14 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
         )}
         <div ref={messagesEndRef} />
       </div>
+
+      {/* 配额预警条（V4.2） */}
+      {quotaWarning && (
+        <div className={`quota-warning ${quotaWarning.startsWith('🚫') ? 'quota-exhausted' : quotaWarning.startsWith('🔴') ? 'quota-critical' : 'quota-warn'}`}>
+          {quotaWarning}
+          <button className="quota-warning-close" onClick={() => setQuotaWarning(null)}>✕</button>
+        </div>
+      )}
 
       {/* 输入区 */}
       <div className={`chat-input-area${dragOver ? ' drag-over' : ''}`}>
