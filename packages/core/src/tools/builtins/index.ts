@@ -51,7 +51,6 @@ export const builtinTools: ToolDefinition[] = [
   // 媒体
   readImageTool,
   readPdfTool,
-  imageGenerateTool,
   // 高级
   applyPatchTool,
   // 定时任务 (Phase 4)
