@@ -184,6 +184,10 @@
   50% { opacity: 0.5; }
 }
 
+/* Z2.2: TTS 播报按钮 */
+.tts-btn { transition: color 0.2s; }
+.tts-btn.tts-active { color: #0a84ff !important; animation: voice-pulse 1s ease-in-out infinite; }
+
 /* ─── 拖拽遮罩 ────────────────────────────────────────────── */
 .drag-overlay {
   position: absolute;

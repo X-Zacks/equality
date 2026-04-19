@@ -112,6 +112,8 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
   const [quotaWarning, setQuotaWarning] = useState<string | null>(null)
   const [isListening, setIsListening] = useState(false)
   const recognitionRef = useRef<any>(null)
+  // Z2.2: 语音播报 (TTS)
+  const [speakingMsgIdx, setSpeakingMsgIdx] = useState<number | null>(null)
   const { sendMessage, abort, loadSession } = useGateway()
 
   const toggleToolCall = useCallback((id: string) => {
@@ -153,6 +155,38 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
     recognition.start()
     setIsListening(true)
   }, [isListening])
+
+  // Z2.2: 语音播报 (TTS)
+  const speakMessage = useCallback((text: string, idx: number) => {
+    if (typeof speechSynthesis === 'undefined') { alert('当前环境不支持语音合成'); return }
+    speechSynthesis.cancel()
+    // 清理 markdown
+    const clean = text.replace(/```[\s\S]*?```/g, '').replace(/[#*`_~\[\]()>|]/g, '').replace(/https?:\/\/\S+/g, '').trim()
+    if (!clean) return
+    // 按句分割，避免逐字机械感
+    const sentences = clean.split(/(?<=[。！？\n.!?；;])\ */).filter(s => s.trim())
+    sentences.forEach((s, i) => {
+      const utt = new SpeechSynthesisUtterance(s.trim())
+      utt.lang = 'zh-CN'
+      utt.rate = 1.05
+      if (i === sentences.length - 1) utt.onend = () => setSpeakingMsgIdx(null)
+      speechSynthesis.speak(utt)
+    })
+    setSpeakingMsgIdx(idx)
+  }, [])
+
+  const stopSpeaking = useCallback(() => {
+    if (typeof speechSynthesis !== 'undefined') speechSynthesis.cancel()
+    setSpeakingMsgIdx(null)
+  }, [])
+
+  // 新消息到来或组件卸载时停止播报
+  useEffect(() => {
+    return () => { if (typeof speechSynthesis !== 'undefined') speechSynthesis.cancel() }
+  }, [])
+  useEffect(() => {
+    if (streaming && speakingMsgIdx !== null) stopSpeaking()
+  }, [streaming, speakingMsgIdx, stopSpeaking])
 
   // sessionKey 变化时：从 Core 磁盘加载历史（首次切入或重启后）
   useEffect(() => {
@@ -1001,6 +1035,15 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
                   title="重新生成"
                 >
                   🔄
+                </button>
+              )}
+              {msg.role === 'assistant' && !streaming && msg.content && (
+                <button
+                  className={`msg-action-btn tts-btn${speakingMsgIdx === i ? ' tts-active' : ''}`}
+                  onClick={() => speakingMsgIdx === i ? stopSpeaking() : speakMessage(msg.content, i)}
+                  title={speakingMsgIdx === i ? '停止播报' : '语音播报'}
+                >
+                  {speakingMsgIdx === i ? '🔇' : '🔊'}
                 </button>
               )}
             </div>
