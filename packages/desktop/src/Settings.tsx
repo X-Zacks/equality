@@ -894,7 +894,8 @@ export default function Settings({
   // 配额状态 (V4.1)
   const [quotaConfigs, setQuotaConfigs] = useState<Array<{ provider: string; tier: string; monthlyLimit: number; warnPct: number; criticalPct: number; autoDowngrade: boolean }>>([])
   const [quotaStatuses, setQuotaStatuses] = useState<Array<{ provider: string; tier: string; used: number; limit: number; remaining: number; pct: number; level: string }>>([])
-
+  const [showQuotaForm, setShowQuotaForm] = useState(false)
+  const [quotaDraft, setQuotaDraft] = useState({ provider: 'copilot', tier: 'premium', monthlyLimit: 500, warnPct: 80, criticalPct: 95, autoDowngrade: true })
   // 费用统计
   const [globalCost, setGlobalCost] = useState<{ totalCny: number; totalTokens: number; callCount: number; sessionCount: number } | null>(null)
 
@@ -1071,11 +1072,9 @@ export default function Settings({
           />
         )}
 
-        {/* ─── 月度配额区域 (V4.1) ────────────────────────────────────── */}
+        {/* ─── 月度配额区域 (V4.1 + Z1) ────────────────────────────────────── */}
         <div className="settings-section-title" style={{ marginTop: 12 }}>📊 月度请求配额</div>
-        {quotaStatuses.length === 0 && quotaConfigs.length === 0 ? (
-          <p className="settings-hint">暂无配额配置。通过 <code>PUT /quota</code> API 设置，或在下方添加。</p>
-        ) : (
+        {quotaStatuses.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {quotaStatuses.map(s => {
               const pct = Math.min(s.pct * 100, 100)
@@ -1085,7 +1084,21 @@ export default function Settings({
                 <div key={`${s.provider}-${s.tier}`} className="provider-card" style={{ padding: '8px 10px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                     <span style={{ fontSize: 12, fontWeight: 500 }}>{levelIcon} {s.provider} · {s.tier}</span>
-                    <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>{s.used} / {s.limit === Infinity ? '∞' : s.limit}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>{s.used} / {s.limit === Infinity ? '∞' : s.limit}</span>
+                      <button style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, padding: 0 }} title="编辑" onClick={() => {
+                        const cfg = quotaConfigs.find(c => c.provider === s.provider && c.tier === s.tier)
+                        if (cfg) {
+                          setQuotaDraft({ provider: cfg.provider, tier: cfg.tier, monthlyLimit: cfg.monthlyLimit, warnPct: Math.round(cfg.warnPct * 100), criticalPct: Math.round(cfg.criticalPct * 100), autoDowngrade: cfg.autoDowngrade })
+                          setShowQuotaForm(true)
+                        }
+                      }}>✏️</button>
+                      <button style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, padding: 0 }} title="删除" onClick={async () => {
+                        await fetch('http://localhost:18790/quota', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider: s.provider, tier: s.tier }) })
+                        const data = await fetch('http://localhost:18790/quota').then(r => r.json())
+                        setQuotaConfigs(data.configs || []); setQuotaStatuses(data.statuses || [])
+                      }}>🗑️</button>
+                    </div>
                   </div>
                   {s.limit !== Infinity && (
                     <div style={{ height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
@@ -1095,6 +1108,72 @@ export default function Settings({
                 </div>
               )
             })}
+          </div>
+        )}
+        {quotaStatuses.length === 0 && !showQuotaForm && (
+          <p className="settings-hint">暂无配额配置，点击下方按钮添加。</p>
+        )}
+        {!showQuotaForm ? (
+          <button className="btn-secondary" style={{ marginTop: 8, fontSize: 12, padding: '4px 12px' }} onClick={() => {
+            setQuotaDraft({ provider: 'copilot', tier: 'premium', monthlyLimit: 500, warnPct: 80, criticalPct: 95, autoDowngrade: true })
+            setShowQuotaForm(true)
+          }}>+ 添加配额规则</button>
+        ) : (
+          <div className="provider-card" style={{ marginTop: 8, padding: '10px 12px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 12px', fontSize: 12 }}>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                Provider
+                <select value={quotaDraft.provider} onChange={e => setQuotaDraft(p => ({ ...p, provider: e.target.value }))}
+                  style={{ background: '#1a1a2e', color: '#fff', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 4, padding: '4px 6px', fontSize: 12 }}>
+                  <option value="copilot">copilot</option>
+                  <option value="custom">custom</option>
+                  <option value="deepseek">deepseek</option>
+                  <option value="qwen">qwen</option>
+                  <option value="volc">volc</option>
+                  <option value="minimax">minimax</option>
+                </select>
+              </label>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                Tier
+                <select value={quotaDraft.tier} onChange={e => setQuotaDraft(p => ({ ...p, tier: e.target.value }))}
+                  style={{ background: '#1a1a2e', color: '#fff', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 4, padding: '4px 6px', fontSize: 12 }}>
+                  <option value="premium">premium</option>
+                  <option value="standard">standard</option>
+                  <option value="economy">economy</option>
+                </select>
+              </label>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                月度上限
+                <input type="number" min={1} value={quotaDraft.monthlyLimit} onChange={e => setQuotaDraft(p => ({ ...p, monthlyLimit: parseInt(e.target.value) || 0 }))}
+                  style={{ background: '#1a1a2e', color: '#fff', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 4, padding: '4px 6px', fontSize: 12 }} />
+              </label>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                警告阈值 (%)
+                <input type="number" min={1} max={100} value={quotaDraft.warnPct} onChange={e => setQuotaDraft(p => ({ ...p, warnPct: parseInt(e.target.value) || 80 }))}
+                  style={{ background: '#1a1a2e', color: '#fff', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 4, padding: '4px 6px', fontSize: 12 }} />
+              </label>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                危险阈值 (%)
+                <input type="number" min={1} max={100} value={quotaDraft.criticalPct} onChange={e => setQuotaDraft(p => ({ ...p, criticalPct: parseInt(e.target.value) || 95 }))}
+                  style={{ background: '#1a1a2e', color: '#fff', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 4, padding: '4px 6px', fontSize: 12 }} />
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 14 }}>
+                <input type="checkbox" checked={quotaDraft.autoDowngrade} onChange={e => setQuotaDraft(p => ({ ...p, autoDowngrade: e.target.checked }))} />
+                超限自动降级
+              </label>
+            </div>
+            <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+              <button className="btn-primary" style={{ fontSize: 12, padding: '4px 14px' }} onClick={async () => {
+                await fetch('http://localhost:18790/quota', {
+                  method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ provider: quotaDraft.provider, tier: quotaDraft.tier, monthlyLimit: quotaDraft.monthlyLimit, warnPct: quotaDraft.warnPct / 100, criticalPct: quotaDraft.criticalPct / 100, autoDowngrade: quotaDraft.autoDowngrade }),
+                })
+                const data = await fetch('http://localhost:18790/quota').then(r => r.json())
+                setQuotaConfigs(data.configs || []); setQuotaStatuses(data.statuses || [])
+                setShowQuotaForm(false)
+              }}>保存</button>
+              <button className="btn-secondary" style={{ fontSize: 12, padding: '4px 14px' }} onClick={() => setShowQuotaForm(false)}>取消</button>
+            </div>
           </div>
         )}
 

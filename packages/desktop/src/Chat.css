@@ -164,6 +164,26 @@
   color: #f0f0f0;
 }
 
+/* ─── 🎤 语音按钮 ─────────────────────────────────────────── */
+.voice-btn {
+  background: rgba(255,255,255,0.1);
+  color: #aaa;
+  font-size: 16px;
+}
+.voice-btn:hover:not(:disabled) {
+  background: rgba(255,255,255,0.18);
+  color: #f0f0f0;
+}
+.voice-btn.listening {
+  color: #ff453a;
+  background: rgba(255,69,58,0.15);
+  animation: voice-pulse 1s ease-in-out infinite;
+}
+@keyframes voice-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
 /* ─── 拖拽遮罩 ────────────────────────────────────────────── */
 .drag-overlay {
   position: absolute;

@@ -13,7 +13,7 @@ import { initSecrets, setSecret, getSecret, listSecrets, hasSecret } from './con
 import type { SecretKey } from './config/secrets.js'
 import { initProxy, setProxyUrl } from './config/proxy.js'
 import { dailySummary, sessionCostSummary, allSessionsCostSummary, globalCostSummary } from './cost/ledger.js'
-import { allQuotaStatuses, setQuotaConfig, listQuotaConfigs, type QuotaConfig } from './cost/request-quota.js'
+import { allQuotaStatuses, setQuotaConfig, deleteQuotaConfig, listQuotaConfigs, type QuotaConfig } from './cost/request-quota.js'
 import { startDeviceFlow, pollForToken, clearCopilotAuth, isCopilotLoggedIn, getPollingInterval } from './providers/copilot-auth.js'
 import { COPILOT_MODELS, fetchCopilotModels } from './providers/copilot.js'
 import { ToolRegistry, builtinTools, resolvePolicyForTool, classifyMutation, McpClientManager, parseMcpServersConfig, setSubagentManagerForSpawn, setSubagentManagerForList, setSubagentManagerForSteer, setSubagentManagerForKill } from './tools/index.js'
@@ -1055,6 +1055,15 @@ app.put<{ Body: QuotaConfig }>('/quota', async (req, reply) => {
     criticalPct: config.criticalPct ?? 0.95,
     autoDowngrade: config.autoDowngrade ?? true,
   })
+  return reply.send({ ok: true })
+})
+
+app.delete<{ Body: { provider: string; tier: string } }>('/quota', async (req, reply) => {
+  const { provider, tier } = req.body ?? {} as any
+  if (!provider || !tier) {
+    return reply.status(400).send({ error: 'provider and tier are required' })
+  }
+  deleteQuotaConfig(provider, tier as any)
   return reply.send({ ok: true })
 })
 

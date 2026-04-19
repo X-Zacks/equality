@@ -110,6 +110,8 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
   const [hasUsedAttachment, setHasUsedAttachment] = useState(false)
   const [expandedToolCalls, setExpandedToolCalls] = useState<Set<string>>(new Set())
   const [quotaWarning, setQuotaWarning] = useState<string | null>(null)
+  const [isListening, setIsListening] = useState(false)
+  const recognitionRef = useRef<any>(null)
   const { sendMessage, abort, loadSession } = useGateway()
 
   const toggleToolCall = useCallback((id: string) => {
@@ -122,6 +124,35 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
   }, [])
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  // Z2: 语音输入 toggle
+  const toggleVoice = useCallback(() => {
+    if (isListening) {
+      recognitionRef.current?.stop()
+      setIsListening(false)
+      return
+    }
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (!SR) { alert('当前环境不支持语音识别（需要 Chromium 内核）'); return }
+    const recognition = new SR()
+    recognition.lang = 'zh-CN'
+    recognition.interimResults = false
+    recognition.continuous = false
+    recognition.onresult = (e: any) => {
+      const transcript = Array.from(e.results as SpeechRecognitionResultList).map((r: any) => r[0].transcript).join('')
+      setInput(prev => prev + transcript)
+      // 自动调整高度
+      setTimeout(() => {
+        const el = textareaRef.current
+        if (el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 200) + 'px' }
+      }, 0)
+    }
+    recognition.onend = () => setIsListening(false)
+    recognition.onerror = () => setIsListening(false)
+    recognitionRef.current = recognition
+    recognition.start()
+    setIsListening(true)
+  }, [isListening])
 
   // sessionKey 变化时：从 Core 磁盘加载历史（首次切入或重启后）
   useEffect(() => {
@@ -1127,6 +1158,9 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
         <div className="chat-input-row">
           <button className="chat-btn attach-btn" onClick={handlePickFile} title="添加文件" disabled={streaming && !paused}>
             📎
+          </button>
+          <button className={`chat-btn voice-btn${isListening ? ' listening' : ''}`} onClick={toggleVoice} title={isListening ? '停止录音' : '语音输入'} disabled={streaming && !paused}>
+            {isListening ? '🔴' : '🎤'}
           </button>
           <textarea
             ref={textareaRef}
