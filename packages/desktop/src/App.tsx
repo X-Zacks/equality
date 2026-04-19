@@ -6,8 +6,8 @@ import Settings from './Settings'
 import './App.css'
 
 type Page = 'chat' | 'settings'
-type ThemePreference = 'system' | 'purple' | 'dark'
-type EffectiveTheme = 'purple' | 'dark'
+type ThemePreference = 'system' | 'purple' | 'dark' | 'black'
+type EffectiveTheme = 'purple' | 'dark' | 'black'
 
 const ZOOM_KEY = 'equality-zoom'
 const THEME_KEY = 'equality-theme'
@@ -55,7 +55,7 @@ function App() {
   const [themePreference, setThemePreference] = useState<ThemePreference>(() => {
     const saved = localStorage.getItem(THEME_KEY)
     if (saved === 'light') return 'purple'  // 迁移旧值
-    return saved === 'purple' || saved === 'dark' || saved === 'system' ? saved : 'dark'
+    return saved === 'purple' || saved === 'dark' || saved === 'black' || saved === 'system' ? saved : 'dark'
   })
   const [systemTheme, setSystemTheme] = useState<EffectiveTheme>(() => {
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'purple'
@@ -70,7 +70,7 @@ function App() {
   }, [zoom])
 
   useEffect(() => {
-    document.body.style.background = effectiveTheme === 'purple' ? '#1a0a2e' : '#0d1424'
+    document.body.style.background = effectiveTheme === 'purple' ? '#1a0a2e' : effectiveTheme === 'black' ? '#000000' : '#0d1424'
   }, [effectiveTheme])
 
   // 跟随系统主题变化

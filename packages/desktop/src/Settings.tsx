@@ -6,8 +6,8 @@ import { MemoryTab } from './MemoryTab'
 import './Settings.css'
 
 type SettingsTab = 'model' | 'tools' | 'skills' | 'memory' | 'advanced' | 'about'
-type ThemePreference = 'system' | 'purple' | 'dark'
-type EffectiveTheme = 'purple' | 'dark'
+type ThemePreference = 'system' | 'purple' | 'dark' | 'black'
+type EffectiveTheme = 'purple' | 'dark' | 'black'
 
 // ─── 模型路由选择器组件 ───────────────────────────────────────────────────────
 
@@ -719,6 +719,27 @@ function getToolIcon(name: string): string {
   return TOOL_ICONS[name] ?? '🔧'
 }
 
+// ─── 工具分类 ─────────────────────────────────────────────────────────────────
+const TOOL_CATEGORIES = [
+  { id: 'all', label: '📋 全部' },
+  { id: 'file', label: '📄 文件' },
+  { id: 'search', label: '🔍 搜索' },
+  { id: 'browser', label: '🌐 浏览器' },
+  { id: 'system', label: '⚙️ 系统' },
+  { id: 'memory', label: '🧠 记忆' },
+  { id: 'schedule', label: '⏰ 计划' },
+  { id: 'other', label: '🔧 其他' },
+]
+function getToolCategory(name: string): string {
+  if (['read_file', 'write_file', 'edit_file', 'apply_patch', 'read_pdf', 'read_image'].includes(name)) return 'file'
+  if (['grep', 'glob', 'web_search'].includes(name)) return 'search'
+  if (['browser', 'web_fetch'].includes(name)) return 'browser'
+  if (['bash', 'process', 'list_dir'].includes(name)) return 'system'
+  if (['memory_save', 'memory_search'].includes(name)) return 'memory'
+  if (['cron'].includes(name)) return 'schedule'
+  return 'other'
+}
+
 // ─── ToolDetailDrawer: 工具详情右侧抽屉 ─────────────────────────────────────
 interface ToolSchema {
   name: string
@@ -1015,6 +1036,7 @@ export default function Settings({
   const [skillsList, setSkillsList] = useState<Array<{ name: string; description: string; source: string; body?: string; category?: string }>>([])
   const [expandedSkill, setExpandedSkill] = useState<string | null>(null)
   const [skillCategory, setSkillCategory] = useState<string>('all')
+  const [toolCategory, setToolCategory] = useState<string>('all')
 
   // 配额状态 (V4.1)
   const [quotaConfigs, setQuotaConfigs] = useState<Array<{ provider: string; tier: string; monthlyLimit: number; warnPct: number; criticalPct: number; autoDowngrade: boolean }>>([])
@@ -1323,11 +1345,29 @@ export default function Settings({
           </div>
 
           <div className="settings-section-title" style={{ marginTop: 16 }}>已注册工具</div>
+          {/* 工具分类筛选 Tab */}
+          <div className="skill-category-tabs">
+            {TOOL_CATEGORIES.map(c => {
+              const count = c.id === 'all' ? toolsList.length : toolsList.filter(t => getToolCategory(t.name) === c.id).length
+              if (c.id !== 'all' && count === 0) return null
+              return (
+                <button
+                  key={c.id}
+                  className={`skill-category-tab ${toolCategory === c.id ? 'active' : ''}`}
+                  onClick={() => setToolCategory(c.id)}
+                >
+                  {c.label} <span className="skill-category-count">{count}</span>
+                </button>
+              )
+            })}
+          </div>
           {toolsList.length === 0 ? (
             <p className="settings-hint">加载中…</p>
           ) : (
             <div className="tools-list">
-              {toolsList.map(t => (
+              {toolsList
+                .filter(t => toolCategory === 'all' || getToolCategory(t.name) === toolCategory)
+                .map(t => (
                 <div key={t.name} className="tool-item" onClick={() => setToolDetail(t)} style={{ cursor: 'pointer' }}>
                   <span className="tool-icon">{getToolIcon(t.name)}</span>
                   <span className="tool-name">{t.name}</span>
@@ -1452,7 +1492,7 @@ export default function Settings({
             <div className="advanced-item">
               <div className="advanced-item-header">
                 <span className="advanced-item-label">界面风格</span>
-                <span className="advanced-item-unit">当前：{effectiveTheme === 'purple' ? '紫色' : '深色'}</span>
+                <span className="advanced-item-unit">当前：{effectiveTheme === 'purple' ? '紫色' : effectiveTheme === 'black' ? '纯黑' : '深海蓝'}</span>
               </div>
               <div className="theme-switch" role="group" aria-label="主题选择">
                 <button
@@ -1465,7 +1505,13 @@ export default function Settings({
                   className={`theme-btn ${themePreference === 'dark' ? 'active' : ''}`}
                   onClick={() => onThemeChange('dark')}
                 >
-                  深色
+                  🌊 深海蓝
+                </button>
+                <button
+                  className={`theme-btn ${themePreference === 'black' ? 'active' : ''}`}
+                  onClick={() => onThemeChange('black')}
+                >
+                  🖤 纯黑
                 </button>
                 <button
                   className={`theme-btn subtle ${themePreference === 'system' ? 'active' : ''}`}
@@ -1475,7 +1521,7 @@ export default function Settings({
                   跟随系统
                 </button>
               </div>
-              <p className="advanced-item-desc">默认会跟随系统主题。选择紫色或深色后将固定，并在重启后保持。</p>
+              <p className="advanced-item-desc">默认会跟随系统主题。选择紫色、深海蓝或纯黑后将固定，并在重启后保持。</p>
             </div>
           </div>
 

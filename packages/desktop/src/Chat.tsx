@@ -110,11 +110,12 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
   const [hasUsedAttachment, setHasUsedAttachment] = useState(false)
   const [expandedToolCalls, setExpandedToolCalls] = useState<Set<string>>(new Set())
   const [quotaWarning, setQuotaWarning] = useState<string | null>(null)
-  // Z4.1: 持续录音 (MediaRecorder)
+  // Z4.1: 持续录音 (MediaRecorder + SpeechRecognition → 转文字填入输入框)
   const [isRecording, setIsRecording] = useState(false)
   const [recordingDuration, setRecordingDuration] = useState(0)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
-  const audioChunksRef = useRef<Blob[]>([])
+  const recognitionRef = useRef<ReturnType<typeof Object.create> | null>(null)
+  const transcriptRef = useRef<string>('')
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   // Z2.2: 语音播报 (TTS)
   const [speakingMsgIdx, setSpeakingMsgIdx] = useState<number | null>(null)
@@ -164,63 +165,52 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
     setSpeakingMsgIdx(null)
   }, [])
 
-  // Z4.1: 持续录音 — MediaRecorder
+  // Z4.1: 持续录音 — MediaRecorder + SpeechRecognition 转文字
   const startRecording = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' })
-      audioChunksRef.current = []
-      recorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data) }
-      recorder.onstop = async () => {
+      recorder.onstop = () => {
         stream.getTracks().forEach(t => t.stop())
         if (recordingTimerRef.current) { clearInterval(recordingTimerRef.current); recordingTimerRef.current = null }
         setRecordingDuration(0)
-        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
-        if (blob.size < 1000) return // 太短，忽略
-        try {
-          const buf = await blob.arrayBuffer()
-          const data = Array.from(new Uint8Array(buf))
-          const filename = `voice-${Date.now()}-${crypto.randomUUID().slice(0, 8)}.webm`
-          const absPath = await invoke<string>('write_temp_file', { data, filename })
-          // 自动发送语音消息
-          const text = `[语音消息]\n\n[附件: ${absPath}]`
-          setMessages(prev => [...prev, { role: 'user', content: text }])
-          streamingTextRef.current = ''
-          setStreamingText('')
-          activeToolCallsRef.current = []
-          setActiveToolCalls([])
-          setInteractivePayloads([])
-          await sendMessage(
-            text,
-            (chunk) => { streamingTextRef.current += chunk; setStreamingText(streamingTextRef.current) },
-            () => {
-              const final = streamingTextRef.current
-              const tools = activeToolCallsRef.current
-              if (final || tools.length > 0) {
-                setMessages(msgs => {
-                  const newMsgs = [...msgs, { role: 'assistant' as const, content: final, toolCalls: tools.length > 0 ? [...tools] : undefined }]
-                  if (ttsAutoPlayRef.current && final) setTimeout(() => speakMessage(final, newMsgs.length - 1), 300)
-                  return newMsgs
-                })
-              }
-              streamingTextRef.current = ''; setStreamingText('')
-              activeToolCallsRef.current = []; setActiveToolCalls([])
-            },
-            (err) => {
-              const partial = streamingTextRef.current; const tools = activeToolCallsRef.current
-              if (partial || tools.length > 0) setMessages(msgs => [...msgs, { role: 'assistant', content: partial || '', toolCalls: tools.length > 0 ? [...tools] : undefined }])
-              setMessages(prev => [...prev, { role: 'assistant', content: `⚠️ ${err}` }])
-              streamingTextRef.current = ''; setStreamingText(''); activeToolCallsRef.current = []; setActiveToolCalls([])
-            },
-            undefined, sessionKey, undefined, undefined,
-            (s) => setStreaming(s),
-            (payload) => setInteractivePayloads(prev => [...prev, payload]),
-            handleMemoryCaptured,
-          )
-        } catch (err) { console.error('[voice] save/send failed:', err) }
       }
       mediaRecorderRef.current = recorder
       recorder.start()
+
+      // SpeechRecognition 实时转文字
+      const SpeechRecognition = (window as unknown as Record<string, unknown>).webkitSpeechRecognition || (window as unknown as Record<string, unknown>).SpeechRecognition
+      if (SpeechRecognition) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const recognition = new (SpeechRecognition as any)()
+        recognition.continuous = true
+        recognition.interimResults = true
+        recognition.lang = 'zh-CN'
+        transcriptRef.current = ''
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        recognition.onresult = (event: any) => {
+          let final = ''
+          let interim = ''
+          for (let i = 0; i < event.results.length; i++) {
+            if (event.results[i].isFinal) {
+              final += event.results[i][0].transcript
+            } else {
+              interim += event.results[i][0].transcript
+            }
+          }
+          transcriptRef.current = final
+          // 实时显示（含临时结果）
+          setInput(final + interim)
+        }
+        recognition.onerror = (e: Event) => { console.warn('[voice] recognition error:', e) }
+        recognition.onend = () => {
+          // 填入最终文本
+          if (transcriptRef.current) setInput(transcriptRef.current)
+        }
+        recognition.start()
+        recognitionRef.current = recognition
+      }
+
       setIsRecording(true)
       setRecordingDuration(0)
       const start = Date.now()
@@ -229,11 +219,15 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
       alert('无法访问麦克风，请检查权限设置')
       console.error('[voice] getUserMedia failed:', err)
     }
-  }, [sendMessage, sessionKey, speakMessage]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop()
+    }
+    if (recognitionRef.current) {
+      try { recognitionRef.current.stop() } catch { /* ignore */ }
+      recognitionRef.current = null
     }
     setIsRecording(false)
   }, [])
@@ -244,6 +238,7 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
       if (typeof speechSynthesis !== 'undefined') speechSynthesis.cancel()
       // Z4.1: cleanup recording
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') mediaRecorderRef.current.stop()
+      if (recognitionRef.current) try { recognitionRef.current.stop() } catch { /* */ }
       if (recordingTimerRef.current) clearInterval(recordingTimerRef.current)
     }
   }, [])
