@@ -6,8 +6,8 @@
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: #161617;
-  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  background: #0e1520;
+  border-right: 1px solid rgba(148,163,184,0.10);
   overflow: hidden;
 }
 

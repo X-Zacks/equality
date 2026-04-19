@@ -7,29 +7,31 @@
 }
 
 :root {
-  font-family: 'PingFang SC', 'Microsoft YaHei', 'Segoe UI', sans-serif;
+  font-family: 'Inter', 'PingFang SC', 'Microsoft YaHei', 'Segoe UI', sans-serif;
   font-size: 14px;
   line-height: 1.5;
-  color: #f0f0f0;
-  background-color: #1c1c1e;
+  color: #f4f6ff;
+  background-color: #0d1424;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 .app-root.theme-dark {
-  --bg-app: #1c1c1e;
-  --bg-sidebar: #151516;
-  --bg-status: #151516;
-  --bg-hover: rgba(255,255,255,0.08);
-  --bg-selected: rgba(10,132,255,0.15);
-  --border-default: rgba(255,255,255,0.08);
-  --text-primary: #f0f0f0;
-  --text-secondary: rgba(255,255,255,0.55);
-  --text-muted: rgba(255,255,255,0.45);
-  --text-dim: rgba(255,255,255,0.2);
-  --status-online: #30d158;
-  --status-offline: #ff453a;
-  --accent: #0a84ff;
-  --tag-neutral: rgba(255,255,255,0.5);
-  --tag-faint: rgba(255,255,255,0.3);
+  --bg-app: #0d1424;
+  --bg-sidebar: #0a1018;
+  --bg-status: #0a1018;
+  --bg-hover: rgba(148,163,184,0.12);
+  --bg-selected: rgba(122,179,255,0.15);
+  --border-default: rgba(148,163,184,0.12);
+  --text-primary: #f4f6ff;
+  --text-secondary: #b0bdd8;
+  --text-muted: rgba(176,189,216,0.65);
+  --text-dim: rgba(176,189,216,0.25);
+  --status-online: #4ade80;
+  --status-offline: #f87171;
+  --accent: #7ab3ff;
+  --tag-neutral: rgba(176,189,216,0.5);
+  --tag-faint: rgba(176,189,216,0.3);
 }
 
 .app-root.theme-purple {
@@ -51,7 +53,7 @@
 }
 
 body {
-  background: #1c1c1e;
+  background: #0d1424;
   overflow: hidden;
   height: 100vh;
 }

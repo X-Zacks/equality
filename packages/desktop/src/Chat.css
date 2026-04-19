@@ -58,17 +58,19 @@
 
 .chat-user {
   align-self: flex-end;
-  background: #0a84ff;
-  color: #fff;
+  background: rgba(122,179,255,0.18);
+  color: #f4f6ff;
+  border: 1px solid rgba(122,179,255,0.25);
   border-bottom-right-radius: 4px;
   white-space: pre-wrap;
 }
 
 .chat-assistant {
   align-self: flex-start;
-  background: rgba(255,255,255,0.08);
-  color: rgba(240,240,240,0.92);
+  background: transparent;
+  color: #e8ecff;
   border-bottom-left-radius: 4px;
+  max-width: 85%;
 }
 
 .cursor-blink {
@@ -87,8 +89,8 @@
   flex-direction: column;
   gap: 0;
   padding: 12px 24px 16px;
-  border-top: 1px solid rgba(255,255,255,0.08);
-  background: rgba(28,28,30,0.6);
+  border-top: 1px solid rgba(148,163,184,0.12);
+  background: rgba(13,20,36,0.85);
   position: relative;
   transition: border-color 0.2s;
 }
@@ -154,31 +156,38 @@
 
 /* ─── 📎 按钮 ──────────────────────────────────────────── */
 .attach-btn {
-  background: rgba(255,255,255,0.1);
-  color: #aaa;
+  background: rgba(148,163,184,0.08);
+  color: #b0bdd8;
   font-size: 16px;
 }
 
 .attach-btn:hover:not(:disabled) {
-  background: rgba(255,255,255,0.18);
-  color: #f0f0f0;
+  background: rgba(148,163,184,0.16);
+  color: #f4f6ff;
 }
 
-/* ─── 🎤 语音按钮 ─────────────────────────────────────────── */
+/* ─── 🎤 语音按钮 ───────────────────────────────────────────── */
 .voice-btn {
-  background: rgba(255,255,255,0.1);
-  color: #aaa;
+  background: rgba(148,163,184,0.08);
+  color: #b0bdd8;
   font-size: 16px;
 }
 .voice-btn:hover:not(:disabled) {
-  background: rgba(255,255,255,0.18);
-  color: #f0f0f0;
+  background: rgba(148,163,184,0.16);
+  color: #f4f6ff;
 }
-.voice-btn.listening {
-  color: #ff453a;
-  background: rgba(255,69,58,0.15);
+.voice-btn.recording {
+  color: #f87171;
+  background: rgba(248,113,113,0.15);
   animation: voice-pulse 1s ease-in-out infinite;
+  min-width: auto;
+  width: auto;
+  padding: 0 10px;
+  gap: 4px;
+  border-radius: 18px;
 }
+.rec-dot { color: #f87171; font-size: 10px; animation: voice-pulse 1s ease-in-out infinite; }
+.rec-time { font-size: 11px; color: #f87171; font-variant-numeric: tabular-nums; }
 @keyframes voice-pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }
@@ -211,11 +220,11 @@
 
 .chat-input {
   flex: 1;
-  background: rgba(255,255,255,0.07);
-  border: 1px solid rgba(255,255,255,0.12);
-  border-radius: 10px;
+  background: rgba(148,163,184,0.06);
+  border: 1px solid rgba(148,163,184,0.15);
+  border-radius: 14px;
   padding: 10px 14px;
-  color: #f0f0f0;
+  color: #f4f6ff;
   font-size: 14px;
   line-height: 1.5;
   resize: none;
@@ -224,14 +233,16 @@
   outline: none;
   font-family: inherit;
   scrollbar-width: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
 
 .chat-input::placeholder {
-  color: rgba(255,255,255,0.3);
+  color: rgba(176,189,216,0.35);
 }
 
 .chat-input:focus {
-  border-color: rgba(10,132,255,0.5);
+  border-color: rgba(122,179,255,0.4);
+  box-shadow: 0 0 0 2px rgba(122,179,255,0.12);
 }
 
 .chat-btn {
@@ -258,8 +269,10 @@
 }
 
 .chat-btn-send {
-  background: #0a84ff;
-  color: white;
+  background: #7ab3ff;
+  color: #0d1424;
+  font-weight: 600;
+  box-shadow: inset 0 1px 0 0 rgba(255,255,255,0.25), 0 2px 4px rgba(0,0,0,0.2);
 }
 
 .chat-btn-stop {

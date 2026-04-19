@@ -110,8 +110,12 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
   const [hasUsedAttachment, setHasUsedAttachment] = useState(false)
   const [expandedToolCalls, setExpandedToolCalls] = useState<Set<string>>(new Set())
   const [quotaWarning, setQuotaWarning] = useState<string | null>(null)
-  const [isListening, setIsListening] = useState(false)
-  const recognitionRef = useRef<any>(null)
+  // Z4.1: 持续录音 (MediaRecorder)
+  const [isRecording, setIsRecording] = useState(false)
+  const [recordingDuration, setRecordingDuration] = useState(0)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const audioChunksRef = useRef<Blob[]>([])
+  const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   // Z2.2: 语音播报 (TTS)
   const [speakingMsgIdx, setSpeakingMsgIdx] = useState<number | null>(null)
   // Z3.2: TTS 自动播报开关
@@ -130,34 +134,79 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  // Z2: 语音输入 toggle
-  const toggleVoice = useCallback(() => {
-    if (isListening) {
-      recognitionRef.current?.stop()
-      setIsListening(false)
-      return
+  // Z4.1: 持续录音 — MediaRecorder
+  const startRecording = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' })
+      audioChunksRef.current = []
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data) }
+      recorder.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop())
+        if (recordingTimerRef.current) { clearInterval(recordingTimerRef.current); recordingTimerRef.current = null }
+        setRecordingDuration(0)
+        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
+        if (blob.size < 1000) return // 太短，忽略
+        try {
+          const buf = await blob.arrayBuffer()
+          const data = Array.from(new Uint8Array(buf))
+          const filename = `voice-${Date.now()}-${crypto.randomUUID().slice(0, 8)}.webm`
+          const absPath = await invoke<string>('write_temp_file', { data, filename })
+          // 自动发送语音消息
+          const text = `[语音消息]\n\n[附件: ${absPath}]`
+          setMessages(prev => [...prev, { role: 'user', content: text }])
+          streamingTextRef.current = ''
+          setStreamingText('')
+          activeToolCallsRef.current = []
+          setActiveToolCalls([])
+          setInteractivePayloads([])
+          await sendMessage(
+            text,
+            (chunk) => { streamingTextRef.current += chunk; setStreamingText(streamingTextRef.current) },
+            () => {
+              const final = streamingTextRef.current
+              const tools = activeToolCallsRef.current
+              if (final || tools.length > 0) {
+                setMessages(msgs => {
+                  const newMsgs = [...msgs, { role: 'assistant' as const, content: final, toolCalls: tools.length > 0 ? [...tools] : undefined }]
+                  if (ttsAutoPlayRef.current && final) setTimeout(() => speakMessage(final, newMsgs.length - 1), 300)
+                  return newMsgs
+                })
+              }
+              streamingTextRef.current = ''; setStreamingText('')
+              activeToolCallsRef.current = []; setActiveToolCalls([])
+            },
+            (err) => {
+              const partial = streamingTextRef.current; const tools = activeToolCallsRef.current
+              if (partial || tools.length > 0) setMessages(msgs => [...msgs, { role: 'assistant', content: partial || '', toolCalls: tools.length > 0 ? [...tools] : undefined }])
+              setMessages(prev => [...prev, { role: 'assistant', content: `⚠️ ${err}` }])
+              streamingTextRef.current = ''; setStreamingText(''); activeToolCallsRef.current = []; setActiveToolCalls([])
+            },
+            undefined, sessionKey, undefined, undefined,
+            (s) => setStreaming(s),
+            (payload) => setInteractivePayloads(prev => [...prev, payload]),
+            handleMemoryCaptured,
+          )
+        } catch (err) { console.error('[voice] save/send failed:', err) }
+      }
+      mediaRecorderRef.current = recorder
+      recorder.start()
+      setIsRecording(true)
+      setRecordingDuration(0)
+      const start = Date.now()
+      recordingTimerRef.current = setInterval(() => setRecordingDuration(Math.floor((Date.now() - start) / 1000)), 500)
+    } catch (err) {
+      alert('无法访问麦克风，请检查权限设置')
+      console.error('[voice] getUserMedia failed:', err)
     }
-    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-    if (!SR) { alert('当前环境不支持语音识别（需要 Chromium 内核）'); return }
-    const recognition = new SR()
-    recognition.lang = 'zh-CN'
-    recognition.interimResults = false
-    recognition.continuous = false
-    recognition.onresult = (e: any) => {
-      const transcript = Array.from(e.results as SpeechRecognitionResultList).map((r: any) => r[0].transcript).join('')
-      setInput(prev => prev + transcript)
-      // 自动调整高度
-      setTimeout(() => {
-        const el = textareaRef.current
-        if (el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 200) + 'px' }
-      }, 0)
+  }, [sendMessage, sessionKey, speakMessage]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const stopRecording = useCallback(() => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop()
     }
-    recognition.onend = () => setIsListening(false)
-    recognition.onerror = () => setIsListening(false)
-    recognitionRef.current = recognition
-    recognition.start()
-    setIsListening(true)
-  }, [isListening])
+    setIsRecording(false)
+  }, [])
 
   // Z2.2: 语音播报 (TTS)
   const speakMessage = useCallback((text: string, idx: number) => {
@@ -191,7 +240,7 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
 
   // 新消息到来或组件卸载时停止播报
   useEffect(() => {
-    return () => { if (typeof speechSynthesis !== 'undefined') speechSynthesis.cancel() }
+    return () => {\n      if (typeof speechSynthesis !== 'undefined') speechSynthesis.cancel()\n      // Z4.1: cleanup recording\n      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') mediaRecorderRef.current.stop()\n      if (recordingTimerRef.current) clearInterval(recordingTimerRef.current)\n    }
   }, [])
   useEffect(() => {
     if (streaming && speakingMsgIdx !== null) stopSpeaking()
@@ -1218,8 +1267,8 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
           <button className="chat-btn attach-btn" onClick={handlePickFile} title="添加文件" disabled={streaming && !paused}>
             📎
           </button>
-          <button className={`chat-btn voice-btn${isListening ? ' listening' : ''}`} onClick={toggleVoice} title={isListening ? '停止录音' : '语音输入'} disabled={streaming && !paused}>
-            {isListening ? '🔴' : '🎤'}
+          <button className={`chat-btn voice-btn${isRecording ? ' recording' : ''}`} onClick={isRecording ? stopRecording : startRecording} title={isRecording ? '停止录音' : '语音输入'} disabled={streaming && !paused}>
+            {isRecording ? <><span className="rec-dot">●</span>{recordingDuration > 0 && <span className="rec-time">{Math.floor(recordingDuration / 60)}:{String(recordingDuration % 60).padStart(2, '0')}</span>}</> : '🎤'}
           </button>
           <button className={`chat-btn tts-toggle${ttsAutoPlay ? ' tts-on' : ''}`} onClick={() => { setTtsAutoPlay(v => !v); ttsAutoPlayRef.current = !ttsAutoPlayRef.current }} title={ttsAutoPlay ? '关闭自动播报' : '开启自动播报'}>
             {ttsAutoPlay ? '🔊' : '🔇'}
