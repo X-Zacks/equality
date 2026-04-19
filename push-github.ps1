@@ -1,5 +1,5 @@
 ﻿$TEMP_BRANCH = "github-push-temp"
-$REMOVE_PATHS = @("openspec",".vscode","docs","example","DESIGN_PHILOSOPHY.md","IDENTITY.md","OPENSPEC_RESEARCH.md","PHASE-A-VERIFICATION.md","INSTALL_SOLUTIONS.md","skill-parity-analysis.md","debug-request.json","README_CN.md","test-lsp-pipe.js","USER.md","USER.md.equality-bak","test-compile-error.ts.equality-bak","OpenClaw_.md","push-github.ps1")
+$REMOVE_PATHS = @("openspec",".vscode","docs","example","DESIGN_PHILOSOPHY.md","IDENTITY.md","OPENSPEC_RESEARCH.md","PHASE-A-VERIFICATION.md","INSTALL_SOLUTIONS.md","skill-parity-analysis.md","debug-request.json","README_CN.md","test-lsp-pipe.js","USER.md","USER.md.equality-bak","test-compile-error.ts.equality-bak","OpenClaw_安全调研报告.md","push-github.ps1")
 
 $currentBranch = git rev-parse --abbrev-ref HEAD
 if ($currentBranch -ne "master") { Write-Error "Not on master"; exit 1 }
