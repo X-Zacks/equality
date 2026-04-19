@@ -237,7 +237,7 @@ const PROVIDER_GROUPS = [
   },
   {
     id: 'minimax' as const,
-    label: 'MiniMax（MiniMax-M2.5 / M2.7）',
+    label: 'MiniMax（M2.5 / M2.7 / M2.7-Highspeed）',
     fields: [{ key: 'MINIMAX_API_KEY' as SecretKey, label: 'API Key', type: 'password', placeholder: 'eyJ...' }],
     saveKeys: ['MINIMAX_API_KEY'] as SecretKey[],
   },

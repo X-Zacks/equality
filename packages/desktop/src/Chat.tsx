@@ -114,6 +114,9 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
   const recognitionRef = useRef<any>(null)
   // Z2.2: 语音播报 (TTS)
   const [speakingMsgIdx, setSpeakingMsgIdx] = useState<number | null>(null)
+  // Z3.2: TTS 自动播报开关
+  const [ttsAutoPlay, setTtsAutoPlay] = useState(true)
+  const ttsAutoPlayRef = useRef(true)
   const { sendMessage, abort, loadSession } = useGateway()
 
   const toggleToolCall = useCallback((id: string) => {
@@ -160,8 +163,14 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
   const speakMessage = useCallback((text: string, idx: number) => {
     if (typeof speechSynthesis === 'undefined') { alert('当前环境不支持语音合成'); return }
     speechSynthesis.cancel()
-    // 清理 markdown
-    const clean = text.replace(/```[\s\S]*?```/g, '').replace(/[#*`_~\[\]()>|]/g, '').replace(/https?:\/\/\S+/g, '').trim()
+    // 清理 markdown + 代码块
+    let clean = text.replace(/```[\s\S]*?```/g, '').replace(/[#*`_~\[\]()>|]/g, '').replace(/https?:\/\/\S+/g, '')
+    // Z3.3: 去除表情符号
+    clean = clean.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}\u{200D}\u{20E3}\u{E0020}-\u{E007F}\u{2700}-\u{27BF}\u{2300}-\u{23FF}]/gu, '')
+    // Z3.3: 去除 token 统计信息行
+    clean = clean.replace(/.*(?:token|tokens|Token|Tokens|消耗|令牌|输入|输出).*\d+[\d,.]*.*/g, '')
+    clean = clean.replace(/[（(][^）)]*(?:token|tokens|令牌|消耗)[^）)]*[）)]/gi, '')
+    clean = clean.trim()
     if (!clean) return
     // 按句分割，避免逐字机械感
     const sentences = clean.split(/(?<=[。！？\n.!?；;])\ */).filter(s => s.trim())
@@ -572,7 +581,14 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
         const final = streamingTextRef.current
         const tools = activeToolCallsRef.current
         if (final || tools.length > 0) {
-          setMessages(msgs => [...msgs, { role: 'assistant', content: final, toolCalls: tools.length > 0 ? [...tools] : undefined }])
+          setMessages(msgs => {
+            const newMsgs = [...msgs, { role: 'assistant' as const, content: final, toolCalls: tools.length > 0 ? [...tools] : undefined }]
+            // Z3.2: 自动播报
+            if (ttsAutoPlayRef.current && final) {
+              setTimeout(() => speakMessage(final, newMsgs.length - 1), 300)
+            }
+            return newMsgs
+          })
         }
         streamingTextRef.current = ''
         setStreamingText('')
@@ -1204,6 +1220,9 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
           </button>
           <button className={`chat-btn voice-btn${isListening ? ' listening' : ''}`} onClick={toggleVoice} title={isListening ? '停止录音' : '语音输入'} disabled={streaming && !paused}>
             {isListening ? '🔴' : '🎤'}
+          </button>
+          <button className={`chat-btn tts-toggle${ttsAutoPlay ? ' tts-on' : ''}`} onClick={() => { setTtsAutoPlay(v => !v); ttsAutoPlayRef.current = !ttsAutoPlayRef.current }} title={ttsAutoPlay ? '关闭自动播报' : '开启自动播报'}>
+            {ttsAutoPlay ? '🔊' : '🔇'}
           </button>
           <textarea
             ref={textareaRef}

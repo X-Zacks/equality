@@ -861,6 +861,7 @@ app.get('/models', async (_req, reply) => {
   if (hasSecret('MINIMAX_API_KEY')) {
     models.push({ value: 'minimax/MiniMax-M2.5', label: 'MiniMax M2.5', provider: 'minimax', multiplier: 1 })
     models.push({ value: 'minimax/MiniMax-M2.7', label: 'MiniMax M2.7', provider: 'minimax', multiplier: 1 })
+    models.push({ value: 'minimax/MiniMax-M2.7-highspeed', label: 'MiniMax M2.7 Highspeed', provider: 'minimax', multiplier: 1 })
   }
 
   // Custom

@@ -187,6 +187,10 @@
 /* Z2.2: TTS 播报按钮 */
 .tts-btn { transition: color 0.2s; }
 .tts-btn.tts-active { color: #0a84ff !important; animation: voice-pulse 1s ease-in-out infinite; }
+/* Z3.2: TTS 自动播报开关 */
+.tts-toggle { background: rgba(255,255,255,0.06); color: #666; font-size: 15px; transition: all 0.2s; }
+.tts-toggle.tts-on { color: #30d158; background: rgba(48,209,88,0.12); }
+.tts-toggle:hover { background: rgba(255,255,255,0.14); }
 
 /* ─── 拖拽遮罩 ────────────────────────────────────────────── */
 .drag-overlay {
