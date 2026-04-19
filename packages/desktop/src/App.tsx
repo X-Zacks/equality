@@ -70,7 +70,7 @@ function App() {
   }, [zoom])
 
   useEffect(() => {
-    document.body.style.background = effectiveTheme === 'purple' ? '#1a0a2e' : '#1c1c1e'
+    document.body.style.background = effectiveTheme === 'purple' ? '#1a0a2e' : '#0d1424'
   }, [effectiveTheme])
 
   // 跟随系统主题变化

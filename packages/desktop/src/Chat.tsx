@@ -134,6 +134,36 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
+  // Z2.2: 语音播报 (TTS)
+  const speakMessage = useCallback((text: string, idx: number) => {
+    if (typeof speechSynthesis === 'undefined') { alert('当前环境不支持语音合成'); return }
+    speechSynthesis.cancel()
+    // 清理 markdown + 代码块
+    let clean = text.replace(/```[\s\S]*?```/g, '').replace(/[#*`_~\[\]()>|]/g, '').replace(/https?:\/\/\S+/g, '')
+    // Z3.3: 去除表情符号
+    clean = clean.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}\u{200D}\u{20E3}\u{E0020}-\u{E007F}\u{2700}-\u{27BF}\u{2300}-\u{23FF}]/gu, '')
+    // Z3.3: 去除 token 统计信息行
+    clean = clean.replace(/.*(?:token|tokens|Token|Tokens|消耗|令牌|输入|输出).*\d+[\d,.]*.*/g, '')
+    clean = clean.replace(/[（(][^）)]*(?:token|tokens|令牌|消耗)[^）)]*[）)]/gi, '')
+    clean = clean.trim()
+    if (!clean) return
+    // 按句分割，避免逐字机械感
+    const sentences = clean.split(/(?<=[。！？\n.!?；;])\ */).filter(s => s.trim())
+    sentences.forEach((s, i) => {
+      const utt = new SpeechSynthesisUtterance(s.trim())
+      utt.lang = 'zh-CN'
+      utt.rate = 1.05
+      if (i === sentences.length - 1) utt.onend = () => setSpeakingMsgIdx(null)
+      speechSynthesis.speak(utt)
+    })
+    setSpeakingMsgIdx(idx)
+  }, [])
+
+  const stopSpeaking = useCallback(() => {
+    if (typeof speechSynthesis !== 'undefined') speechSynthesis.cancel()
+    setSpeakingMsgIdx(null)
+  }, [])
+
   // Z4.1: 持续录音 — MediaRecorder
   const startRecording = useCallback(async () => {
     try {
@@ -208,39 +238,14 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
     setIsRecording(false)
   }, [])
 
-  // Z2.2: 语音播报 (TTS)
-  const speakMessage = useCallback((text: string, idx: number) => {
-    if (typeof speechSynthesis === 'undefined') { alert('当前环境不支持语音合成'); return }
-    speechSynthesis.cancel()
-    // 清理 markdown + 代码块
-    let clean = text.replace(/```[\s\S]*?```/g, '').replace(/[#*`_~\[\]()>|]/g, '').replace(/https?:\/\/\S+/g, '')
-    // Z3.3: 去除表情符号
-    clean = clean.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}\u{200D}\u{20E3}\u{E0020}-\u{E007F}\u{2700}-\u{27BF}\u{2300}-\u{23FF}]/gu, '')
-    // Z3.3: 去除 token 统计信息行
-    clean = clean.replace(/.*(?:token|tokens|Token|Tokens|消耗|令牌|输入|输出).*\d+[\d,.]*.*/g, '')
-    clean = clean.replace(/[（(][^）)]*(?:token|tokens|令牌|消耗)[^）)]*[）)]/gi, '')
-    clean = clean.trim()
-    if (!clean) return
-    // 按句分割，避免逐字机械感
-    const sentences = clean.split(/(?<=[。！？\n.!?；;])\ */).filter(s => s.trim())
-    sentences.forEach((s, i) => {
-      const utt = new SpeechSynthesisUtterance(s.trim())
-      utt.lang = 'zh-CN'
-      utt.rate = 1.05
-      if (i === sentences.length - 1) utt.onend = () => setSpeakingMsgIdx(null)
-      speechSynthesis.speak(utt)
-    })
-    setSpeakingMsgIdx(idx)
-  }, [])
-
-  const stopSpeaking = useCallback(() => {
-    if (typeof speechSynthesis !== 'undefined') speechSynthesis.cancel()
-    setSpeakingMsgIdx(null)
-  }, [])
-
   // 新消息到来或组件卸载时停止播报
   useEffect(() => {
-    return () => {\n      if (typeof speechSynthesis !== 'undefined') speechSynthesis.cancel()\n      // Z4.1: cleanup recording\n      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') mediaRecorderRef.current.stop()\n      if (recordingTimerRef.current) clearInterval(recordingTimerRef.current)\n    }
+    return () => {
+      if (typeof speechSynthesis !== 'undefined') speechSynthesis.cancel()
+      // Z4.1: cleanup recording
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') mediaRecorderRef.current.stop()
+      if (recordingTimerRef.current) clearInterval(recordingTimerRef.current)
+    }
   }, [])
   useEffect(() => {
     if (streaming && speakingMsgIdx !== null) stopSpeaking()
