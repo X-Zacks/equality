@@ -6,6 +6,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useGateway } from './useGateway'
+import { useT } from './i18n'
 import './MemoryTab.css'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -47,19 +48,20 @@ function StatsPanel({ stats, busy, onExport, onImport, onGC }: {
   onImport: () => void
   onGC: () => void
 }) {
+  const { t } = useT()
   if (!stats) return null
   return (
     <div className="memory-stats">
       <div className="stat-item">
-        <span className="stat-label">总计</span>
+        <span className="stat-label">{t('mem.total')}</span>
         <span className="stat-value">{stats.total}</span>
       </div>
       <div className="stat-item">
-        <span className="stat-label">📌 置顶</span>
+        <span className="stat-label">{t('mem.pinned')}</span>
         <span className="stat-value">{stats.pinned}</span>
       </div>
       <div className="stat-item">
-        <span className="stat-label">📦 已归档</span>
+        <span className="stat-label">{t('mem.archived')}</span>
         <span className="stat-value">{stats.archived}</span>
       </div>
       <div className="stat-item">
@@ -68,14 +70,14 @@ function StatsPanel({ stats, busy, onExport, onImport, onGC }: {
       </div>
       {Object.entries(stats.bySource).map(([src, cnt]) => (
         <div className="stat-item" key={src}>
-          <span className="stat-label">{src === 'tool' ? '🔧 工具' : src === 'auto-capture' ? '🤖 自动' : '✍️ 手动'}</span>
+          <span className="stat-label">{src === 'tool' ? t('mem.srcTool') : src === 'auto-capture' ? t('mem.srcAuto') : t('mem.srcManual')}</span>
           <span className="stat-value">{cnt}</span>
         </div>
       ))}
       <div className="stat-actions">
-        <button className="stat-action-btn" onClick={onExport} disabled={busy} title="导出所有记忆为 JSON 文件">⬇️ 导出</button>
-        <button className="stat-action-btn" onClick={onImport} disabled={busy} title="从 JSON 文件导入记忆">⬆️ 导入</button>
-        <button className="stat-action-btn" onClick={onGC} disabled={busy} title="清理低重要性旧记忆">🧹 清理</button>
+        <button className="stat-action-btn" onClick={onExport} disabled={busy} title="Export">{t('mem.export')}</button>
+        <button className="stat-action-btn" onClick={onImport} disabled={busy} title="Import">{t('mem.import')}</button>
+        <button className="stat-action-btn" onClick={onGC} disabled={busy} title="Cleanup">{t('mem.gc')}</button>
       </div>
     </div>
   )
@@ -97,6 +99,7 @@ function MemoryDialog({
   const [importance, setImportance] = useState(entry?.importance ?? 5)
   const [pinned, setPinned] = useState(entry?.pinned ?? false)
   const [dupWarning, setDupWarning] = useState<string | null>(null)
+  const { t } = useT()
 
   const handleSave = () => {
     if (!text.trim()) return
@@ -107,58 +110,58 @@ function MemoryDialog({
     <div className="memory-dialog-overlay" onClick={onClose}>
       <div className="memory-dialog" onClick={e => e.stopPropagation()}>
         <div className="memory-dialog-header">
-          <h3>{entry ? '编辑记忆' : '添加记忆'}</h3>
+          <h3>{entry ? t('mem.editTitle') : t('mem.addTitle')}</h3>
           <button className="memory-dialog-close" onClick={onClose}>✕</button>
         </div>
         <div className="memory-dialog-body">
           <label className="memory-dialog-label">
-            内容
+            {t('mem.content')}
             <textarea
               className="memory-dialog-textarea"
               value={text}
               onChange={e => { setText(e.target.value); setDupWarning(null) }}
               rows={4}
               maxLength={2000}
-              placeholder="输入记忆内容…"
+              placeholder={t('mem.contentPlaceholder')}
               autoFocus
             />
             <span className="memory-dialog-charcount">{text.length}/2000</span>
           </label>
           <div className="memory-dialog-row">
             <label className="memory-dialog-label memory-dialog-half">
-              分类
+              {t('mem.categoryLabel')}
               <select value={category} onChange={e => setCategory(e.target.value)}>
-                <option value="general">通用</option>
-                <option value="preference">偏好</option>
-                <option value="decision">决策</option>
-                <option value="fact">事实</option>
-                <option value="project">项目</option>
+                <option value="general">{t('mem.general')}</option>
+                <option value="preference">{t('mem.preference')}</option>
+                <option value="decision">{t('mem.decision')}</option>
+                <option value="fact">{t('mem.fact')}</option>
+                <option value="project">{t('mem.project')}</option>
               </select>
             </label>
             <label className="memory-dialog-label memory-dialog-half">
-              重要性
+              {t('mem.importance')}
               <input type="range" min={1} max={10} value={importance} onChange={e => setImportance(Number(e.target.value))} />
               <span>{importance}</span>
             </label>
           </div>
           <label className="memory-dialog-checkbox">
             <input type="checkbox" checked={pinned} onChange={e => setPinned(e.target.checked)} />
-            📌 置顶（始终包含在上下文中）
+            {t('mem.pinLabel')}
           </label>
           {dupWarning && <div className="memory-dialog-warning">⚠️ {dupWarning}</div>}
           {entry && (
             <div className="memory-dialog-meta">
-              <span>来源: {entry.source}</span>
-              <span>Agent: {entry.agentId}</span>
-              <span>创建: {new Date(entry.createdAt).toLocaleString('zh-CN')}</span>
-              {entry.updatedAt && <span>修改: {new Date(entry.updatedAt).toLocaleString('zh-CN')}</span>}
+              <span>{t('mem.source')}: {entry.source}</span>
+              <span>{t('mem.agent')}: {entry.agentId}</span>
+              <span>{t('mem.created')}: {new Date(entry.createdAt).toLocaleString()}</span>
+              {entry.updatedAt && <span>{t('mem.updated')}: {new Date(entry.updatedAt).toLocaleString()}</span>}
             </div>
           )}
         </div>
         <div className="memory-dialog-footer">
-          <button className="btn-secondary" onClick={onClose}>取消</button>
+          <button className="btn-secondary" onClick={onClose}>{t('cancel')}</button>
           <button className="btn-save" onClick={handleSave} disabled={!text.trim()}>
-            {entry ? '保存' : '添加'}
+            {entry ? t('save') : t('mem.add')}
           </button>
         </div>
       </div>
@@ -170,6 +173,7 @@ function MemoryDialog({
 
 export function MemoryTab() {
   const { listMemories, createMemory, updateMemory, deleteMemory, deleteMemories, getMemoryStats, exportMemories, importMemories, triggerMemoryGC } = useGateway()
+  const { t, locale } = useT()
 
   const [memories, setMemories] = useState<MemoryEntry[]>([])
   const [total, setTotal] = useState(0)
@@ -221,7 +225,7 @@ export function MemoryTab() {
 
   const handleDelete = (id: string) => {
     setConfirmDialog({
-      text: '确定删除这条记忆？',
+      text: t('mem.confirmDelete'),
       onConfirm: async () => {
         setConfirmDialog(null)
         await deleteMemory(id)
@@ -234,7 +238,7 @@ export function MemoryTab() {
   const handleBulkDelete = () => {
     if (selected.size === 0) return
     setConfirmDialog({
-      text: `确定删除 ${selected.size} 条记忆？`,
+      text: t('mem.confirmBulkDelete').replace('{n}', String(selected.size)),
       onConfirm: async () => {
         setConfirmDialog(null)
         await deleteMemories([...selected])
@@ -281,7 +285,7 @@ export function MemoryTab() {
     setActionBusy(true)
     try {
       const data = await exportMemories()
-      if (!data) { showToast('导出失败', 'error'); return }
+      if (!data) { showToast(t('mem.exportFail'), 'error'); return }
       const json = JSON.stringify(data, null, 2)
       const blob = new Blob([json], { type: 'application/json' })
       const url = URL.createObjectURL(blob)
@@ -293,9 +297,9 @@ export function MemoryTab() {
       a.click()
       document.body.removeChild(a)
       URL.revokeObjectURL(url)
-      showToast(`已导出 ${data.count} 条记忆`, 'success')
+      showToast(t('mem.exported', { n: data.count }), 'success')
     } catch {
-      showToast('导出失败', 'error')
+      showToast(t('mem.exportFail'), 'error')
     } finally {
       setActionBusy(false)
     }
@@ -319,32 +323,32 @@ export function MemoryTab() {
       try {
         parsed = JSON.parse(text)
       } catch {
-        showToast('JSON 格式错误，无法解析', 'error')
+        showToast(t('mem.importJsonError'), 'error')
         return
       }
 
       // 支持 { items: [...] } 和直接 [...] 两种格式
       const items = Array.isArray(parsed) ? parsed : (parsed.items ?? parsed)
       if (!Array.isArray(items)) {
-        showToast('无效的导入格式（需要包含 items 数组）', 'error')
+        showToast(t('mem.importFormatError'), 'error')
         return
       }
 
       // 确认对话框
-      const ok = confirm(`即将导入 ${items.length} 条记忆（合并模式，重复将跳过）。\n\n确定继续？`)
+      const ok = confirm(t('mem.importConfirm', { n: items.length }))
       if (!ok) return
 
       const result = await importMemories(items, 'merge')
-      if (!result) { showToast('导入失败', 'error'); return }
+      if (!result) { showToast(t('mem.importFail'), 'error'); return }
 
       const parts: string[] = []
-      if (result.imported > 0) parts.push(`导入 ${result.imported} 条`)
-      if (result.skipped > 0) parts.push(`跳过 ${result.skipped} 条重复`)
-      if (result.blocked > 0) parts.push(`拦截 ${result.blocked} 条`)
-      showToast(parts.length > 0 ? `✅ ${parts.join('，')}` : '无新记忆可导入', parts.length > 0 ? 'success' : 'info')
+      if (result.imported > 0) parts.push(t('mem.imported', { n: result.imported }))
+      if (result.skipped > 0) parts.push(t('mem.skipped', { n: result.skipped }))
+      if (result.blocked > 0) parts.push(t('mem.blocked', { n: result.blocked }))
+      showToast(parts.length > 0 ? `✅ ${parts.join(', ')}` : t('mem.noNewMemories'), parts.length > 0 ? 'success' : 'info')
       refresh()
     } catch {
-      showToast('导入失败', 'error')
+      showToast(t('mem.importFail'), 'error')
     } finally {
       setActionBusy(false)
     }
@@ -355,18 +359,18 @@ export function MemoryTab() {
     setActionBusy(true)
     try {
       const result = await triggerMemoryGC()
-      if (!result) { showToast('清理失败', 'error'); return }
+      if (!result) { showToast(t('mem.gcFail'), 'error'); return }
       if (result.archived === 0 && result.deleted === 0) {
-        showToast('没有需要清理的记忆', 'info')
+        showToast(t('mem.gcNone'), 'info')
       } else {
         const parts: string[] = []
-        if (result.archived > 0) parts.push(`归档 ${result.archived} 条`)
-        if (result.deleted > 0) parts.push(`永删 ${result.deleted} 条`)
-        showToast(`🧹 ${parts.join('，')}`, 'success')
+        if (result.archived > 0) parts.push(t('mem.gcArchived', { n: result.archived }))
+        if (result.deleted > 0) parts.push(t('mem.gcDeleted', { n: result.deleted }))
+        showToast(`🧹 ${parts.join(', ')}`, 'success')
         refresh()
       }
     } catch {
-      showToast('清理失败', 'error')
+      showToast(t('mem.gcFail'), 'error')
     } finally {
       setActionBusy(false)
     }
@@ -417,31 +421,31 @@ export function MemoryTab() {
         <input
           className="memory-search"
           type="text"
-          placeholder="🔍 搜索记忆…"
+          placeholder={t('mem.searchPlaceholder')}
           value={search}
           onChange={e => setSearch(e.target.value)}
           onKeyDown={handleSearchKeyDown}
         />
         <select className="memory-filter" value={categoryFilter} onChange={e => { setCategoryFilter(e.target.value); setPage(1) }}>
-          <option value="">全部分类</option>
-          <option value="general">通用</option>
-          <option value="preference">偏好</option>
-          <option value="decision">决策</option>
-          <option value="fact">事实</option>
-          <option value="project">项目</option>
+          <option value="">{t('mem.allCategories')}</option>
+          <option value="general">{t('mem.general')}</option>
+          <option value="preference">{t('mem.preference')}</option>
+          <option value="decision">{t('mem.decision')}</option>
+          <option value="fact">{t('mem.fact')}</option>
+          <option value="project">{t('mem.project')}</option>
         </select>
         <select className="memory-filter" value={sourceFilter} onChange={e => { setSourceFilter(e.target.value); setPage(1) }}>
-          <option value="">全部来源</option>
-          <option value="tool">🔧 工具</option>
-          <option value="auto-capture">🤖 自动</option>
-          <option value="manual">✍️ 手动</option>
+          <option value="">{t('mem.allSources')}</option>
+          <option value="tool">{t('mem.srcTool')}</option>
+          <option value="auto-capture">{t('mem.srcAuto')}</option>
+          <option value="manual">{t('mem.srcManual')}</option>
         </select>
         <label className="memory-archive-toggle">
           <input type="checkbox" checked={showArchived} onChange={e => { setShowArchived(e.target.checked); setPage(1) }} />
-          已归档
+          {t('mem.showArchived')}
         </label>
         <div className="memory-toolbar-actions">
-          <button className="btn-save" onClick={() => setEditingEntry('new')}>+ 添加</button>
+          <button className="btn-save" onClick={() => setEditingEntry('new')}>+ {t('mem.add')}</button>
           {selected.size > 0 && (
             <button className="btn-danger" onClick={handleBulkDelete}>
               🗑️ 删除 ({selected.size})
@@ -453,18 +457,18 @@ export function MemoryTab() {
       {/* 记忆列表 */}
       <div className="memory-list">
         {loading && memories.length === 0 ? (
-          <div className="memory-empty">加载中…</div>
+          <div className="memory-empty">{t('mem.loading')}</div>
         ) : memories.length === 0 ? (
-          <div className="memory-empty">暂无记忆</div>
+          <div className="memory-empty">{t('mem.empty')}</div>
         ) : (
           <>
             <div className="memory-list-header">
               <input type="checkbox" checked={selected.size === memories.length && memories.length > 0} onChange={selectAll} />
-              <span className="memory-col-text">内容</span>
-              <span className="memory-col-category">分类</span>
-              <span className="memory-col-source">来源</span>
-              <span className="memory-col-date">时间</span>
-              <span className="memory-col-actions">操作</span>
+              <span className="memory-col-text">{t('mem.colContent')}</span>
+              <span className="memory-col-category">{t('mem.colCategory')}</span>
+              <span className="memory-col-source">{t('mem.colSource')}</span>
+              <span className="memory-col-date">{t('mem.colDate')}</span>
+              <span className="memory-col-actions">{t('mem.colActions')}</span>
             </div>
             {memories.map(m => (
               <div key={m.id} className={`memory-row ${m.pinned ? 'pinned' : ''} ${m.archived ? 'archived' : ''}`}>
@@ -479,18 +483,18 @@ export function MemoryTab() {
                 <span className="memory-col-source">
                   {m.source === 'tool' ? '🔧' : m.source === 'auto-capture' ? '🤖' : '✍️'}
                 </span>
-                <span className="memory-col-date" title={new Date(m.createdAt).toLocaleString('zh-CN')}>
-                  {formatRelativeTime(m.createdAt)}
+                <span className="memory-col-date" title={new Date(m.createdAt).toLocaleString(locale === 'zh-CN' ? 'zh-CN' : 'en-US')}>
+                  {formatRelativeTime(m.createdAt, t, locale)}
                 </span>
                 <span className="memory-col-actions">
-                  <button className="memory-action-btn" onClick={() => handleTogglePin(m)} title={m.pinned ? '取消置顶' : '置顶'}>
+                  <button className="memory-action-btn" onClick={() => handleTogglePin(m)} title={m.pinned ? t('mem.unpin') : t('mem.pin')}>
                     {m.pinned ? '📌' : '📍'}
                   </button>
-                  <button className="memory-action-btn" onClick={() => setEditingEntry(m)} title="编辑">✏️</button>
-                  <button className="memory-action-btn" onClick={() => handleToggleArchive(m)} title={m.archived ? '恢复' : '归档'}>
+                  <button className="memory-action-btn" onClick={() => setEditingEntry(m)} title={t('mem.edit')}>✏️</button>
+                  <button className="memory-action-btn" onClick={() => handleToggleArchive(m)} title={m.archived ? t('mem.restore') : t('mem.archive')}>
                     {m.archived ? '📤' : '📦'}
                   </button>
-                  <button className="memory-action-btn danger" onClick={() => handleDelete(m.id)} title="删除">🗑️</button>
+                  <button className="memory-action-btn danger" onClick={() => handleDelete(m.id)} title={t('delete')}>🗑️</button>
                 </span>
               </div>
             ))}
@@ -501,9 +505,9 @@ export function MemoryTab() {
       {/* 分页 */}
       {totalPages > 1 && (
         <div className="memory-pagination">
-          <button disabled={page <= 1} onClick={() => setPage(p => p - 1)}>← 上一页</button>
-          <span>{page} / {totalPages}（共 {total} 条）</span>
-          <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>下一页 →</button>
+          <button disabled={page <= 1} onClick={() => setPage(p => p - 1)}>← {t('pagination.prev')}</button>
+          <span>{page} / {totalPages}（{t('mem.totalItems').replace('{n}', String(total))}）</span>
+          <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>{t('pagination.next')} →</button>
         </div>
       )}
 
@@ -521,15 +525,15 @@ export function MemoryTab() {
         <div className="memory-dialog-overlay" onClick={() => setConfirmDialog(null)}>
           <div className="memory-dialog" onClick={e => e.stopPropagation()} style={{ width: 360 }}>
             <div className="memory-dialog-header">
-              <h3>确认操作</h3>
+              <h3>{t('mem.confirmAction')}</h3>
               <button className="memory-dialog-close" onClick={() => setConfirmDialog(null)}>✕</button>
             </div>
             <div className="memory-dialog-body" style={{ padding: '20px 18px', textAlign: 'center' }}>
               <p style={{ margin: 0, fontSize: 14 }}>{confirmDialog.text}</p>
             </div>
             <div className="memory-dialog-footer">
-              <button className="btn-secondary" onClick={() => setConfirmDialog(null)}>取消</button>
-              <button className="btn-danger" onClick={confirmDialog.onConfirm}>删除</button>
+              <button className="btn-secondary" onClick={() => setConfirmDialog(null)}>{t('cancel')}</button>
+              <button className="btn-danger" onClick={confirmDialog.onConfirm}>{t('delete')}</button>
             </div>
           </div>
         </div>
@@ -540,14 +544,14 @@ export function MemoryTab() {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function formatRelativeTime(ts: number): string {
+function formatRelativeTime(ts: number, t: (key: string, vars?: Record<string, string | number> | string) => string, locale: string): string {
   const diff = Date.now() - ts
   const minutes = Math.floor(diff / 60000)
-  if (minutes < 1) return '刚刚'
-  if (minutes < 60) return `${minutes}分钟前`
+  if (minutes < 1) return t('mem.justNow')
+  if (minutes < 60) return t('mem.minutesAgo', { n: minutes })
   const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours}小时前`
+  if (hours < 24) return t('mem.hoursAgo', { n: hours })
   const days = Math.floor(hours / 24)
-  if (days < 30) return `${days}天前`
-  return new Date(ts).toLocaleDateString('zh-CN')
+  if (days < 30) return t('mem.daysAgo', { n: days })
+  return new Date(ts).toLocaleDateString(locale === 'zh-CN' ? 'zh-CN' : 'en-US')
 }

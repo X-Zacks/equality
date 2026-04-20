@@ -117,26 +117,26 @@ function ModelRoutingCard({ settings, saveApiKey, refresh }: {
   }, {})
   const providerOrder = ['copilot', 'custom', 'deepseek', 'qwen', 'volc', 'minimax']
   const providerLabel: Record<string, string> = {
-    copilot: 'GitHub Copilot', custom: '自定义端点',
+    copilot: 'GitHub Copilot', custom: 'Custom Endpoint',
     deepseek: 'DeepSeek', qwen: 'Qwen', volc: 'Volc', minimax: 'MiniMax',
   }
 
   return (
     <div className="provider-card" style={{ marginBottom: 12 }}>
       <div className="provider-header" style={{ cursor: 'default' }}>
-        <span className="provider-name">🧠 模型选择</span>
+        <span className="provider-name">🧠 Model Selection</span>
       </div>
       <div className="provider-body">
         <div className="model-routing-row">
           <label className="model-routing-toggle">
             <input type="checkbox" checked={isAuto} onChange={handleToggle} />
-            <span className="model-routing-label">Auto（根据问题复杂度自动选择模型）</span>
+            <span className="model-routing-label">Auto (select model by complexity)</span>
           </label>
         </div>
         <p className="model-routing-hint">
           {isAuto
-            ? '简单问题 → 轻量模型，普通问题 → 标准模型，复杂问题 → 最强模型'
-            : '所有消息将使用下方选定的模型'}
+            ? 'Simple → lightweight, Normal → standard, Complex → strongest'
+            : 'All messages will use the selected model below'}
         </p>
 
         {/* 自定义模型选择器 */}
@@ -170,7 +170,7 @@ function ModelRoutingCard({ settings, saveApiKey, refresh }: {
               style={{ position: 'fixed', top: dropdownPos.top, left: dropdownPos.left, width: dropdownPos.width }}
             >
               {models.length === 0 ? (
-                <div className="model-select-empty">加载中…</div>
+                <div className="model-select-empty">Loading…</div>
               ) : (
                 providerOrder
                   .filter(p => grouped[p]?.length)
@@ -246,7 +246,7 @@ const PROVIDER_GROUPS = [
 
 const PROVIDER_LABEL: Record<string, string> = {
   copilot: 'GitHub Copilot',
-  custom: '自定义端点',
+  custom: 'Custom Endpoint',
   deepseek: 'DeepSeek',
   qwen: 'Qwen',
   volc: 'Volc',
@@ -359,15 +359,15 @@ function ProviderRow({ id, label, badge, status, isCopilotUnlogged, onAction }: 
   const icon = PROVIDER_ICON[id] ?? '⚡'
 
   const statusNode = (() => {
-    if (status === 'active') return <span className="pr-status pr-status-active">● 激活中</span>
-    if (status === 'configured') return <span className="pr-status pr-status-configured">● 已配置</span>
-    return <span className="pr-status pr-status-unconfigured">○ 未配置</span>
+    if (status === 'active') return <span className="pr-status pr-status-active">● Active</span>
+    if (status === 'configured') return <span className="pr-status pr-status-configured">● Configured</span>
+    return <span className="pr-status pr-status-unconfigured">○ Not configured</span>
   })()
 
   const actionLabel = (() => {
-    if (isCopilotUnlogged) return '登录 GitHub'
-    if (status === 'active' || status === 'configured') return '管理'
-    return '配置'
+    if (isCopilotUnlogged) return 'Login GitHub'
+    if (status === 'active' || status === 'configured') return 'Manage'
+    return 'Configure'
   })()
 
   return (
@@ -722,14 +722,14 @@ function getToolIcon(name: string): string {
 
 // ─── 工具分类 ─────────────────────────────────────────────────────────────────
 const TOOL_CATEGORIES = [
-  { id: 'all', label: '📋 全部' },
-  { id: 'file', label: '📄 文件' },
-  { id: 'search', label: '🔍 搜索' },
-  { id: 'browser', label: '🌐 浏览器' },
-  { id: 'system', label: '⚙️ 系统' },
-  { id: 'memory', label: '🧠 记忆' },
-  { id: 'schedule', label: '⏰ 计划' },
-  { id: 'other', label: '🔧 其他' },
+  { id: 'all', key: 'toolcat.all' },
+  { id: 'file', key: 'toolcat.file' },
+  { id: 'search', key: 'toolcat.search' },
+  { id: 'browser', key: 'toolcat.browser' },
+  { id: 'system', key: 'toolcat.system' },
+  { id: 'memory', key: 'toolcat.memory' },
+  { id: 'schedule', key: 'toolcat.schedule' },
+  { id: 'other', key: 'toolcat.other' },
 ]
 function getToolCategory(name: string): string {
   if (['read_file', 'write_file', 'edit_file', 'apply_patch', 'read_pdf', 'read_image'].includes(name)) return 'file'
@@ -819,8 +819,9 @@ interface AdvancedDrawerProps {
 }
 
 function AdvancedDrawer({ panel, draft, saving, getMasked, onDraftChange, onSave, onClose }: AdvancedDrawerProps) {
+  const { t } = useT()
   const isPerformance = panel === 'performance'
-  const title = isPerformance ? '⚡ 性能设置' : '🔁 Agent 循环上限'
+  const title = isPerformance ? t('perf.title') : t('agentLoop.title')
   const saveGroup = isPerformance ? 'advanced' : 'agentLoop'
   const saveKeys: SecretKey[] = isPerformance
     ? ['BASH_TIMEOUT_MS', 'BASH_IDLE_TIMEOUT_MS', 'BASH_MAX_TIMEOUT_MS']
@@ -838,7 +839,7 @@ function AdvancedDrawer({ panel, draft, saving, getMasked, onDraftChange, onSave
           {isPerformance ? (
             <>
               <div className="key-row">
-                <label>Bash 默认超时 (ms)</label>
+                <label>{t('perf.bashDefault')}</label>
                 <input
                   type="number"
                   placeholder={getMasked('BASH_TIMEOUT_MS') || '300000'}
@@ -846,9 +847,9 @@ function AdvancedDrawer({ panel, draft, saving, getMasked, onDraftChange, onSave
                   onChange={e => onDraftChange('BASH_TIMEOUT_MS', e.target.value)}
                 />
               </div>
-              <p className="drawer-hint">bash 前台命令总超时。最小 5s，默认 5 分钟。持续有输出不会中断，总时长超限才触发。</p>
+              <p className="drawer-hint">{t('perf.bashDefaultHint')}</p>
               <div className="key-row" style={{ marginTop: 10 }}>
-                <label>无输出超时 (ms)</label>
+                <label>{t('perf.idleTimeout')}</label>
                 <input
                   type="number"
                   placeholder={getMasked('BASH_IDLE_TIMEOUT_MS') || '120000'}
@@ -856,9 +857,9 @@ function AdvancedDrawer({ panel, draft, saving, getMasked, onDraftChange, onSave
                   onChange={e => onDraftChange('BASH_IDLE_TIMEOUT_MS', e.target.value)}
                 />
               </div>
-              <p className="drawer-hint">命令无 stdout/stderr 输出超过此时间则终止。设为 0 禁用。默认 2 分钟。</p>
+              <p className="drawer-hint">{t('perf.idleTimeoutHint')}</p>
               <div className="key-row" style={{ marginTop: 10 }}>
-                <label>超时上限 (ms)</label>
+                <label>{t('perf.maxTimeout')}</label>
                 <input
                   type="number"
                   placeholder={getMasked('BASH_MAX_TIMEOUT_MS') || '1800000'}
@@ -866,12 +867,12 @@ function AdvancedDrawer({ panel, draft, saving, getMasked, onDraftChange, onSave
                   onChange={e => onDraftChange('BASH_MAX_TIMEOUT_MS', e.target.value)}
                 />
               </div>
-              <p className="drawer-hint">单条 bash 命令绝对上限，防止 LLM 传入过大 timeout_ms。默认 30 分钟。</p>
+              <p className="drawer-hint">{t('perf.maxTimeoutHint')}</p>
             </>
           ) : (
             <>
               <div className="key-row">
-                <label>工具调用上限 (次)</label>
+                <label>{t('agentLoop.toolLimit')}</label>
                 <input
                   type="number"
                   placeholder={getMasked('AGENT_MAX_TOOL_CALLS') || '50'}
@@ -879,9 +880,9 @@ function AdvancedDrawer({ panel, draft, saving, getMasked, onDraftChange, onSave
                   onChange={e => onDraftChange('AGENT_MAX_TOOL_CALLS', e.target.value)}
                 />
               </div>
-              <p className="drawer-hint">单次任务最多执行多少次工具调用。默认 50，写大型项目可调高（如 200-300）。最大 500。</p>
+              <p className="drawer-hint">{t('agentLoop.toolLimitHint')}</p>
               <div className="key-row" style={{ marginTop: 10 }}>
-                <label>LLM 轮次上限 (轮)</label>
+                <label>{t('agentLoop.llmLimit')}</label>
                 <input
                   type="number"
                   placeholder={getMasked('AGENT_MAX_LLM_TURNS') || '50'}
@@ -889,7 +890,7 @@ function AdvancedDrawer({ panel, draft, saving, getMasked, onDraftChange, onSave
                   onChange={e => onDraftChange('AGENT_MAX_LLM_TURNS', e.target.value)}
                 />
               </div>
-              <p className="drawer-hint">单次任务最多发起多少轮 LLM 调用。默认 50，通常保持默认即可，工具调用上限是更常见的瓶颈。最大 500。</p>
+              <p className="drawer-hint">{t('agentLoop.llmLimitHint')}</p>
             </>
           )}
           <div className="provider-actions" style={{ marginTop: 12 }}>
@@ -1128,7 +1129,7 @@ export default function Settings({
           <ProviderRow
             id="copilot"
             label="GitHub Copilot"
-            badge="免费"
+            badge="Free"
             status={
               settings.activeProvider === 'copilot' ? 'active'
               : copilot.phase === 'logged-in' ? 'configured'
@@ -1284,7 +1285,7 @@ export default function Settings({
           {/* 工具分类筛选 Tab */}
           <div className="skill-category-tabs">
             {TOOL_CATEGORIES.map(c => {
-              const count = c.id === 'all' ? toolsList.length : toolsList.filter(t => getToolCategory(t.name) === c.id).length
+              const count = c.id === 'all' ? toolsList.length : toolsList.filter(tl => getToolCategory(tl.name) === c.id).length
               if (c.id !== 'all' && count === 0) return null
               return (
                 <button
@@ -1292,7 +1293,7 @@ export default function Settings({
                   className={`skill-category-tab ${toolCategory === c.id ? 'active' : ''}`}
                   onClick={() => setToolCategory(c.id)}
                 >
-                  {c.label} <span className="skill-category-count">{count}</span>
+                  {t(c.key)} <span className="skill-category-count">{count}</span>
                 </button>
               )
             })}
@@ -1506,7 +1507,7 @@ export default function Settings({
                 setSkillsList(await r.json())
               }}
             >
-              🔄 重新加载
+              🔄 {t('skills.reload')}
             </button>
           </div>
           {/* Skill 详情抽屉 */}
@@ -1629,23 +1630,23 @@ export default function Settings({
                   {saveLabel(saving['workspaceDir'] ?? 'idle')}
                 </button>
               </div>
-              <p className="advanced-item-desc">Agent 写脚本、临时文件的默认目录。bash 命令也在此目录下执行。留空使用默认路径。</p>
+              <p className="advanced-item-desc">{t('workspaceDir.desc')}</p>
             </div>
 
             <div className="provider-card" style={{ marginBottom: 6 }}>
               <div className="provider-header" onClick={() => setAdvancedDrawer('performance')} style={{ cursor: 'pointer' }}>
-                <span className="provider-name">⚡ 性能设置</span>
+                <span className="provider-name">⚡ {t('perf')}</span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ fontSize: 11, color: '#888' }}>Bash 超时</span>
+                  <span style={{ fontSize: 11, color: '#888' }}>{t('perf.bashTimeout')}</span>
                   <span className="chevron">›</span>
                 </div>
               </div>
             </div>
             <div className="provider-card">
               <div className="provider-header" onClick={() => setAdvancedDrawer('agentLoop')} style={{ cursor: 'pointer' }}>
-                <span className="provider-name">🔁 Agent 循环上限</span>
+                <span className="provider-name">🔁 {t('agentLoop')}</span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ fontSize: 11, color: '#888' }}>工具次数 / LLM 轮次</span>
+                  <span style={{ fontSize: 11, color: '#888' }}>{t('agentLoop.sub')}</span>
                   <span className="chevron">›</span>
                 </div>
               </div>
@@ -1654,7 +1655,7 @@ export default function Settings({
             {/* M3/T35: 自动记忆开关 */}
             <div className="advanced-item" style={{ marginTop: 12, marginBottom: 10 }}>
               <div className="advanced-item-header">
-                <span className="advanced-item-label">🧠 自动记忆 (Auto Capture)</span>
+                <span className="advanced-item-label">🧠 {t('autoMemory')}</span>
                 <label style={{ position: 'relative', display: 'inline-block', width: 40, height: 22 }}>
                   <input
                     type="checkbox"
@@ -1705,26 +1706,26 @@ export default function Settings({
           <div className="about-logo">⚡</div>
           <h2 className="about-title">Equality</h2>
           <p className="about-version">v0.2.1</p>
-          <p className="about-desc">面向中国大陆 Windows 用户的 AI 桌面智能助理</p>
+          <p className="about-desc">{t('about.desc')}</p>
           <div className="about-info">
-            <div className="about-row"><span>运行环境</span><span>Tauri + React + Fastify</span></div>
-            <div className="about-row"><span>工具数量</span><span>{toolsList.length || '—'}</span></div>
-            <div className="about-row"><span>Skills 数量</span><span>{skillsList.length || '—'}</span></div>
+            <div className="about-row"><span>{t('about.runtime')}</span><span>Tauri + React + Fastify</span></div>
+            <div className="about-row"><span>{t('about.toolCount')}</span><span>{toolsList.length || '—'}</span></div>
+            <div className="about-row"><span>{t('about.skillCount')}</span><span>{skillsList.length || '—'}</span></div>
             <div className="about-row">
-              <span>Key 存储</span>
+              <span>{t('about.keyStorage')}</span>
               <span style={{ color: settings.storageMode === 'dpapi' ? '#30d158' : '#ff9f0a' }}>
-                {settings.storageMode === 'dpapi' ? '🔒 加密存储（DPAPI）' : '⚠️ 明文存储'}
+                {settings.storageMode === 'dpapi' ? t('about.encrypted') : t('about.plaintext')}
               </span>
             </div>
           </div>
           {globalCost && (
             <>
-              <div className="settings-section-title" style={{ marginTop: 16, alignSelf: 'flex-start' }}>💰 累计费用</div>
+              <div className="settings-section-title" style={{ marginTop: 16, alignSelf: 'flex-start' }}>💰 {t('about.cost')}</div>
               <div className="about-info">
-                <div className="about-row"><span>总费用</span><span style={{ color: '#ff9f0a' }}>¥{globalCost.totalCny.toFixed(4)}</span></div>
-                <div className="about-row"><span>总 Tokens</span><span>{globalCost.totalTokens.toLocaleString()}</span></div>
-                <div className="about-row"><span>调用次数</span><span>{globalCost.callCount}</span></div>
-                <div className="about-row"><span>会话数</span><span>{globalCost.sessionCount}</span></div>
+                <div className="about-row"><span>{t('about.totalCost')}</span><span style={{ color: '#ff9f0a' }}>¥{globalCost.totalCny.toFixed(4)}</span></div>
+                <div className="about-row"><span>{t('about.totalTokens')}</span><span>{globalCost.totalTokens.toLocaleString()}</span></div>
+                <div className="about-row"><span>{t('about.callCount')}</span><span>{globalCost.callCount}</span></div>
+                <div className="about-row"><span>{t('about.sessionCount')}</span><span>{globalCost.sessionCount}</span></div>
               </div>
             </>
           )}

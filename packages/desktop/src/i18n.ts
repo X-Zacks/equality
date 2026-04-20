@@ -15,8 +15,16 @@ const dictionaries: Record<Locale, Record<string, string>> = {
   en: en as Record<string, string>,
 }
 
-export function t(locale: Locale, key: string, fallback?: string): string {
-  return dictionaries[locale]?.[key] ?? fallback ?? key
+export function t(locale: Locale, key: string, vars?: Record<string, string | number> | string, fallback?: string): string {
+  // Allow t(locale, key, fallback) for backward compat
+  if (typeof vars === 'string') { fallback = vars; vars = undefined }
+  let str = dictionaries[locale]?.[key] ?? fallback ?? key
+  if (vars) {
+    for (const [k, v] of Object.entries(vars)) {
+      str = str.replace(new RegExp(`\\{${k}\\}`, 'g'), String(v))
+    }
+  }
+  return str
 }
 
 export function detectLocale(): Locale {
@@ -28,7 +36,7 @@ export function detectLocale(): Locale {
 export const LocaleContext = createContext<{
   locale: Locale
   setLocale: (l: Locale) => void
-  t: (key: string, fallback?: string) => string
+  t: (key: string, vars?: Record<string, string | number> | string, fallback?: string) => string
 }>({
   locale: 'zh-CN',
   setLocale: () => {},

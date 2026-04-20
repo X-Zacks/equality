@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useGateway } from './useGateway'
+import { useT } from './i18n'
 import './SessionPanel.css'
 
 const SUB_SEP = '::sub::'
@@ -27,28 +28,28 @@ interface SessionPanelProps {
 }
 
 /** 相对时间格式化 */
-function relativeTime(ts: number): string {
+function relativeTime(ts: number, t: (key: string, vars?: Record<string, string | number> | string) => string, locale: string): string {
   const now = Date.now()
   const diff = now - ts
-  if (diff < 60_000) return '刚刚'
-  if (diff < 3600_000) return `${Math.floor(diff / 60_000)} 分钟前`
-  if (diff < 86400_000) return `${Math.floor(diff / 3600_000)} 小时前`
-  if (diff < 172800_000) return '昨天'
-  if (diff < 604800_000) return `${Math.floor(diff / 86400_000)} 天前`
-  return new Date(ts).toLocaleDateString('zh-CN')
+  if (diff < 60_000) return t('time.justNow')
+  if (diff < 3600_000) return t('time.minutesAgo', { n: Math.floor(diff / 60_000) })
+  if (diff < 86400_000) return t('time.hoursAgo', { n: Math.floor(diff / 3600_000) })
+  if (diff < 172800_000) return t('time.yesterday')
+  if (diff < 604800_000) return t('time.daysAgo', { n: Math.floor(diff / 86400_000) })
+  return new Date(ts).toLocaleDateString(locale === 'zh-CN' ? 'zh-CN' : 'en-US')
 }
 
 /** 日期分组 */
-function dateGroup(ts: number): string {
+function dateGroup(ts: number, t: (key: string) => string): string {
   const now = new Date()
   const date = new Date(ts)
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
   const yesterday = new Date(today.getTime() - 86400_000)
   const weekAgo = new Date(today.getTime() - 7 * 86400_000)
-  if (date >= today) return '今天'
-  if (date >= yesterday) return '昨天'
-  if (date >= weekAgo) return '最近 7 天'
-  return '更早'
+  if (date >= today) return t('time.today')
+  if (date >= yesterday) return t('time.yesterday')
+  if (date >= weekAgo) return t('time.last7days')
+  return t('time.older')
 }
 
 /** 将平铺 session 列表构建为树。子 session（含 ::sub::）归到父节点下，不单独出现在顶层 */
@@ -118,6 +119,7 @@ function ParentItem({ node, activeKey, onSelect, onDelete, titles }: {
   // 如果当前 active 是自己的子节点，默认展开
   const isChildActive = node.children.some(c => c.item.key === activeKey)
   const [expanded, setExpanded] = useState(isChildActive || false)
+  const { t, locale } = useT()
   const s = node.item
   const isActive = s.key === activeKey
   const hasChildren = node.children.length > 0
@@ -143,16 +145,16 @@ function ParentItem({ node, activeKey, onSelect, onDelete, titles }: {
           </span>
         )}
         <div className="session-item-title" style={hasChildren ? { paddingLeft: 12 } : undefined}>
-          {titles[s.key] || s.title || '新对话'}
+          {titles[s.key] || s.title || t('newChat.fallback')}
           {hasChildren && <span className="child-count">{node.children.length}</span>}
         </div>
         <div className="session-item-time">
-          {relativeTime(s.lastActiveAt)}
+          {relativeTime(s.lastActiveAt, t, locale)}
         </div>
         <button
           className="session-item-delete"
           onClick={(e) => onDelete(s.key, e)}
-          title="删除对话"
+          title={t('deleteChat')}
         >🗑</button>
       </div>
 
@@ -180,6 +182,7 @@ export default function SessionPanel({ activeKey, onSelect, onNewChat, disabled,
   const [sessions, setSessions] = useState<SessionItem[]>([])
   const [titles, setTitles] = useState<Record<string, string>>({})
   const { listSessions, loadSession, deleteSession } = useGateway()
+  const { t, locale } = useT()
   const prevStreaming = useRef(streaming)
 
   // 加载会话列表
@@ -187,7 +190,7 @@ export default function SessionPanel({ activeKey, onSelect, onNewChat, disabled,
     const list = await listSessions()
     setSessions(list.map(s => ({
       ...s,
-      title: s.title || (s.messageCount === 0 ? '新对话' : '对话'),
+      title: s.title || (s.messageCount === 0 ? t('newChat.fallback') : t('chat.fallback')),
     })))
 
     // 逐个加载标题：优先使用 listSessions 返回的自动标题，否则取第一条 user 消息
@@ -256,7 +259,7 @@ export default function SessionPanel({ activeKey, onSelect, onNewChat, disabled,
   const tree = buildTree(sessions)
   const grouped = new Map<string, TreeNode[]>()
   for (const node of tree) {
-    const group = dateGroup(node.item.lastActiveAt)
+    const group = dateGroup(node.item.lastActiveAt, t)
     if (!grouped.has(group)) grouped.set(group, [])
     grouped.get(group)!.push(node)
   }
@@ -268,13 +271,13 @@ export default function SessionPanel({ activeKey, onSelect, onNewChat, disabled,
           className="session-new-btn"
           onClick={onNewChat}
           disabled={disabled}
-          title="新对话 (Ctrl+N)"
-        >+ 新对话</button>
+          title={t('newChat.title')}
+        >{t('newChat')}</button>
       </div>
 
       <div className="session-list">
         {tree.length === 0 && (
-          <div className="session-empty">暂无对话</div>
+          <div className="session-empty">{t('noSessions')}</div>
         )}
         {[...grouped.entries()].map(([group, nodes]) => (
           <div key={group} className="session-group">

@@ -9,6 +9,7 @@ import { MentionPicker } from './MentionPicker'
 import DiffPreview from './DiffPreview'
 import WelcomeGuide from './WelcomeGuide'
 import FeatureTip from './FeatureTip'
+import { useT } from './i18n'
 import './Chat.css'
 import './MentionPicker.css'
 
@@ -78,6 +79,7 @@ function getFileName(filePath: string): string {
 }
 
 export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: ChatProps) {
+  const { t } = useT()
   const [input, setInput] = useState('')
   const [messages, setMessages] = useState<Message[]>([])
   const [streamingText, setStreamingText] = useState('')
@@ -1267,16 +1269,16 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
           <button className="chat-btn attach-btn" onClick={handlePickFile} title="添加文件" disabled={streaming && !paused}>
             📎
           </button>
-          <button className={`chat-btn voice-btn${isRecording ? ' recording' : ''}`} onClick={isRecording ? stopRecording : startRecording} title={isRecording ? '停止录音' : '语音输入'} disabled={streaming && !paused}>
+          <button className={`chat-btn voice-btn${isRecording ? ' recording' : ''}`} onClick={isRecording ? stopRecording : startRecording} title={isRecording ? t('chat.stopRecording') : t('chat.voiceInput')} disabled={streaming && !paused}>
             {isRecording ? <><span className="rec-dot">●</span>{recordingDuration > 0 && <span className="rec-time">{Math.floor(recordingDuration / 60)}:{String(recordingDuration % 60).padStart(2, '0')}</span>}</> : '🎤'}
           </button>
-          <button className={`chat-btn tts-toggle${ttsAutoPlay ? ' tts-on' : ''}`} onClick={() => { setTtsAutoPlay(v => !v); ttsAutoPlayRef.current = !ttsAutoPlayRef.current }} title={ttsAutoPlay ? '关闭自动播报' : '开启自动播报'}>
+          <button className={`chat-btn tts-toggle${ttsAutoPlay ? ' tts-on' : ''}`} onClick={() => { setTtsAutoPlay(v => !v); ttsAutoPlayRef.current = !ttsAutoPlayRef.current }} title={ttsAutoPlay ? t('chat.ttsOff') : t('chat.ttsOn')}>
             {ttsAutoPlay ? '🔊' : '🔇'}
           </button>
           <textarea
             ref={textareaRef}
             className="chat-input"
-            placeholder={paused ? '输入指令继续任务，或直接描述下一步…' : '输入消息…（Enter 发送，Shift+Enter 换行，@ 选 Skill，# 选工具）'}
+            placeholder={paused ? t('chat.placeholderPaused') : t('chat.placeholder')}
             rows={1}
             value={input}
             onChange={handleInputChange}
@@ -1287,7 +1289,7 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
           {streaming && !paused ? (
             <>
               {pauseIntentVis ? (
-                <button className="chat-btn chat-btn-pause-pending" disabled title="等待当前工具完成后暂停">⏳</button>
+                <button className="chat-btn chat-btn-pause-pending" disabled title={t('chat.pausePending')}>⏳</button>
               ) : (
                 <button className="chat-btn chat-btn-pause" onClick={() => { pauseIntentRef.current = true; setPauseIntentVis(true) }} title="暂停（等当前工具完成）">⏸</button>
               )}

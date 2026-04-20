@@ -73,7 +73,7 @@ function App() {
   const localeCtx = useMemo(() => ({
     locale,
     setLocale,
-    t: (key: string, fallback?: string) => tRaw(locale, key, fallback),
+    t: (key: string, vars?: Record<string, string | number> | string, fallback?: string) => tRaw(locale, key, vars, fallback),
   }), [locale, setLocale])
 
   // 应用缩放
