@@ -923,7 +923,7 @@ export default function Settings({
     copilotLogin, copilotLoginStatus, copilotLogout,
   } = useGateway()
 
-  const { locale, setLocale } = useT()
+  const { locale, setLocale, t } = useT()
 
   // 已配置状态（来自服务端）
   const [settings, setSettings] = useState<SettingsState>({ configured: [], activeProvider: null })
