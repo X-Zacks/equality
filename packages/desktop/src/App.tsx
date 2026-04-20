@@ -202,12 +202,12 @@ function App() {
               setPage('chat')        // 从其他页面切回 chat
             }
           }}
-          title="对话 (Ctrl+B 切换面板)"
+          title={localeCtx.t('chat.toggle')}
         >💬</button>
         <button
           className={`sidebar-btn ${page === 'settings' ? 'active' : ''}`}
           onClick={() => setPage('settings')}
-          title="设置"
+          title={localeCtx.t('settings.btn')}
         >⚙️</button>
       </nav>
 
@@ -250,7 +250,7 @@ function App() {
           <div className="status-left">
             <span className={`status-dot ${coreOnline ? 'online' : 'offline'}`} />
             <span className="status-text">
-              {coreOnline === null ? 'Core 检测中…' : coreOnline ? 'Core 在线' : 'Core 离线'}
+              {coreOnline === null ? localeCtx.t('core.detecting') : coreOnline ? localeCtx.t('core.online') : localeCtx.t('core.offline')}
             </span>
             {providerInfo && (
               <>

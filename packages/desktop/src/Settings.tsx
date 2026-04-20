@@ -1080,7 +1080,7 @@ export default function Settings({
   return (
     <div className="settings-root">
       <div className="settings-header">
-        <span>设置</span>
+        <span>{t('settings')}</span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {settings.activeProvider && (
             <span className="active-badge">
@@ -1094,19 +1094,19 @@ export default function Settings({
       {/* Tab 导航 */}
       <div className="settings-tabs">
         {([
-          { id: 'model' as SettingsTab, label: '🤖 模型' },
-          { id: 'tools' as SettingsTab, label: '🔧 工具' },
-          { id: 'skills' as SettingsTab, label: '📚 Skills' },
-          { id: 'memory' as SettingsTab, label: '🧠 记忆' },
-          { id: 'advanced' as SettingsTab, label: '⚙️ 高级' },
-          { id: 'about' as SettingsTab, label: 'ℹ️ 关于' },
-        ]).map(t => (
+          { id: 'model' as SettingsTab, icon: '🤖', key: 'model' },
+          { id: 'tools' as SettingsTab, icon: '🔧', key: 'tools' },
+          { id: 'skills' as SettingsTab, icon: '📚', key: 'skills' },
+          { id: 'memory' as SettingsTab, icon: '🧠', key: 'memory' },
+          { id: 'advanced' as SettingsTab, icon: '⚙️', key: 'advanced' },
+          { id: 'about' as SettingsTab, icon: 'ℹ️', key: 'about' },
+        ]).map(item => (
           <button
-            key={t.id}
-            className={`settings-tab ${tab === t.id ? 'active' : ''}`}
-            onClick={() => setTab(t.id)}
+            key={item.id}
+            className={`settings-tab ${tab === item.id ? 'active' : ''}`}
+            onClick={() => setTab(item.id)}
           >
-            {t.label}
+            {item.icon} {t(item.key)}
           </button>
         ))}
       </div>
@@ -1116,7 +1116,7 @@ export default function Settings({
       {/* ━━━ 模型 Tab ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
       {tab === 'model' && (<>
         {!settings.activeProvider && (
-          <p className="settings-hint">请配置任意一个 Provider，保存后即自动激活</p>
+          <p className="settings-hint">{t('provider.configHint')}</p>
         )}
 
         {/* ─── 模型路由选择器 ──────────────────────────────────────────── */}
@@ -1155,10 +1155,10 @@ export default function Settings({
         </div>
 
         {/* ─── 网络设置 ─────────────────────────────────────────────── */}
-        <div className="settings-section-title" style={{ marginTop: 8 }}>网络设置</div>
+        <div className="settings-section-title" style={{ marginTop: 8 }}>{t('network')}</div>
         <div className="provider-card">
           <div className="provider-header" onClick={() => setExpanded(p => ({ ...p, proxy: !p.proxy }))}>
-            <span className="provider-name">🌐 HTTP 代理</span>
+            <span className="provider-name">🌐 {t('proxy')}</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               {getMasked('HTTPS_PROXY' as SecretKey) && <span className="configured-dot" title="已配置" />}
               <span className="chevron">{expanded.proxy ? '▴' : '▾'}</span>
@@ -1240,7 +1240,7 @@ export default function Settings({
         )}
 
         {/* ─── 月度配额总览 (只读，编辑请进入各模型抽屉) ──────────────── */}
-        <div className="settings-section-title" style={{ marginTop: 12 }}>📊 月度请求配额</div>
+        <div className="settings-section-title" style={{ marginTop: 12 }}>📊 {t('quota.title')}</div>
         {quotaStatuses.length > 0 ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             {quotaStatuses.map(s => {
@@ -1261,10 +1261,10 @@ export default function Settings({
                 </div>
               )
             })}
-            <p className="settings-hint" style={{ fontSize: 10, marginTop: 2 }}>配额规则请在各模型的「管理」抽屉中设置</p>
+            <p className="settings-hint" style={{ fontSize: 10, marginTop: 2 }}>{t('quota.ruleHint')}</p>
           </div>
         ) : (
-          <p className="settings-hint">暂无配额配置，请在各模型的「管理」抽屉中添加。</p>
+          <p className="settings-hint">{t('quota.hint')}</p>
         )}
 
       </>)}
@@ -1272,12 +1272,12 @@ export default function Settings({
       {/* ━━━ 工具 Tab ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
       {tab === 'tools' && (
         <>
-          <div className="settings-section-title" style={{ marginTop: 16 }}>已注册工具</div>
+          <div className="settings-section-title" style={{ marginTop: 16 }}>{t('tools.registered')}</div>
           {/* 搜索栏 */}
           <input
             className="search-bar"
             type="text"
-            placeholder="搜索工具..."
+            placeholder={t('tools.search')}
             value={toolSearch}
             onChange={e => { setToolSearch(e.target.value); setToolPage(0) }}
           />
@@ -1302,7 +1302,7 @@ export default function Settings({
           {(toolCategory === 'all' || toolCategory === 'search') && (
             <div className="provider-card">
               <div className="provider-header" onClick={() => setExpanded(p => ({ ...p, braveSearch: !p.braveSearch }))}>
-                <span className="provider-name">🔍 Web Search（Brave Search API）</span>
+                <span className="provider-name">🔍 {t('braveSearch.title')}</span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   {getMasked('BRAVE_SEARCH_API_KEY') && <span className="configured-dot" title="已配置" />}
                   <span className="chevron">{expanded.braveSearch ? '▴' : '▾'}</span>
@@ -1345,7 +1345,7 @@ export default function Settings({
           {(toolCategory === 'all' || toolCategory === 'browser') && (
             <div className="provider-card">
               <div className="provider-header" onClick={() => setExpanded(p => ({ ...p, chromePath: !p.chromePath }))}>
-                <span className="provider-name">🌐 浏览器工具（Chrome 路径）</span>
+                <span className="provider-name">🌐 {t('chromePath.title')}</span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   {getMasked('CHROME_PATH') && <span className="configured-dot" title="已配置" />}
                   <span className="chevron">{expanded.chromePath ? '▴' : '▾'}</span>
@@ -1383,7 +1383,7 @@ export default function Settings({
           )}
 
           {toolsList.length === 0 ? (
-            <p className="settings-hint">加载中…</p>
+            <p className="settings-hint">{t('tools.loading')}</p>
           ) : (
             <div className="tools-list">
               {(() => {
@@ -1394,18 +1394,18 @@ export default function Settings({
                 const page = Math.min(toolPage, Math.max(totalPages - 1, 0))
                 const paged = filtered.slice(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE)
                 return (<>
-                  {paged.map(t => (
-                    <div key={t.name} className="tool-item" onClick={() => setToolDetail(t)} style={{ cursor: 'pointer' }}>
-                      <span className="tool-icon">{getToolIcon(t.name)}</span>
-                      <span className="tool-name">{t.name}</span>
+                  {paged.map(tool => (
+                    <div key={tool.name} className="tool-item" onClick={() => setToolDetail(tool)} style={{ cursor: 'pointer' }}>
+                      <span className="tool-icon">{getToolIcon(tool.name)}</span>
+                      <span className="tool-name">{tool.name}</span>
                       <span className="tool-detail-btn">›</span>
                     </div>
                   ))}
                   {totalPages > 1 && (
                     <div className="pagination">
-                      <button disabled={page === 0} onClick={() => setToolPage(p => p - 1)}>‹ 上一页</button>
+                      <button disabled={page === 0} onClick={() => setToolPage(p => p - 1)}>‹ {t('pagination.prev')}</button>
                       <span>{page + 1} / {totalPages}</span>
-                      <button disabled={page >= totalPages - 1} onClick={() => setToolPage(p => p + 1)}>下一页 ›</button>
+                      <button disabled={page >= totalPages - 1} onClick={() => setToolPage(p => p + 1)}>{t('pagination.next')} ›</button>
                     </div>
                   )}
                 </>)
@@ -1413,7 +1413,7 @@ export default function Settings({
             </div>
           )}
           <p className="settings-hint" style={{ marginTop: 8 }}>
-            点击工具名查看详情。工具调用上限及 LLM 轮次上限见「⚙️ 高级」设置
+            {t('tools.hint')}
           </p>
 
           {toolDetail && (
@@ -1425,26 +1425,26 @@ export default function Settings({
       {/* ━━━ Skills Tab ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
       {tab === 'skills' && (
         <>
-          <div className="settings-section-title">已加载 Skills（{skillsList.length}）</div>
+          <div className="settings-section-title">{t('skills.loaded')}（{skillsList.length}）</div>
           {/* 搜索栏 */}
           <input
             className="search-bar"
             type="text"
-            placeholder="搜索技能..."
+            placeholder={t('skills.search')}
             value={skillSearch}
             onChange={e => { setSkillSearch(e.target.value); setSkillPage(0) }}
           />
           {/* 分类筛选 Tab */}
           <div className="skill-category-tabs">
             {[
-              { id: 'all', label: '🏷️ 全部' },
-              { id: 'development', label: '🛠️ 开发' },
-              { id: 'data', label: '📊 数据' },
-              { id: 'document', label: '📄 文档' },
-              { id: 'communication', label: '💬 通信' },
-              { id: 'workflow', label: '🔄 工作流' },
-              { id: 'infra', label: '🌐 网络' },
-              { id: 'other', label: '📦 其他' },
+              { id: 'all', key: 'category.all' },
+              { id: 'development', key: 'category.development' },
+              { id: 'data', key: 'category.data' },
+              { id: 'document', key: 'category.document' },
+              { id: 'communication', key: 'category.communication' },
+              { id: 'workflow', key: 'category.workflow' },
+              { id: 'infra', key: 'category.infra' },
+              { id: 'other', key: 'category.other' },
             ].map(c => {
               const count = c.id === 'all' ? skillsList.length : skillsList.filter(s => s.category === c.id).length
               if (c.id !== 'all' && count === 0) return null
@@ -1453,13 +1453,13 @@ export default function Settings({
                   className={`skill-category-tab ${skillCategory === c.id ? 'active' : ''}`}
                   onClick={() => setSkillCategory(c.id)}
                 >
-                  {c.label} <span className="skill-category-count">{count}</span>
+                  {t(c.key)} <span className="skill-category-count">{count}</span>
                 </button>
               )
             })}
           </div>
           {skillsList.length === 0 ? (
-            <p className="settings-hint">加载中…</p>
+            <p className="settings-hint">{t('skills.loading')}</p>
           ) : (
             <div className="skills-list">
               {(() => {
@@ -1488,9 +1488,9 @@ export default function Settings({
                   ))}
                   {totalPages > 1 && (
                     <div className="pagination">
-                      <button disabled={page === 0} onClick={() => setSkillPage(p => p - 1)}>‹ 上一页</button>
+                      <button disabled={page === 0} onClick={() => setSkillPage(p => p - 1)}>‹ {t('pagination.prev')}</button>
                       <span>{page + 1} / {totalPages}</span>
-                      <button disabled={page >= totalPages - 1} onClick={() => setSkillPage(p => p + 1)}>下一页 ›</button>
+                      <button disabled={page >= totalPages - 1} onClick={() => setSkillPage(p => p + 1)}>{t('pagination.next')} ›</button>
                     </div>
                   )}
                 </>)
@@ -1547,46 +1547,46 @@ export default function Settings({
       {tab === 'advanced' && (
         <>
           <div className="advanced-section" style={{ marginBottom: 10 }}>
-            <div className="advanced-section-title">🎨 界面主题</div>
+            <div className="advanced-section-title">🎨 {t('theme')}</div>
             <div className="advanced-item">
               <div className="advanced-item-header">
-                <span className="advanced-item-label">界面风格</span>
-                <span className="advanced-item-unit">当前：{effectiveTheme === 'purple' ? '紫色' : effectiveTheme === 'black' ? '纯黑' : '深海蓝'}</span>
+                <span className="advanced-item-label">{t('theme.label')}</span>
+                <span className="advanced-item-unit">{t('theme.current')}：{t(`theme.${effectiveTheme === 'dark' ? 'dark' : effectiveTheme}`)}</span>
               </div>
               <div className="theme-switch" role="group" aria-label="主题选择">
                 <button
                   className={`theme-btn ${themePreference === 'purple' ? 'active' : ''}`}
                   onClick={() => onThemeChange('purple')}
                 >
-                  💜 紫色
+                  💜 {t('theme.purple')}
                 </button>
                 <button
                   className={`theme-btn ${themePreference === 'dark' ? 'active' : ''}`}
                   onClick={() => onThemeChange('dark')}
                 >
-                  🌊 深海蓝
+                  🌊 {t('theme.dark')}
                 </button>
                 <button
                   className={`theme-btn ${themePreference === 'black' ? 'active' : ''}`}
                   onClick={() => onThemeChange('black')}
                 >
-                  🖤 纯黑
+                  🖤 {t('theme.black')}
                 </button>
                 <button
                   className={`theme-btn subtle ${themePreference === 'system' ? 'active' : ''}`}
                   onClick={() => onThemeChange('system')}
-                  title="清除手动选择并跟随系统"
+                  title={t('theme.systemTip')}
                 >
-                  跟随系统
+                  {t('theme.system')}
                 </button>
               </div>
-              <p className="advanced-item-desc">默认会跟随系统主题。选择紫色、深海蓝或纯黑后将固定，并在重启后保持。</p>
+              <p className="advanced-item-desc">{t('theme.desc')}</p>
             </div>
           </div>
 
           {/* ─── 语言 ──────────────────────────────────────────────── */}
           <div className="advanced-section">
-            <div className="advanced-section-title">🌐 语言 / Language</div>
+            <div className="advanced-section-title">🌐 {t('language')}</div>
             <div className="advanced-item">
               <div className="theme-switch" role="group" aria-label="Language">
                 {([['zh-CN', '中文'], ['en', 'English']] as [Locale, string][]).map(([loc, label]) => (
@@ -1604,13 +1604,13 @@ export default function Settings({
 
           {/* ─── 高级配置条目行 ──────────────────────────────────────── */}
           <div className="advanced-section">
-            <div className="advanced-section-title">⚙️ 高级配置</div>
+            <div className="advanced-section-title">⚙️ {t('advancedConfig')}</div>
 
             {/* 工作目录 */}
             <div className="advanced-item" style={{ marginBottom: 10 }}>
               <div className="advanced-item-header">
-                <span className="advanced-item-label">📁 工作目录</span>
-                <span className="advanced-item-unit">{getMasked('WORKSPACE_DIR') || '未设置（使用默认）'}</span>
+                <span className="advanced-item-label">📁 {t('workspaceDir')}</span>
+                <span className="advanced-item-unit">{getMasked('WORKSPACE_DIR') || t('workspaceDir.notSet')}</span>
               </div>
               <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
                 <input
