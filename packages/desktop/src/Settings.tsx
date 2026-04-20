@@ -1299,8 +1299,7 @@ export default function Settings({
             })}
           </div>
 
-          {/* ─── Brave Search API Key 配置卡（搜索/全部分类下显示） ─── */}
-          {(toolCategory === 'all' || toolCategory === 'search') && (
+          {/* ─── Brave Search API Key 配置卡（始终显示） ─── */}
             <div className="provider-card">
               <div className="provider-header" onClick={() => setExpanded(p => ({ ...p, braveSearch: !p.braveSearch }))}>
                 <span className="provider-name">🔍 {t('braveSearch.title')}</span>
@@ -1340,10 +1339,8 @@ export default function Settings({
                 </div>
               )}
             </div>
-          )}
 
-          {/* ─── Chrome 路径配置卡（浏览器/全部分类下显示） ─── */}
-          {(toolCategory === 'all' || toolCategory === 'browser') && (
+          {/* ─── Chrome 路径配置卡（始终显示） ─── */}
             <div className="provider-card">
               <div className="provider-header" onClick={() => setExpanded(p => ({ ...p, chromePath: !p.chromePath }))}>
                 <span className="provider-name">🌐 {t('chromePath.title')}</span>
@@ -1381,7 +1378,6 @@ export default function Settings({
                 </div>
               )}
             </div>
-          )}
 
           {toolsList.length === 0 ? (
             <p className="settings-hint">{t('tools.loading')}</p>

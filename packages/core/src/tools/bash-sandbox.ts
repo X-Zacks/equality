@@ -306,10 +306,18 @@ export function checkInterpreterSafety(command: string, config: SandboxConfig): 
     }
 
     // 检查解释器命令中的绝对路径是否在 workspace 外
-    const absPathMatches = scriptContent.match(/(?:['"])?([A-Za-z]:\\[^\s'"]+|\/[^\s'"]+)/g)
-    if (absPathMatches) {
-      for (const rawPath of absPathMatches) {
-        const cleanPath = rawPath.replace(/^['"]|['"]$/g, '')
+    // 注意：只匹配真正的绝对路径（token 起始处的 / 或 X:\），
+    // 避免从相对路径 "app/services/foo.py" 中误提取 "/services/foo.py"
+    const scriptTokens = scriptContent.split(/\s+/)
+    const absPathMatches: string[] = []
+    for (const tok of scriptTokens) {
+      const clean = tok.replace(/^['"]|['"]$/g, '')
+      if (/^\/[^\s]/.test(clean) || /^[A-Za-z]:\\/.test(clean)) {
+        absPathMatches.push(clean)
+      }
+    }
+    if (absPathMatches.length > 0) {
+      for (const cleanPath of absPathMatches) {
         const result = validatePath(cleanPath, config)
         if (!result.allowed) {
           return {
