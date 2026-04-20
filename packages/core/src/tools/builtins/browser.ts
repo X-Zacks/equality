@@ -13,6 +13,7 @@ import { join } from 'node:path'
 import { tmpdir, homedir } from 'node:os'
 import { existsSync } from 'node:fs'
 import type { ToolDefinition, ToolResult, ToolContext } from '../types.js'
+import { validateUrl } from '../url-validator.js'
 import type { Browser, BrowserContext, Page } from 'playwright-core'
 import { hasSecret, getSecret } from '../../config/secrets.js'
 
@@ -422,6 +423,8 @@ export const browserTool: ToolDefinition = {
         case 'navigate': {
           const url = input.url as string
           if (!url) return { content: '请提供 url 参数', isError: true }
+          const vr = validateUrl(url)
+          if (!vr.allowed) return { content: `URL 被拦截: ${vr.reason}`, isError: true }
           const { context } = await ensureContext(sk)
           const page = await getActivePage(context, input.targetId as string | undefined)
           await page.goto(url, { waitUntil: 'load', timeout: 30_000 })
@@ -490,6 +493,8 @@ export const browserTool: ToolDefinition = {
         case 'open': {
           const url = input.url as string
           if (!url) return { content: '请提供 url 参数', isError: true }
+          const vr = validateUrl(url)
+          if (!vr.allowed) return { content: `URL 被拦截: ${vr.reason}`, isError: true }
           const { context } = await ensureContext(sk)
           const page = await context.newPage()
           await page.goto(url, { waitUntil: 'load', timeout: 30_000 })

@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useGateway } from './useGateway'
 import Chat from './Chat'
 import SessionPanel from './SessionPanel'
 import Settings from './Settings'
+import { LocaleContext, detectLocale, t as tRaw, type Locale } from './i18n'
 import './App.css'
 
 type Page = 'chat' | 'settings'
@@ -62,6 +63,18 @@ function App() {
   })
 
   const effectiveTheme: EffectiveTheme = themePreference === 'system' ? systemTheme : themePreference
+
+  // ─── i18n ──────────────────────────────────────────────
+  const [locale, setLocaleRaw] = useState<Locale>(detectLocale)
+  const setLocale = useCallback((l: Locale) => {
+    localStorage.setItem('equality-locale', l)
+    setLocaleRaw(l)
+  }, [])
+  const localeCtx = useMemo(() => ({
+    locale,
+    setLocale,
+    t: (key: string, fallback?: string) => tRaw(locale, key, fallback),
+  }), [locale, setLocale])
 
   // 应用缩放
   useEffect(() => {
@@ -176,7 +189,8 @@ function App() {
   }, [handleKeyboard, handleWheel])
 
   return (
-    <div className={`app-root ${effectiveTheme === 'purple' ? 'theme-purple' : 'theme-dark'}`}>
+    <LocaleContext.Provider value={localeCtx}>
+    <div className={`app-root theme-${effectiveTheme}`}>
       {/* 侧边栏 */}
       <nav className="sidebar">
         <button
@@ -253,6 +267,7 @@ function App() {
         </div>
       </div>
     </div>
+    </LocaleContext.Provider>
   )
 }
 

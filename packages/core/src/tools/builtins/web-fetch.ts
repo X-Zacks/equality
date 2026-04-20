@@ -8,6 +8,7 @@ import type { ToolDefinition, ToolResult, ToolContext } from '../types.js'
 import { ProxyAgent } from 'undici'
 import * as cheerio from 'cheerio'
 import { wrapExternalContent } from '../../security/external-content.js'
+import { validateUrl } from '../url-validator.js'
 
 const DEFAULT_MAX_CHARS = 50_000
 const FETCH_TIMEOUT_MS = 15_000
@@ -31,8 +32,9 @@ export const webFetchTool: ToolDefinition = {
       return { content: 'Error: url is required', isError: true }
     }
 
-    if (!url.startsWith('http://') && !url.startsWith('https://')) {
-      return { content: 'Error: url must start with http:// or https://', isError: true }
+    const vr = validateUrl(url)
+    if (!vr.allowed) {
+      return { content: `Error: ${vr.reason}`, isError: true }
     }
 
     const maxChars = Math.max(Number(input.max_chars) || DEFAULT_MAX_CHARS, 1000)

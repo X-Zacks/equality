@@ -3,6 +3,7 @@ import { useGateway } from './useGateway'
 import type { SettingsState, SecretKey } from './useGateway'
 import { open } from '@tauri-apps/plugin-shell'
 import { MemoryTab } from './MemoryTab'
+import { useT, type Locale } from './i18n'
 import './Settings.css'
 
 type SettingsTab = 'model' | 'tools' | 'skills' | 'memory' | 'advanced' | 'about'
@@ -922,6 +923,8 @@ export default function Settings({
     copilotLogin, copilotLoginStatus, copilotLogout,
   } = useGateway()
 
+  const { locale, setLocale } = useT()
+
   // 已配置状态（来自服务端）
   const [settings, setSettings] = useState<SettingsState>({ configured: [], activeProvider: null })
   // 用户正在编辑的字段
@@ -1037,6 +1040,11 @@ export default function Settings({
   const [expandedSkill, setExpandedSkill] = useState<string | null>(null)
   const [skillCategory, setSkillCategory] = useState<string>('all')
   const [toolCategory, setToolCategory] = useState<string>('all')
+  const [toolSearch, setToolSearch] = useState('')
+  const [toolPage, setToolPage] = useState(0)
+  const [skillSearch, setSkillSearch] = useState('')
+  const [skillPage, setSkillPage] = useState(0)
+  const ITEMS_PER_PAGE = 20
 
   // 配额状态 (V4.1)
   const [quotaConfigs, setQuotaConfigs] = useState<Array<{ provider: string; tier: string; monthlyLimit: number; warnPct: number; criticalPct: number; autoDowngrade: boolean }>>([])
@@ -1264,87 +1272,15 @@ export default function Settings({
       {/* ━━━ 工具 Tab ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
       {tab === 'tools' && (
         <>
-          {/* ─── Brave Search API Key 配置卡 ─────────────────────────────── */}
-          <div className="provider-card">
-            <div className="provider-header" onClick={() => setExpanded(p => ({ ...p, braveSearch: !p.braveSearch }))}>
-              <span className="provider-name">🔍 Web Search（Brave Search API）</span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                {getMasked('BRAVE_SEARCH_API_KEY') && <span className="configured-dot" title="已配置" />}
-                <span className="chevron">{expanded.braveSearch ? '▴' : '▾'}</span>
-              </div>
-            </div>
-            {expanded.braveSearch && (
-              <div className="provider-body">
-                <p style={{ margin: '0 0 8px', fontSize: 12, color: '#888' }}>
-                  免费申请：<a href="https://brave.com/search/api/" target="_blank" rel="noreferrer"
-                    style={{ color: 'var(--accent)' }}>brave.com/search/api</a>
-                  （免费版每月 2000 次）。未配置时自动回退至 DuckDuckGo。
-                </p>
-                <div className="key-row">
-                  <label>API Key</label>
-                  <input
-                    type="password"
-                    placeholder={getMasked('BRAVE_SEARCH_API_KEY') || 'BSAxxxxx…'}
-                    value={draft['BRAVE_SEARCH_API_KEY'] ?? ''}
-                    onChange={e => setDraft(p => ({ ...p, BRAVE_SEARCH_API_KEY: e.target.value }))}
-                  />
-                </div>
-                <div className="provider-actions">
-                  {getMasked('BRAVE_SEARCH_API_KEY') && (
-                    <button className="btn-clear" onClick={() => handleClear('braveSearch', ['BRAVE_SEARCH_API_KEY'])}>清除</button>
-                  )}
-                  <button
-                    className="btn-save"
-                    disabled={!draft['BRAVE_SEARCH_API_KEY']?.trim() || saving.braveSearch === 'saving'}
-                    onClick={() => handleSave('braveSearch', ['BRAVE_SEARCH_API_KEY'])}
-                  >
-                    {saveLabel(saving.braveSearch ?? 'idle')}
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* ─── Chrome 路径配置卡 ─────────────────────────────────────────── */}
-          <div className="provider-card">
-            <div className="provider-header" onClick={() => setExpanded(p => ({ ...p, chromePath: !p.chromePath }))}>
-              <span className="provider-name">🌐 浏览器工具（Chrome 路径）</span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                {getMasked('CHROME_PATH') && <span className="configured-dot" title="已配置" />}
-                <span className="chevron">{expanded.chromePath ? '▴' : '▾'}</span>
-              </div>
-            </div>
-            {expanded.chromePath && (
-              <div className="provider-body">
-                <p style={{ margin: '0 0 8px', fontSize: 12, color: '#888' }}>
-                  非必填。未填时自动搜索系统 Chrome / Edge。如自动搜索失败，请手动填入 chrome.exe 的完整路径。
-                </p>
-                <div className="key-row">
-                  <label>Chrome 路径</label>
-                  <input
-                    type="text"
-                    placeholder={getMasked('CHROME_PATH') || 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'}
-                    value={draft['CHROME_PATH'] ?? ''}
-                    onChange={e => setDraft(p => ({ ...p, CHROME_PATH: e.target.value }))}
-                  />
-                </div>
-                <div className="provider-actions">
-                  {getMasked('CHROME_PATH') && (
-                    <button className="btn-clear" onClick={() => handleClear('chromePath', ['CHROME_PATH'])}>清除</button>
-                  )}
-                  <button
-                    className="btn-save"
-                    disabled={!draft['CHROME_PATH']?.trim() || saving.chromePath === 'saving'}
-                    onClick={() => handleSave('chromePath', ['CHROME_PATH'])}
-                  >
-                    {saveLabel(saving.chromePath ?? 'idle')}
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-
           <div className="settings-section-title" style={{ marginTop: 16 }}>已注册工具</div>
+          {/* 搜索栏 */}
+          <input
+            className="search-bar"
+            type="text"
+            placeholder="搜索工具..."
+            value={toolSearch}
+            onChange={e => { setToolSearch(e.target.value); setToolPage(0) }}
+          />
           {/* 工具分类筛选 Tab */}
           <div className="skill-category-tabs">
             {TOOL_CATEGORIES.map(c => {
@@ -1361,19 +1297,119 @@ export default function Settings({
               )
             })}
           </div>
+
+          {/* ─── Brave Search API Key 配置卡（搜索/全部分类下显示） ─── */}
+          {(toolCategory === 'all' || toolCategory === 'search') && (
+            <div className="provider-card">
+              <div className="provider-header" onClick={() => setExpanded(p => ({ ...p, braveSearch: !p.braveSearch }))}>
+                <span className="provider-name">🔍 Web Search（Brave Search API）</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  {getMasked('BRAVE_SEARCH_API_KEY') && <span className="configured-dot" title="已配置" />}
+                  <span className="chevron">{expanded.braveSearch ? '▴' : '▾'}</span>
+                </div>
+              </div>
+              {expanded.braveSearch && (
+                <div className="provider-body">
+                  <p style={{ margin: '0 0 8px', fontSize: 12, color: '#888' }}>
+                    免费申请：<a href="https://brave.com/search/api/" target="_blank" rel="noreferrer"
+                      style={{ color: 'var(--accent)' }}>brave.com/search/api</a>
+                    （免费版每月 2000 次）。未配置时自动回退至 DuckDuckGo。
+                  </p>
+                  <div className="key-row">
+                    <label>API Key</label>
+                    <input
+                      type="password"
+                      placeholder={getMasked('BRAVE_SEARCH_API_KEY') || 'BSAxxxxx…'}
+                      value={draft['BRAVE_SEARCH_API_KEY'] ?? ''}
+                      onChange={e => setDraft(p => ({ ...p, BRAVE_SEARCH_API_KEY: e.target.value }))}
+                    />
+                  </div>
+                  <div className="provider-actions">
+                    {getMasked('BRAVE_SEARCH_API_KEY') && (
+                      <button className="btn-clear" onClick={() => handleClear('braveSearch', ['BRAVE_SEARCH_API_KEY'])}>清除</button>
+                    )}
+                    <button
+                      className="btn-save"
+                      disabled={!draft['BRAVE_SEARCH_API_KEY']?.trim() || saving.braveSearch === 'saving'}
+                      onClick={() => handleSave('braveSearch', ['BRAVE_SEARCH_API_KEY'])}
+                    >
+                      {saveLabel(saving.braveSearch ?? 'idle')}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ─── Chrome 路径配置卡（浏览器/全部分类下显示） ─── */}
+          {(toolCategory === 'all' || toolCategory === 'browser') && (
+            <div className="provider-card">
+              <div className="provider-header" onClick={() => setExpanded(p => ({ ...p, chromePath: !p.chromePath }))}>
+                <span className="provider-name">🌐 浏览器工具（Chrome 路径）</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  {getMasked('CHROME_PATH') && <span className="configured-dot" title="已配置" />}
+                  <span className="chevron">{expanded.chromePath ? '▴' : '▾'}</span>
+                </div>
+              </div>
+              {expanded.chromePath && (
+                <div className="provider-body">
+                  <p style={{ margin: '0 0 8px', fontSize: 12, color: '#888' }}>
+                    非必填。未填时自动搜索系统 Chrome / Edge。如自动搜索失败，请手动填入 chrome.exe 的完整路径。
+                  </p>
+                  <div className="key-row">
+                    <label>Chrome 路径</label>
+                    <input
+                      type="text"
+                      placeholder={getMasked('CHROME_PATH') || 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'}
+                      value={draft['CHROME_PATH'] ?? ''}
+                      onChange={e => setDraft(p => ({ ...p, CHROME_PATH: e.target.value }))}
+                    />
+                  </div>
+                  <div className="provider-actions">
+                    {getMasked('CHROME_PATH') && (
+                      <button className="btn-clear" onClick={() => handleClear('chromePath', ['CHROME_PATH'])}>清除</button>
+                    )}
+                    <button
+                      className="btn-save"
+                      disabled={!draft['CHROME_PATH']?.trim() || saving.chromePath === 'saving'}
+                      onClick={() => handleSave('chromePath', ['CHROME_PATH'])}
+                    >
+                      {saveLabel(saving.chromePath ?? 'idle')}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {toolsList.length === 0 ? (
             <p className="settings-hint">加载中…</p>
           ) : (
             <div className="tools-list">
-              {toolsList
-                .filter(t => toolCategory === 'all' || getToolCategory(t.name) === toolCategory)
-                .map(t => (
-                <div key={t.name} className="tool-item" onClick={() => setToolDetail(t)} style={{ cursor: 'pointer' }}>
-                  <span className="tool-icon">{getToolIcon(t.name)}</span>
-                  <span className="tool-name">{t.name}</span>
-                  <span className="tool-detail-btn">›</span>
-                </div>
-              ))}
+              {(() => {
+                const filtered = toolsList
+                  .filter(t => toolCategory === 'all' || getToolCategory(t.name) === toolCategory)
+                  .filter(t => !toolSearch || t.name.toLowerCase().includes(toolSearch.toLowerCase()) || t.description.toLowerCase().includes(toolSearch.toLowerCase()))
+                const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE)
+                const page = Math.min(toolPage, Math.max(totalPages - 1, 0))
+                const paged = filtered.slice(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE)
+                return (<>
+                  {paged.map(t => (
+                    <div key={t.name} className="tool-item" onClick={() => setToolDetail(t)} style={{ cursor: 'pointer' }}>
+                      <span className="tool-icon">{getToolIcon(t.name)}</span>
+                      <span className="tool-name">{t.name}</span>
+                      <span className="tool-detail-btn">›</span>
+                    </div>
+                  ))}
+                  {totalPages > 1 && (
+                    <div className="pagination">
+                      <button disabled={page === 0} onClick={() => setToolPage(p => p - 1)}>‹ 上一页</button>
+                      <span>{page + 1} / {totalPages}</span>
+                      <button disabled={page >= totalPages - 1} onClick={() => setToolPage(p => p + 1)}>下一页 ›</button>
+                    </div>
+                  )}
+                </>)
+              })()}
             </div>
           )}
           <p className="settings-hint" style={{ marginTop: 8 }}>
@@ -1390,6 +1426,14 @@ export default function Settings({
       {tab === 'skills' && (
         <>
           <div className="settings-section-title">已加载 Skills（{skillsList.length}）</div>
+          {/* 搜索栏 */}
+          <input
+            className="search-bar"
+            type="text"
+            placeholder="搜索技能..."
+            value={skillSearch}
+            onChange={e => { setSkillSearch(e.target.value); setSkillPage(0) }}
+          />
           {/* 分类筛选 Tab */}
           <div className="skill-category-tabs">
             {[
@@ -1418,9 +1462,15 @@ export default function Settings({
             <p className="settings-hint">加载中…</p>
           ) : (
             <div className="skills-list">
-              {skillsList
-                .filter(s => skillCategory === 'all' || s.category === skillCategory)
-                .map(s => (
+              {(() => {
+                const filtered = skillsList
+                  .filter(s => skillCategory === 'all' || s.category === skillCategory)
+                  .filter(s => !skillSearch || s.name.toLowerCase().includes(skillSearch.toLowerCase()) || s.description.toLowerCase().includes(skillSearch.toLowerCase()))
+                const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE)
+                const page = Math.min(skillPage, Math.max(totalPages - 1, 0))
+                const paged = filtered.slice(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE)
+                return (<>
+                  {paged.map(s => (
                   <div key={s.name} className="skill-item"
                        onClick={() => setExpandedSkill(expandedSkill === s.name ? null : s.name)}
                        style={{ cursor: 'pointer' }}>
@@ -1435,7 +1485,16 @@ export default function Settings({
                     </div>
                     <div className="skill-desc">{s.description}</div>
                   </div>
-                ))}
+                  ))}
+                  {totalPages > 1 && (
+                    <div className="pagination">
+                      <button disabled={page === 0} onClick={() => setSkillPage(p => p - 1)}>‹ 上一页</button>
+                      <span>{page + 1} / {totalPages}</span>
+                      <button disabled={page >= totalPages - 1} onClick={() => setSkillPage(p => p + 1)}>下一页 ›</button>
+                    </div>
+                  )}
+                </>)
+              })()}
             </div>
           )}
           <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
@@ -1522,6 +1581,24 @@ export default function Settings({
                 </button>
               </div>
               <p className="advanced-item-desc">默认会跟随系统主题。选择紫色、深海蓝或纯黑后将固定，并在重启后保持。</p>
+            </div>
+          </div>
+
+          {/* ─── 语言 ──────────────────────────────────────────────── */}
+          <div className="advanced-section">
+            <div className="advanced-section-title">🌐 语言 / Language</div>
+            <div className="advanced-item">
+              <div className="theme-switch" role="group" aria-label="Language">
+                {([['zh-CN', '中文'], ['en', 'English']] as [Locale, string][]).map(([loc, label]) => (
+                  <button
+                    key={loc}
+                    className={`theme-btn ${locale === loc ? 'active' : ''}`}
+                    onClick={() => setLocale(loc)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 

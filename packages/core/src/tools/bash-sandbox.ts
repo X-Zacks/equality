@@ -194,7 +194,9 @@ export function validatePath(inputPath: string, config: SandboxConfig): SandboxR
   }
 
   const normalizedReal = normalizePath(realResolved)
-  const normalizedWorkspace = normalizePath(workspaceDir)
+  let realWorkspace: string
+  try { realWorkspace = fs.realpathSync(workspaceDir) } catch { realWorkspace = workspaceDir }
+  const normalizedWorkspace = normalizePath(realWorkspace)
 
   // 检查是否在 workspaceDir 内
   if (normalizedReal === normalizedWorkspace || normalizedReal.startsWith(normalizedWorkspace + '/')) {
