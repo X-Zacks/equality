@@ -97,7 +97,7 @@ export class DefaultContextEngine implements ContextEngine {
   readonly engineId = 'default'
 
   async assemble(params: AssembleParams): Promise<AssembleResult> {
-    const { sessionKey, provider, userMessage, workspaceDir, agentId, skills, activeSkills, abortSignal, onCompaction } = params
+    const { sessionKey, provider, userMessage, workspaceDir, agentId, skills, activeSkills, abortSignal, onCompaction, language } = params
 
     // 1. 获取 session
     const session = await getOrCreate(sessionKey)
@@ -134,6 +134,7 @@ export class DefaultContextEngine implements ContextEngine {
       activeSkills,
       bootstrapBlock,
       purposeBlock: purposeBlock || undefined,
+      language,
     })
 
     // 3. Memory Recall：冻结快照模式（O1）

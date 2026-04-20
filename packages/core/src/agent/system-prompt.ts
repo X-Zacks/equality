@@ -18,6 +18,8 @@ export interface SystemPromptOptions {
   purposeBlock?: string
   /** Agent 自定义身份说明（Phase I2） */
   agentIdentity?: string
+  /** UI 语言偏好（影响 AI 回复语言） */
+  language?: string
 }
 
 // ─── 主构建函数 ───────────────────────────────────────────────────────────────
@@ -28,8 +30,16 @@ export function buildSystemPrompt(options?: SystemPromptOptions): string {
   const cwd = options?.workspaceDir ? compactPath(options.workspaceDir) : undefined
   const skillsDir = getBundledSkillsDir().replace(/\\/g, '/')
   const modelName = options?.modelName ?? 'unknown'
+  const lang = options?.language ?? 'zh-CN'
+  const isEn = lang.startsWith('en')
 
-  let prompt = `你是 Equality，一个桌面 AI 助理。用中文回复（除非用户用英文）。
+  let prompt = isEn
+    ? `You are Equality, a desktop AI assistant. Reply in English (unless the user writes in Chinese).
+`
+    : `你是 Equality，一个桌面 AI 助理。用中文回复（除非用户用英文）。
+`
+
+  prompt += `
 当用户的请求可以通过工具完成时，直接调用工具，不要描述工具用法。不要编造不存在的命令或工具。
 当前: ${now} | ${platform}${cwd ? ` | 工作目录: ${cwd}` : ''}
 

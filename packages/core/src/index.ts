@@ -523,10 +523,11 @@ interface ChatBody {
   message: string
   sessionKey?: string
   model?: string
+  language?: string
 }
 
 app.post<{ Body: ChatBody }>('/chat/stream', async (req, reply) => {
-  const { message, sessionKey: rawKey, model: requestModel } = req.body ?? {}
+  const { message, sessionKey: rawKey, model: requestModel, language: requestLanguage } = req.body ?? {}
   const sessionKey = rawKey || DESKTOP_SESSION_KEY
 
   if (!message?.trim()) {
@@ -581,6 +582,7 @@ app.post<{ Body: ChatBody }>('/chat/stream', async (req, reply) => {
         sessionKey,
         userMessage: message,
         abortSignal: abort.signal,
+        language: requestLanguage,
         toolRegistry,
         workspaceDir: getWorkspaceDir(),
         skills: skillsWatcher.getSkills().map(e => e.skill),

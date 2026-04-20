@@ -14,7 +14,7 @@ pub async fn core_health() -> bool {
 /// 发送消息，通过 Tauri event 推流 SSE 回前端
 /// event: "chat-delta" → { type, content?, message?, usage? }
 #[tauri::command]
-pub async fn chat_stream(app: AppHandle, message: String, session_key: Option<String>, model: Option<String>) -> Result<(), String> {
+pub async fn chat_stream(app: AppHandle, message: String, session_key: Option<String>, model: Option<String>, language: Option<String>) -> Result<(), String> {
     let client = reqwest::Client::new();
     let sk = session_key.clone().unwrap_or_default();
     let mut body = serde_json::json!({
@@ -25,6 +25,9 @@ pub async fn chat_stream(app: AppHandle, message: String, session_key: Option<St
     }
     if let Some(m) = model {
         body["model"] = serde_json::Value::String(m);
+    }
+    if let Some(l) = language {
+        body["language"] = serde_json::Value::String(l);
     }
 
     let resp = client

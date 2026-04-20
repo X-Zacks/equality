@@ -101,6 +101,8 @@ export interface RunAttemptParams {
   provider?: LLMProvider
   /** 工具注册表（传入则启用 tool calling） */
   toolRegistry?: ToolRegistry
+  /** UI 语言偏好 */
+  language?: string
   /** 工作目录（工具执行的 cwd） */
   workspaceDir?: string
   /** 已加载的 Skills（注入到 system prompt） */
@@ -666,6 +668,7 @@ export async function runAttempt(params: RunAttemptParams): Promise<RunAttemptRe
     skills: params.skills,
     activeSkills,
     abortSignal: abort.signal,
+    language: params.language,
     onCompaction: (summary) => params.onDelta?.(`\n\n💭 ${summary}\n\n`),
   })
   const messages = assembled.messages

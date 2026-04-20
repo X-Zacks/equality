@@ -23,6 +23,8 @@ export interface AssembleParams {
   activeSkills?: Skill[]
   /** 用户本轮消息（用于 memory recall） */
   userMessage: string
+  /** UI 语言偏好 */
+  language?: string
   /** AbortSignal */
   abortSignal?: AbortSignal
   /** Compaction 回调 */

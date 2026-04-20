@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
+import { useT } from './i18n'
 
 // ─── Interactive Payload 类型（Phase F1）──────────────────────────────────────
 
@@ -93,6 +94,9 @@ export interface ToolCallEvent {
 export function useGateway() {
   const [coreOnline, setCoreOnline] = useState<boolean | null>(null)
   const abortMapRef = useRef<Map<string, () => void>>(new Map())
+  const { locale } = useT()
+  const localeRef = useRef(locale)
+  localeRef.current = locale
 
   // 定期检测 Core 是否在线
   useEffect(() => {
@@ -211,7 +215,7 @@ export function useGateway() {
             unlisten = fn
             // 监听器注册好后启动超时，再发起请求
             resetTimeout()
-            invoke('chat_stream', { message, sessionKey: sessionKey ?? null, model: model ?? null }).catch(err => {
+            invoke('chat_stream', { message, sessionKey: sessionKey ?? null, model: model ?? null, language: localeRef.current ?? null }).catch(err => {
               // invoke 本身失败（网络断开等），直接报错
               cleanup()
               reject(err)

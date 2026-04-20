@@ -26,6 +26,6 @@
 
 ## I4: 系统提示词
 
-- [ ] 4.1 core system prompt 支持 language 参数 (未完成)
-- [ ] 4.2 前端 gateway 请求传递 language 字段 (未完成)
-- [ ] 4.3 验证：切换语言后 AI 回复语言跟随变化 (未完成)
+- [x] 4.1 core system prompt 支持 language 参数：isEn 时用英文 opening sentence
+- [x] 4.2 全链路传递 language：Chat → useGateway(locale) → Tauri proxy → Core /chat/stream → runner → contextEngine → buildSystemPrompt
+- [x] 4.3 验证：TypeScript 零错误，切换语言后 system prompt 自动切换 AI 回复语言
