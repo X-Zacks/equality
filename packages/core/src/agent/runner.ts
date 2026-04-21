@@ -672,6 +672,7 @@ export async function runAttempt(params: RunAttemptParams): Promise<RunAttemptRe
     onCompaction: (summary) => params.onDelta?.(`\n\n💭 ${summary}\n\n`),
   })
   const messages = assembled.messages
+  const messagesBaseline = messages.length  // 记录初始长度，用于后续提取 tool loop 新增的消息
 
   // 6. 准备工具 schema（支持 # 工具白名单过滤）
   let toolSchemas: OpenAIToolSchema[] | undefined = params.toolRegistry?.getToolSchemas()
@@ -1249,6 +1250,28 @@ export async function runAttempt(params: RunAttemptParams): Promise<RunAttemptRe
       fullText = cleaned
       for (const payload of payloads) {
         params.onInteractive(payload)
+      }
+    }
+  }
+
+  // 9.9 Sync tool-loop intermediate messages back to session.messages for persistence
+  // The tool loop appends assistant+tool_calls and tool result messages to `messages`
+  // (the assembled array), but session.messages only has the user message so far.
+  // We need to copy these intermediate messages so they get persisted.
+  if (messagesBaseline < messages.length) {
+    for (let i = messagesBaseline; i < messages.length; i++) {
+      const msg = messages[i]
+      if (!msg || !('role' in msg)) continue
+      const role = (msg as { role: string }).role
+      // Only sync assistant (with tool_calls) and tool messages
+      // Skip pure user messages (steering/force-retry) and the final pure-text assistant (handled by afterTurn)
+      if (role === 'tool') {
+        session.messages.push(msg)
+      } else if (role === 'assistant') {
+        const aMsg = msg as { role: string; tool_calls?: unknown[] }
+        if (aMsg.tool_calls && aMsg.tool_calls.length > 0) {
+          session.messages.push(msg)
+        }
       }
     }
   }
