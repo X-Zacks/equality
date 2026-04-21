@@ -58,6 +58,7 @@ const CORE_TOOL_DEFINITIONS: CoreToolDefinition[] = [
   { id: 'glob', label: 'glob', description: 'Find files by pattern', sectionId: 'fs', profiles: ['coding'] },
   { id: 'grep', label: 'grep', description: 'Search file contents', sectionId: 'fs', profiles: ['coding'] },
   { id: 'read_pdf', label: 'read_pdf', description: 'Extract text from PDF files', sectionId: 'fs', profiles: ['coding'] },
+  { id: 'read_pdf_vision', label: 'read_pdf_vision', description: 'OCR scanned PDFs using vision model', sectionId: 'fs', profiles: ['coding'] },
 
   // Runtime
   { id: 'bash', label: 'bash', description: 'Execute shell commands', sectionId: 'runtime', profiles: ['coding'] },

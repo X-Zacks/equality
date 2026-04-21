@@ -124,10 +124,10 @@ export const readPdfTool: ToolDefinition = {
       const pageTexts: string[] = rawPages.map((p: any) => (typeof p === 'string' ? p : p?.text ?? ''))
       const fullText: string = textResult?.text ?? ''
 
-      // 检查是否为扫描件
+      // 检查是否为扫描件 → 自动降级到 read_pdf_vision
       if (fullText.trim().length < 50) {
         return {
-          content: `[PDF: ${path.basename(absPath)} (${totalPages} 页, ${(stat.size / 1024).toFixed(0)}KB)]\n\n⚠️ 此 PDF 几乎没有可提取的文本（可能是扫描件或纯图片 PDF）。\n\n建议：使用 read_image 工具读取 PDF 的截图来分析内容。`,
+          content: `[PDF: ${path.basename(absPath)} (${totalPages} 页, ${(stat.size / 1024).toFixed(0)}KB)]\n\n⚠️ 此 PDF 几乎没有可提取的文本（可能是扫描件或纯图片 PDF）。\n\n正在自动使用视觉识别……请调用 read_pdf_vision 工具并传入相同路径以识别内容。`,
         }
       }
 

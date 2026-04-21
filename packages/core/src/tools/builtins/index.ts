@@ -14,6 +14,7 @@ import { webFetchTool } from './web-fetch.js'
 import { webSearchTool } from './web-search.js'
 import { readImageTool } from './read-image.js'
 import { readPdfTool } from './read-pdf.js'
+import { readPdfVisionTool } from './read-pdf-vision.js'
 import { processTool } from './process-tool.js'
 import { applyPatchTool } from './apply-patch.js'
 import { cronTool } from './cron.js'
@@ -51,6 +52,7 @@ export const builtinTools: ToolDefinition[] = [
   // 媒体
   readImageTool,
   readPdfTool,
+  readPdfVisionTool,
   // 高级
   applyPatchTool,
   // 定时任务 (Phase 4)
@@ -94,6 +96,7 @@ export {
   webSearchTool,
   readImageTool,
   readPdfTool,
+  readPdfVisionTool,
   processTool,
   applyPatchTool,
   cronTool,
