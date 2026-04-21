@@ -667,7 +667,16 @@
   color: rgba(255,255,255,0.8);
 }
 
-/* ━━�?Message Actions ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+/* Tool-only assistant bubbles: tighter spacing */
+.chat-bubble.chat-assistant:has(.tool-calls):not(:has(.bubble-content)) {
+  margin-bottom: 2px;
+  padding-bottom: 4px;
+}
+.chat-bubble.chat-assistant:has(.tool-calls):not(:has(.bubble-content)) + .chat-bubble.chat-assistant {
+  margin-top: 0;
+}
+
+/* ━━━Message Actions ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 .chat-bubble {
   position: relative;
 }

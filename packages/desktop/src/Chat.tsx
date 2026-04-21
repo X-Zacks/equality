@@ -1020,9 +1020,11 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
                 })}
               </div>
             )}
-            <span className="bubble-content">
-              {msg.role === 'assistant' ? <Markdown content={msg.content} /> : msg.content}
-            </span>
+            {(msg.role !== 'assistant' || msg.content) && (
+              <span className="bubble-content">
+                {msg.role === 'assistant' ? <Markdown content={msg.content} /> : msg.content}
+              </span>
+            )}
             {msg.action && msg.action.target === 'settings' && onOpenSettings && (
               <button
                 className="msg-action-link"
@@ -1086,34 +1088,36 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
                 {msg.action.label}
               </button>
             )}
-            {/* 消息操作按钮 */}
-            <div className="msg-actions">
-              <button
-                className="msg-action-btn"
-                onClick={() => handleCopyMsg(i)}
-                title="复制"
-              >
-                {copiedIdx === i ? '✓' : '📋'}
-              </button>
-              {msg.role === 'assistant' && !streaming && (
+            {/* 消息操作按钮：仅对有文本内容的消息显示 */}
+            {(msg.role === 'user' || msg.content) && (
+              <div className="msg-actions">
                 <button
                   className="msg-action-btn"
-                  onClick={() => handleRegenerate(i)}
-                  title="重新生成"
+                  onClick={() => handleCopyMsg(i)}
+                  title="复制"
                 >
-                  🔄
+                  {copiedIdx === i ? '✓' : '📋'}
                 </button>
-              )}
-              {msg.role === 'assistant' && !streaming && msg.content && (
-                <button
-                  className={`msg-action-btn tts-btn${speakingMsgIdx === i ? ' tts-active' : ''}`}
-                  onClick={() => speakingMsgIdx === i ? stopSpeaking() : speakMessage(msg.content, i)}
-                  title={speakingMsgIdx === i ? '停止播报' : '语音播报'}
-                >
-                  {speakingMsgIdx === i ? '🔇' : '🔊'}
-                </button>
-              )}
-            </div>
+                {msg.role === 'assistant' && !streaming && (
+                  <button
+                    className="msg-action-btn"
+                    onClick={() => handleRegenerate(i)}
+                    title="重新生成"
+                  >
+                    🔄
+                  </button>
+                )}
+                {msg.role === 'assistant' && !streaming && msg.content && (
+                  <button
+                    className={`msg-action-btn tts-btn${speakingMsgIdx === i ? ' tts-active' : ''}`}
+                    onClick={() => speakingMsgIdx === i ? stopSpeaking() : speakMessage(msg.content, i)}
+                    title={speakingMsgIdx === i ? '停止播报' : '语音播报'}
+                  >
+                    {speakingMsgIdx === i ? '🔇' : '🔊'}
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         ))}
         {(streamingText || activeToolCalls.length > 0) && (

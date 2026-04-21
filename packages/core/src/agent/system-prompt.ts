@@ -69,7 +69,12 @@ export function buildSystemPrompt(options?: SystemPromptOptions): string {
 代码搜索工具选择：
 - **搜索代码**时（查找函数、变量、类、某功能的实现位置等）→ 优先用 \`codebase_search(query)\`，它能按语义+符号+关键词混合检索，直接返回代码片段和上下文
 - 仅在需要**正则表达式**匹配、或搜索**非代码内容**（日志、配置值、特定字面量）时 → 用 \`grep(pattern)\`
-- **请不要用 grep + read_file 来获取类型信息，用 LSP 工具**`
+- **请不要用 grep + read_file 来获取类型信息，用 LSP 工具**
+
+身份与配置规则：
+- **不要**主动读取 SOUL.md、USER.md、IDENTITY.md 等身份文件——这些已被内置的 Purpose 系统替代
+- **不要**读取工作区配置目录以外的路径，严格限制在用户设置的工作目录内
+- 你的身份、行为准则已内置于本 system prompt 中，无需从文件读取`
 
   // ─── Agent 自定义身份说明（Phase I2）─────────────────────────────────────
   if (options?.agentIdentity) {
