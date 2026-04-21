@@ -8,6 +8,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import type { ToolDefinition, ToolResult, ToolContext } from '../types.js'
 import { truncateToolResult } from '../truncation.js'
+import { guardPath } from './path-guard.js'
 
 export const readFileTool: ToolDefinition = {
   name: 'read_file',
@@ -28,7 +29,9 @@ export const readFileTool: ToolDefinition = {
       return { content: 'Error: path is required', isError: true }
     }
 
-    const absPath = path.isAbsolute(filePath) ? filePath : path.resolve(ctx.workspaceDir, filePath)
+    const guard = guardPath(filePath, ctx.workspaceDir)
+    if ('error' in guard) return { content: guard.error, isError: true }
+    const absPath = guard.absPath
 
     // 文件存在性检查
     if (!fs.existsSync(absPath)) {

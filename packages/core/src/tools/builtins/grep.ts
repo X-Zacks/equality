@@ -12,6 +12,7 @@ import path from 'node:path'
 import fg from 'fast-glob'
 import type { ToolDefinition, ToolResult, ToolContext } from '../types.js'
 import { truncateToolResult } from '../truncation.js'
+import { guardPath } from './path-guard.js'
 
 const MAX_MATCHES = 100
 const MAX_OUTPUT_CHARS = 50_000
@@ -143,10 +144,15 @@ export const grepTool: ToolDefinition = {
       return { content: 'Error: pattern is required', isError: true }
     }
 
-    const searchPath = input.path
-      ? path.isAbsolute(String(input.path))
-        ? String(input.path)
-        : path.resolve(ctx.workspaceDir, String(input.path))
+    const rawPath = input.path ? String(input.path) : ''
+    if (rawPath) {
+      const guard = guardPath(rawPath, ctx.workspaceDir)
+      if ('error' in guard) return { content: guard.error, isError: true }
+    }
+    const searchPath = rawPath
+      ? path.isAbsolute(rawPath)
+        ? rawPath
+        : path.resolve(ctx.workspaceDir, rawPath)
       : ctx.workspaceDir
 
     const ignoreCase = Boolean(input.ignore_case)

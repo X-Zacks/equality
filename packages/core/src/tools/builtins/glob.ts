@@ -7,6 +7,7 @@
 import fg from 'fast-glob'
 import path from 'node:path'
 import type { ToolDefinition, ToolResult, ToolContext } from '../types.js'
+import { guardPath } from './path-guard.js'
 
 const MAX_RESULTS = 500
 const DEFAULT_IGNORE = ['**/node_modules/**', '**/.git/**', '**/dist/**', '**/build/**']
@@ -29,10 +30,15 @@ export const globTool: ToolDefinition = {
       return { content: 'Error: pattern is required', isError: true }
     }
 
-    const cwd = input.cwd
-      ? path.isAbsolute(String(input.cwd))
-        ? String(input.cwd)
-        : path.resolve(ctx.workspaceDir, String(input.cwd))
+    const rawCwd = input.cwd ? String(input.cwd) : ''
+    if (rawCwd) {
+      const guard = guardPath(rawCwd, ctx.workspaceDir)
+      if ('error' in guard) return { content: guard.error, isError: true }
+    }
+    const cwd = rawCwd
+      ? path.isAbsolute(rawCwd)
+        ? rawCwd
+        : path.resolve(ctx.workspaceDir, rawCwd)
       : ctx.workspaceDir
 
     try {

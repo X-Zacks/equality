@@ -10,6 +10,7 @@
 
 import fs from 'node:fs'
 import path from 'node:path'
+import { guardPath } from './path-guard.js'
 import type { ToolDefinition, ToolResult, ToolContext } from '../types.js'
 
 /* ── Unicode 归一化 ───────────────────────────── */
@@ -156,7 +157,9 @@ export const editFileTool: ToolDefinition = {
       return { content: 'Error: path is required', isError: true }
     }
 
-    const absPath = path.isAbsolute(filePath) ? filePath : path.resolve(ctx.workspaceDir, filePath)
+    const guard = guardPath(filePath, ctx.workspaceDir)
+    if ('error' in guard) return { content: guard.error, isError: true }
+    const absPath = guard.absPath
 
     // ── 追加模式（old_string 为空）────────────────
     if (oldString === '') {

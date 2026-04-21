@@ -10,6 +10,7 @@
 
 import fs from 'node:fs'
 import path from 'node:path'
+import { guardPath } from './path-guard.js'
 import crypto from 'node:crypto'
 import os from 'node:os'
 import type { ToolDefinition, ToolResult, ToolContext } from '../types.js'
@@ -102,11 +103,9 @@ export const readPdfVisionTool: ToolDefinition = {
       return { content: 'Error: path is required', isError: true }
     }
 
-    const absPath = path.isAbsolute(filePath) ? filePath : path.resolve(ctx.workspaceDir, filePath)
-
-    if (absPath.includes('..')) {
-      return { content: 'Error: path must not contain ".."', isError: true }
-    }
+    const guard = guardPath(filePath, ctx.workspaceDir)
+    if ('error' in guard) return { content: guard.error, isError: true }
+    const absPath = guard.absPath
     if (!fs.existsSync(absPath)) {
       return { content: `Error: file not found: ${absPath}`, isError: true }
     }

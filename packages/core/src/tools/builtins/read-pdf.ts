@@ -10,6 +10,7 @@
 
 import fs from 'node:fs'
 import path from 'node:path'
+import { guardPath } from './path-guard.js'
 import type { ToolDefinition, ToolResult, ToolContext } from '../types.js'
 import { truncateToolResult } from '../truncation.js'
 
@@ -65,13 +66,10 @@ export const readPdfTool: ToolDefinition = {
       return { content: 'Error: path is required', isError: true }
     }
 
-    // 解析绝对路径
-    const absPath = path.isAbsolute(filePath) ? filePath : path.resolve(ctx.workspaceDir, filePath)
-
-    // 安全检查
-    if (absPath.includes('..')) {
-      return { content: 'Error: path must not contain ".."', isError: true }
-    }
+    // 解析绝对路径 + 边界校验
+    const guard = guardPath(filePath, ctx.workspaceDir)
+    if ('error' in guard) return { content: guard.error, isError: true }
+    const absPath = guard.absPath
 
     // 文件存在性
     if (!fs.existsSync(absPath)) {

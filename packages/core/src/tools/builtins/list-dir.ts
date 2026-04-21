@@ -12,6 +12,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import type { ToolDefinition, ToolResult, ToolContext } from '../types.js'
+import { guardPath } from './path-guard.js'
 
 const MAX_ENTRIES = 500
 
@@ -43,10 +44,15 @@ export const listDirTool: ToolDefinition = {
   },
 
   async execute(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult> {
-    const dirPath = input.path
-      ? path.isAbsolute(String(input.path))
-        ? String(input.path)
-        : path.resolve(ctx.workspaceDir, String(input.path))
+    const rawPath = input.path ? String(input.path) : ''
+    if (rawPath) {
+      const guard = guardPath(rawPath, ctx.workspaceDir)
+      if ('error' in guard) return { content: guard.error, isError: true }
+    }
+    const dirPath = rawPath
+      ? path.isAbsolute(rawPath)
+        ? rawPath
+        : path.resolve(ctx.workspaceDir, rawPath)
       : ctx.workspaceDir
 
     const maxEntries = Math.min(
