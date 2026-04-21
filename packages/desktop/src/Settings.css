@@ -492,6 +492,17 @@
   color: rgba(255,255,255,0.25);
   flex-shrink: 0;
   transition: color 0.15s;
+  margin-left: auto;
+}
+.tool-config-badge {
+  display: flex;
+  align-items: center;
+  font-size: 12px;
+  margin-left: auto;
+  color: rgba(255,255,255,0.35);
+}
+.tool-config-badge + .tool-detail-btn {
+  margin-left: 4px;
 }
 .tool-item:hover .tool-detail-btn {
   color: rgba(255,255,255,0.6);

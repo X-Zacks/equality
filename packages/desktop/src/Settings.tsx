@@ -752,10 +752,25 @@ interface ToolSchema {
   }
 }
 
-function ToolDetailDrawer({ tool, onClose }: { tool: ToolSchema; onClose: () => void }) {
+interface ToolDetailDrawerProps {
+  tool: ToolSchema
+  onClose: () => void
+  // 配置相关 props（web_search / browser 工具需要）
+  draft?: Partial<Record<SecretKey, string>>
+  saving?: Record<string, 'idle' | 'saving' | 'ok' | 'err'>
+  getMasked?: (key: SecretKey) => string
+  onDraftChange?: (key: SecretKey, value: string) => void
+  onSave?: (groupId: string, keys: SecretKey[]) => Promise<void>
+  onClear?: (groupId: string, keys: SecretKey[]) => Promise<void>
+}
+
+function ToolDetailDrawer({ tool, onClose, draft, saving, getMasked, onDraftChange, onSave, onClear }: ToolDetailDrawerProps) {
   const props = tool.parameters?.properties ?? {}
   const required = new Set(tool.parameters?.required ?? [])
   const paramEntries = Object.entries(props)
+  const isWebSearch = tool.name === 'web_search'
+  const isBrowser = tool.name === 'browser'
+  const hasConfig = isWebSearch || isBrowser
 
   return (
     <div className="drawer-mask" onClick={onClose}>
@@ -769,6 +784,70 @@ function ToolDetailDrawer({ tool, onClose }: { tool: ToolSchema; onClose: () => 
             <div className="tool-detail-label">描述</div>
             <p className="tool-detail-desc">{tool.description || '暂无描述'}</p>
           </div>
+
+          {/* ─── web_search 配置 ─── */}
+          {isWebSearch && draft && saving && getMasked && onDraftChange && onSave && onClear && (
+            <div className="tool-detail-section">
+              <div className="tool-detail-label">⚙️ Brave Search API Key</div>
+              <p style={{ margin: '0 0 8px', fontSize: 12, color: '#888' }}>
+                免费申请：<a href="https://brave.com/search/api/" target="_blank" rel="noreferrer"
+                  style={{ color: 'var(--accent)' }}>brave.com/search/api</a>
+                （免费版每月 2000 次）。未配置时自动回退至 DuckDuckGo。
+              </p>
+              <div className="key-row">
+                <label>API Key</label>
+                <input
+                  type="password"
+                  placeholder={getMasked('BRAVE_SEARCH_API_KEY') || 'BSAxxxxx…'}
+                  value={draft['BRAVE_SEARCH_API_KEY'] ?? ''}
+                  onChange={e => onDraftChange('BRAVE_SEARCH_API_KEY', e.target.value)}
+                />
+              </div>
+              <div className="provider-actions">
+                {getMasked('BRAVE_SEARCH_API_KEY') && (
+                  <button className="btn-clear" onClick={() => onClear('braveSearch', ['BRAVE_SEARCH_API_KEY'])}>清除</button>
+                )}
+                <button
+                  className="btn-save"
+                  disabled={!draft['BRAVE_SEARCH_API_KEY']?.trim() || saving.braveSearch === 'saving'}
+                  onClick={() => onSave('braveSearch', ['BRAVE_SEARCH_API_KEY'])}
+                >
+                  {saveLabel(saving.braveSearch ?? 'idle')}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ─── browser 配置 ─── */}
+          {isBrowser && draft && saving && getMasked && onDraftChange && onSave && onClear && (
+            <div className="tool-detail-section">
+              <div className="tool-detail-label">⚙️ Chrome 路径</div>
+              <p style={{ margin: '0 0 8px', fontSize: 12, color: '#888' }}>
+                非必填。未填时自动搜索系统 Chrome / Edge。如自动搜索失败，请手动填入 chrome.exe 的完整路径。
+              </p>
+              <div className="key-row">
+                <label>Chrome 路径</label>
+                <input
+                  type="text"
+                  placeholder={getMasked('CHROME_PATH') || 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'}
+                  value={draft['CHROME_PATH'] ?? ''}
+                  onChange={e => onDraftChange('CHROME_PATH', e.target.value)}
+                />
+              </div>
+              <div className="provider-actions">
+                {getMasked('CHROME_PATH') && (
+                  <button className="btn-clear" onClick={() => onClear('chromePath', ['CHROME_PATH'])}>清除</button>
+                )}
+                <button
+                  className="btn-save"
+                  disabled={!draft['CHROME_PATH']?.trim() || saving.chromePath === 'saving'}
+                  onClick={() => onSave('chromePath', ['CHROME_PATH'])}
+                >
+                  {saveLabel(saving.chromePath ?? 'idle')}
+                </button>
+              </div>
+            </div>
+          )}
 
           {paramEntries.length > 0 && (
             <div className="tool-detail-section">
@@ -798,7 +877,7 @@ function ToolDetailDrawer({ tool, onClose }: { tool: ToolSchema; onClose: () => 
             </div>
           )}
 
-          {paramEntries.length === 0 && (
+          {paramEntries.length === 0 && !hasConfig && (
             <p className="drawer-hint">此工具无需额外参数</p>
           )}
         </div>
@@ -1299,86 +1378,6 @@ export default function Settings({
             })}
           </div>
 
-          {/* ─── Brave Search API Key 配置卡（始终显示） ─── */}
-            <div className="provider-card">
-              <div className="provider-header" onClick={() => setExpanded(p => ({ ...p, braveSearch: !p.braveSearch }))}>
-                <span className="provider-name">🔍 {t('braveSearch.title')}</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  {getMasked('BRAVE_SEARCH_API_KEY') && <span className="configured-dot" title="已配置" />}
-                  <span className="chevron">{expanded.braveSearch ? '▴' : '▾'}</span>
-                </div>
-              </div>
-              {expanded.braveSearch && (
-                <div className="provider-body">
-                  <p style={{ margin: '0 0 8px', fontSize: 12, color: '#888' }}>
-                    免费申请：<a href="https://brave.com/search/api/" target="_blank" rel="noreferrer"
-                      style={{ color: 'var(--accent)' }}>brave.com/search/api</a>
-                    （免费版每月 2000 次）。未配置时自动回退至 DuckDuckGo。
-                  </p>
-                  <div className="key-row">
-                    <label>API Key</label>
-                    <input
-                      type="password"
-                      placeholder={getMasked('BRAVE_SEARCH_API_KEY') || 'BSAxxxxx…'}
-                      value={draft['BRAVE_SEARCH_API_KEY'] ?? ''}
-                      onChange={e => setDraft(p => ({ ...p, BRAVE_SEARCH_API_KEY: e.target.value }))}
-                    />
-                  </div>
-                  <div className="provider-actions">
-                    {getMasked('BRAVE_SEARCH_API_KEY') && (
-                      <button className="btn-clear" onClick={() => handleClear('braveSearch', ['BRAVE_SEARCH_API_KEY'])}>清除</button>
-                    )}
-                    <button
-                      className="btn-save"
-                      disabled={!draft['BRAVE_SEARCH_API_KEY']?.trim() || saving.braveSearch === 'saving'}
-                      onClick={() => handleSave('braveSearch', ['BRAVE_SEARCH_API_KEY'])}
-                    >
-                      {saveLabel(saving.braveSearch ?? 'idle')}
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-
-          {/* ─── Chrome 路径配置卡（始终显示） ─── */}
-            <div className="provider-card">
-              <div className="provider-header" onClick={() => setExpanded(p => ({ ...p, chromePath: !p.chromePath }))}>
-                <span className="provider-name">🌐 {t('chromePath.title')}</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  {getMasked('CHROME_PATH') && <span className="configured-dot" title="已配置" />}
-                  <span className="chevron">{expanded.chromePath ? '▴' : '▾'}</span>
-                </div>
-              </div>
-              {expanded.chromePath && (
-                <div className="provider-body">
-                  <p style={{ margin: '0 0 8px', fontSize: 12, color: '#888' }}>
-                    非必填。未填时自动搜索系统 Chrome / Edge。如自动搜索失败，请手动填入 chrome.exe 的完整路径。
-                  </p>
-                  <div className="key-row">
-                    <label>Chrome 路径</label>
-                    <input
-                      type="text"
-                      placeholder={getMasked('CHROME_PATH') || 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'}
-                      value={draft['CHROME_PATH'] ?? ''}
-                      onChange={e => setDraft(p => ({ ...p, CHROME_PATH: e.target.value }))}
-                    />
-                  </div>
-                  <div className="provider-actions">
-                    {getMasked('CHROME_PATH') && (
-                      <button className="btn-clear" onClick={() => handleClear('chromePath', ['CHROME_PATH'])}>清除</button>
-                    )}
-                    <button
-                      className="btn-save"
-                      disabled={!draft['CHROME_PATH']?.trim() || saving.chromePath === 'saving'}
-                      onClick={() => handleSave('chromePath', ['CHROME_PATH'])}
-                    >
-                      {saveLabel(saving.chromePath ?? 'idle')}
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-
           {toolsList.length === 0 ? (
             <p className="settings-hint">{t('tools.loading')}</p>
           ) : (
@@ -1391,13 +1390,23 @@ export default function Settings({
                 const page = Math.min(toolPage, Math.max(totalPages - 1, 0))
                 const paged = filtered.slice(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE)
                 return (<>
-                  {paged.map(tool => (
+                  {paged.map(tool => {
+                    const hasToolConfig = tool.name === 'web_search' || tool.name === 'browser'
+                    const isConfigured = (tool.name === 'web_search' && !!getMasked('BRAVE_SEARCH_API_KEY'))
+                      || (tool.name === 'browser' && !!getMasked('CHROME_PATH'))
+                    return (
                     <div key={tool.name} className="tool-item" onClick={() => setToolDetail(tool)} style={{ cursor: 'pointer' }}>
                       <span className="tool-icon">{getToolIcon(tool.name)}</span>
                       <span className="tool-name">{tool.name}</span>
+                      {hasToolConfig && (
+                        <span className="tool-config-badge" title={isConfigured ? '已配置' : '点击配置'}>
+                          {isConfigured ? <span className="configured-dot" /> : '⚙️'}
+                        </span>
+                      )}
                       <span className="tool-detail-btn">›</span>
                     </div>
-                  ))}
+                    )
+                  })}
                   {totalPages > 1 && (
                     <div className="pagination">
                       <button disabled={page === 0} onClick={() => setToolPage(p => p - 1)}>‹ {t('pagination.prev')}</button>
@@ -1414,7 +1423,16 @@ export default function Settings({
           </p>
 
           {toolDetail && (
-            <ToolDetailDrawer tool={toolDetail} onClose={() => setToolDetail(null)} />
+            <ToolDetailDrawer
+              tool={toolDetail}
+              onClose={() => setToolDetail(null)}
+              draft={draft}
+              saving={saving}
+              getMasked={getMasked}
+              onDraftChange={(k, v) => setDraft(p => ({ ...p, [k]: v }))}
+              onSave={handleSave}
+              onClear={handleClear}
+            />
           )}
         </>
       )}
