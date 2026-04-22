@@ -815,6 +815,34 @@ function ToolDetailDrawer({ tool, onClose, draft, saving, getMasked, onDraftChan
                   {saveLabel(saving.braveSearch ?? 'idle')}
                 </button>
               </div>
+
+              <div className="tool-detail-label" style={{ marginTop: 16 }}>⚙️ Tavily Search API Key</div>
+              <p style={{ margin: '0 0 8px', fontSize: 12, color: '#888' }}>
+                专为 AI Agent 设计的搜索 API。免费申请：<a href="https://tavily.com" target="_blank" rel="noreferrer"
+                  style={{ color: 'var(--accent)' }}>tavily.com</a>
+                （免费版每月 1000 次）。优先级：Brave → Tavily → DuckDuckGo。
+              </p>
+              <div className="key-row">
+                <label>API Key</label>
+                <input
+                  type="password"
+                  placeholder={getMasked('TAVILY_API_KEY' as SecretKey) || 'tvly-xxxxx…'}
+                  value={draft['TAVILY_API_KEY' as SecretKey] ?? ''}
+                  onChange={e => onDraftChange('TAVILY_API_KEY' as SecretKey, e.target.value)}
+                />
+              </div>
+              <div className="provider-actions">
+                {getMasked('TAVILY_API_KEY' as SecretKey) && (
+                  <button className="btn-clear" onClick={() => onClear('tavilySearch', ['TAVILY_API_KEY' as SecretKey])}>清除</button>
+                )}
+                <button
+                  className="btn-save"
+                  disabled={!draft['TAVILY_API_KEY' as SecretKey]?.trim() || saving.tavilySearch === 'saving'}
+                  onClick={() => onSave('tavilySearch', ['TAVILY_API_KEY' as SecretKey])}
+                >
+                  {saveLabel(saving.tavilySearch ?? 'idle')}
+                </button>
+              </div>
             </div>
           )}
 
@@ -844,6 +872,31 @@ function ToolDetailDrawer({ tool, onClose, draft, saving, getMasked, onDraftChan
                   onClick={() => onSave('chromePath', ['CHROME_PATH'])}
                 >
                   {saveLabel(saving.chromePath ?? 'idle')}
+                </button>
+              </div>
+
+              <div className="tool-detail-label" style={{ marginTop: 16 }}>🌐 允许访问内网 IP</div>
+              <p style={{ margin: '0 0 8px', fontSize: 12, color: '#888' }}>
+                默认关闭以防止 SSRF 攻击。开启后浏览器工具可访问 10.x / 172.16-31.x / 192.168.x 等内网地址。
+              </p>
+              <div className="key-row" style={{ alignItems: 'center' }}>
+                <label>允许内网</label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={(draft['ALLOW_PRIVATE_IPS' as SecretKey] ?? getMasked('ALLOW_PRIVATE_IPS' as SecretKey) ?? '') === '1'}
+                    onChange={e => onDraftChange('ALLOW_PRIVATE_IPS' as SecretKey, e.target.checked ? '1' : '0')}
+                  />
+                  <span style={{ fontSize: 13 }}>允许访问私有 / 内网 IP 地址</span>
+                </label>
+              </div>
+              <div className="provider-actions">
+                <button
+                  className="btn-save"
+                  disabled={saving.allowPrivateIPs === 'saving'}
+                  onClick={() => onSave('allowPrivateIPs', ['ALLOW_PRIVATE_IPS' as SecretKey])}
+                >
+                  {saveLabel(saving.allowPrivateIPs ?? 'idle')}
                 </button>
               </div>
             </div>
@@ -1392,7 +1445,7 @@ export default function Settings({
                 return (<>
                   {paged.map(tool => {
                     const hasToolConfig = tool.name === 'web_search' || tool.name === 'browser'
-                    const isConfigured = (tool.name === 'web_search' && !!getMasked('BRAVE_SEARCH_API_KEY'))
+                    const isConfigured = (tool.name === 'web_search' && (!!getMasked('BRAVE_SEARCH_API_KEY') || !!getMasked('TAVILY_API_KEY' as SecretKey)))
                       || (tool.name === 'browser' && !!getMasked('CHROME_PATH'))
                     return (
                     <div key={tool.name} className="tool-item" onClick={() => setToolDetail(tool)} style={{ cursor: 'pointer' }}>

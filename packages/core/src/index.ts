@@ -133,10 +133,12 @@ initProxy(hasSecret('HTTPS_PROXY') ? getSecret('HTTPS_PROXY') : undefined)
 import { WebSearchRegistry } from './search/registry.js'
 import { BraveSearchProvider } from './search/brave-provider.js'
 import { DuckDuckGoSearchProvider } from './search/ddg-provider.js'
+import { TavilySearchProvider } from './search/tavily-provider.js'
 
 const webSearchRegistry = new WebSearchRegistry()
 const proxyUrl = hasSecret('HTTPS_PROXY') ? getSecret('HTTPS_PROXY') : undefined
 webSearchRegistry.register(new BraveSearchProvider({ proxyUrl }))
+webSearchRegistry.register(new TavilySearchProvider())
 webSearchRegistry.register(new DuckDuckGoSearchProvider({ proxyUrl }))
 
 // G5: 注入 registry 到 web_search 工具
