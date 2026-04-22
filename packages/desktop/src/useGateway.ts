@@ -485,6 +485,28 @@ export function useGateway() {
     } catch { return null }
   }, [])
 
+  const generateBriefing = useCallback(async (sourceSessionKey: string, crewId?: string) => {
+    try {
+      const resp = await fetch(`${CORE_URL}/briefing/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sourceSessionKey, crewId }),
+      })
+      return resp.ok ? await resp.json() : null
+    } catch { return null }
+  }, [])
+
+  const recommendCrew = useCallback(async (sourceSessionKey: string) => {
+    try {
+      const resp = await fetch(`${CORE_URL}/crews/recommend`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sourceSessionKey }),
+      })
+      return resp.ok ? await resp.json() : null
+    } catch { return null }
+  }, [])
+
   return {
     coreOnline, sendMessage, abort,
     saveApiKey, loadSettings, deleteKey,
@@ -493,5 +515,6 @@ export function useGateway() {
     listMemories, getMemory, createMemory, updateMemory, deleteMemory, deleteMemories, getMemoryStats,
     exportMemories, importMemories, triggerMemoryGC,
     listCrews, getCrewById, createCrew, updateCrew, deleteCrew, createCrewSession,
+    generateBriefing, recommendCrew,
   }
 }

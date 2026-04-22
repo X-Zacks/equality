@@ -60,6 +60,7 @@ interface ChatProps {
   sessionKey: string
   onStreamingChange?: (streaming: boolean) => void
   onOpenSettings?: () => void
+  onStartCrewSession?: (sessionKey: string) => void
 }
 
 const MAX_ATTACHMENTS = 5
@@ -78,7 +79,7 @@ function getFileName(filePath: string): string {
   return filePath.replace(/\\/g, '/').split('/').pop() ?? filePath
 }
 
-export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: ChatProps) {
+export default function Chat({ sessionKey, onStreamingChange, onOpenSettings, onStartCrewSession }: ChatProps) {
   const { t } = useT()
   const [input, setInput] = useState('')
   const [messages, setMessages] = useState<Message[]>([])
@@ -124,7 +125,38 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
   // Z3.2: TTS 自动播报开关
   const [ttsAutoPlay, setTtsAutoPlay] = useState(true)
   const ttsAutoPlayRef = useRef(true)
-  const { sendMessage, abort, loadSession, truncateSession } = useGateway()
+  const { sendMessage, abort, loadSession, truncateSession, generateBriefing, recommendCrew, createCrew, createCrewSession: _createCrewSession } = useGateway()
+
+  // ─── Chat→Crew 浮动操作栏状态 ──────────────────────────────────────────
+  const [crewCreating, setCrewCreating] = useState(false)
+
+  const handleCreateCrewFromChat = useCallback(async () => {
+    if (crewCreating) return
+    setCrewCreating(true)
+    try {
+      // 1. AI 推荐 Crew 配置
+      const rec = await recommendCrew(sessionKey)
+      if (!rec) { alert('Crew 推荐失败，请稍后重试'); return }
+      // 2. 创建 Crew
+      const crew = await createCrew({
+        name: rec.name,
+        description: rec.description,
+        emoji: rec.emoji,
+        systemPromptExtra: rec.systemPromptExtra ?? '',
+        skillNames: rec.recommendedSkillNames ?? [],
+      })
+      if (!crew) { alert('Crew 创建失败'); return }
+      // 3. 生成 Briefing 并创建 Crew session
+      const briefResult = await generateBriefing(sessionKey, crew.id)
+      if (!briefResult) { alert('Briefing 生成失败'); return }
+      // briefResult includes sessionKey for the new crew session
+      if (briefResult.sessionKey && onStartCrewSession) {
+        onStartCrewSession(briefResult.sessionKey)
+      }
+    } finally {
+      setCrewCreating(false)
+    }
+  }, [sessionKey, crewCreating, recommendCrew, createCrew, generateBriefing, onStartCrewSession])
 
   const toggleToolCall = useCallback((id: string) => {
     setExpandedToolCalls(prev => {
@@ -1007,13 +1039,13 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
                               <pre className="tool-call-pre">{tc.result}</pre>
                             </div>
                           )}
-                          {(tc.name === 'write_file' || tc.name === 'edit_file' || tc.name === 'replace_in_file') && tc.args?.content && tc.status === 'done' && (
+                          {(tc.name === 'write_file' || tc.name === 'edit_file' || tc.name === 'replace_in_file') && Boolean(tc.args?.content) && tc.status === 'done' && (
                             <div className="tool-call-section">
                               <div className="tool-call-section-label">DIFF PREVIEW</div>
                               <DiffPreview
-                                filePath={String(tc.args.path || tc.args.file_path || '')}
+                                filePath={String(tc.args?.path || tc.args?.file_path || '')}
                                 originalContent={null}
-                                newContent={String(tc.args.content)}
+                                newContent={String(tc.args?.content)}
                                 onAccept={() => {}}
                                 onReject={() => {}}
                               />
@@ -1179,13 +1211,13 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
                               <pre className="tool-call-pre">{tc.result}</pre>
                             </div>
                           )}
-                          {(tc.name === 'write_file' || tc.name === 'edit_file' || tc.name === 'replace_in_file') && tc.args?.content && tc.status === 'done' && (
+                          {(tc.name === 'write_file' || tc.name === 'edit_file' || tc.name === 'replace_in_file') && Boolean(tc.args?.content) && tc.status === 'done' && (
                             <div className="tool-call-section">
                               <div className="tool-call-section-label">DIFF PREVIEW</div>
                               <DiffPreview
-                                filePath={String(tc.args.path || tc.args.file_path || '')}
+                                filePath={String(tc.args?.path || tc.args?.file_path || '')}
                                 originalContent={null}
-                                newContent={String(tc.args.content)}
+                                newContent={String(tc.args?.content)}
                                 onAccept={() => {}}
                                 onReject={() => {}}
                               />
@@ -1221,6 +1253,27 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
         <div className={`quota-warning ${quotaWarning.startsWith('🚫') ? 'quota-exhausted' : quotaWarning.startsWith('🔴') ? 'quota-critical' : 'quota-warn'}`}>
           {quotaWarning}
           <button className="quota-warning-close" onClick={() => setQuotaWarning(null)}>✕</button>
+        </div>
+      )}
+
+      {/* Chat→Crew 浮动操作栏：≥3 轮对话时显示 */}
+      {messages.filter(m => m.role === 'user').length >= 3 && !streaming && (
+        <div className="crew-action-bar" style={{
+          display: 'flex', gap: 8, justifyContent: 'center', padding: '8px 16px',
+          background: 'var(--bg-secondary, #2a2a2a)', borderRadius: 8, margin: '0 16px 8px',
+          animation: 'fadeIn 0.3s ease-out',
+        }}>
+          <button
+            onClick={handleCreateCrewFromChat}
+            disabled={crewCreating}
+            style={{
+              background: 'var(--accent, #646cff)', color: '#fff', border: 'none',
+              borderRadius: 6, padding: '6px 14px', cursor: crewCreating ? 'wait' : 'pointer',
+              fontSize: 13, opacity: crewCreating ? 0.6 : 1,
+            }}
+          >
+            {crewCreating ? '⏳ 正在创建…' : '🚀 创建 Crew'}
+          </button>
         </div>
       )}
 

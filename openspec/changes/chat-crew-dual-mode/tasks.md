@@ -27,29 +27,29 @@
 
 ## Phase 2：Briefing 系统
 
-- [ ] **2.1** 新建 `packages/core/src/crew/briefing.ts`：BriefingGenerator（LLM 一次调用提炼上下文）
-- [ ] **2.2** 新增 Gateway 路由 `POST /briefing/generate`
-- [ ] **2.3** 修改 `packages/core/src/agent/system-prompt.ts`：注入 `<briefing>` 块
-- [ ] **2.4** 修改 `packages/desktop/src/Chat.tsx`：Chat 对话 ≥ 3 轮后显示浮动操作栏
+- [x] **2.1** 新建 `packages/core/src/crew/briefing.ts`：BriefingGenerator（LLM 一次调用提炼上下文）
+- [x] **2.2** 新增 Gateway 路由 `POST /briefing/generate`
+- [x] **2.3** 修改 `packages/core/src/agent/system-prompt.ts`：注入 `<briefing>` 块
+- [x] **2.4** 修改 `packages/desktop/src/Chat.tsx`：Chat 对话 ≥ 3 轮后显示浮动操作栏
   - [🚀 创建 Crew 开始干活] [📋 导入到已有 Crew]
-- [ ] **2.5** 实现 Chat → Crew 的完整导入流程（生成 Briefing → 创建 Crew Session）
+- [x] **2.5** 实现 Chat → Crew 的完整导入流程（生成 Briefing → 创建 Crew Session）
 
 ---
 
 ## Phase 3：Skill Retriever + skill_search 工具
 
-- [ ] **3.1** 新建 `packages/core/src/skills/retriever.ts`：SkillRetriever 类（关键词 + BM25）
-- [ ] **3.2** 新增 `packages/core/src/tools/builtins/skill-search.ts`：skill_search 工具
-- [ ] **3.3** 修改 `packages/core/src/agent/system-prompt.ts`：Chat/Crew 模式均提示 skill_search 可用
-- [ ] **3.4** 移除 System Prompt 中全量 O3 匹配规则（不再让 LLM 扫描全部 description）
+- [x] **3.1** 新建 `packages/core/src/skills/retriever.ts`：SkillRetriever 类（关键词 + BM25）
+- [x] **3.2** 新增 `packages/core/src/tools/builtins/skill-search.ts`：skill_search 工具
+- [x] **3.3** 修改 `packages/core/src/agent/system-prompt.ts`：Chat/Crew 模式均提示 skill_search 可用
+- [x] **3.4** 移除 System Prompt 中全量 O3 匹配规则（不再让 LLM 扫描全部 description）
 
 ---
 
 ## Phase 4：AI 辅助 Crew 创建
 
-- [ ] **4.1** 新建 `packages/core/src/crew/recommender.ts`：从 Chat 历史推荐 Crew 配置
-- [ ] **4.2** 修改 `packages/desktop/src/Chat.tsx`：用户点击"创建 Crew"后展示推荐结果（Interactive UI）
-- [ ] **4.3** 用户确认后自动创建 Crew Template + Crew Session
+- [x] **4.1** 新建 `packages/core/src/crew/recommender.ts`：从 Chat 历史推荐 Crew 配置
+- [x] **4.2** 修改 `packages/desktop/src/Chat.tsx`：用户点击"创建 Crew"后展示推荐结果（Interactive UI）
+- [x] **4.3** 用户确认后自动创建 Crew Template + Crew Session
 
 ---
 

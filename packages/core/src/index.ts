@@ -44,6 +44,9 @@ import { scheduleOrphanRecovery } from './tasks/orphan-recovery.js'
 import type { TaskRuntime } from './tasks/index.js'
 import { listCrews, getCrewById, createCrew, updateCrew, deleteCrew } from './crew/index.js'
 import type { CrewCreateInput, CrewUpdateInput } from './crew/index.js'
+import { generateBriefing } from './crew/briefing.js'
+import { recommendCrew } from './crew/recommender.js'
+import { getGlobalRetriever } from './skills/retriever.js'
 
 const PORT = Number(process.env.EQUALITY_PORT ?? 18790)
 const HOST = 'localhost'
@@ -186,10 +189,15 @@ const skillsWatcher = new SkillsWatcher({
   workspaceDir: getWorkspaceDir(),
   onChange: (skills, event) => {
     log.info(`Skills 已重载: ${skills.length} 个 (v=${event.version}, reason=${event.reason})`)
+    // 重建 Skill Retriever 索引
+    getGlobalRetriever().rebuild(skills.map(e => e.skill))
   },
 })
 const initialSkills = await skillsWatcher.start()
 log.info(`已加载 ${initialSkills.length} 个 Skills: ${initialSkills.map(e => e.skill.name).join(', ')}`)
+
+// 初始化 Skill Retriever 索引（Phase 3: skill_search）
+getGlobalRetriever().rebuild(initialSkills.map(e => e.skill))
 
 // ─── 初始化 TaskRegistry（Phase E4.1 → I.5-3: SQLite 优先，fallback JSON）──
 let taskStore: import('./tasks/index.js').TaskStore
@@ -898,6 +906,69 @@ app.post<{ Params: { id: string } }>('/crews/:id/session', async (req, reply) =>
   ;(session as any).mode = 'crew'
   ;(session as any).crewId = crew.id
   return reply.status(201).send({ sessionKey, crewId: crew.id, crewName: crew.name })
+})
+
+/** Phase 2: 从 Chat 历史生成 Briefing */
+app.post<{ Body: { sourceSessionKey: string; crewId?: string } }>('/briefing/generate', async (req, reply) => {
+  const { sourceSessionKey, crewId } = req.body ?? {}
+  if (!sourceSessionKey) return reply.status(400).send({ error: 'sourceSessionKey is required' })
+
+  const sourceSession = get(sourceSessionKey)
+  if (!sourceSession || sourceSession.messages.length === 0) {
+    return reply.status(404).send({ error: 'Source session not found or empty' })
+  }
+
+  try {
+    const result = await generateBriefing(sourceSession.messages, sourceSessionKey)
+
+    // 如果指定了 crewId，自动创建 Crew Session 并注入 briefing
+    if (crewId) {
+      const crew = await getCrewById(crewId)
+      if (!crew) return reply.status(404).send({ error: 'Crew not found' })
+
+      const ts = Date.now().toString(36)
+      const rand = Math.random().toString(36).slice(2, 8)
+      const newSessionKey = `agent:main:desktop:crew:${crew.id}:${ts}-${rand}`
+      const newSession = await getOrCreate(newSessionKey)
+      ;(newSession as any).mode = 'crew'
+      ;(newSession as any).crewId = crew.id
+      ;(newSession as any).briefing = {
+        sourceSessionKey,
+        summary: result.summary,
+      }
+
+      return reply.send({
+        briefing: result,
+        sessionKey: newSessionKey,
+        crewId: crew.id,
+        crewName: crew.name,
+      })
+    }
+
+    return reply.send({ briefing: result })
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    return reply.status(500).send({ error: `Briefing generation failed: ${msg}` })
+  }
+})
+
+/** Phase 4: AI 辅助推荐 Crew 配置 */
+app.post<{ Body: { sourceSessionKey: string } }>('/crews/recommend', async (req, reply) => {
+  const { sourceSessionKey } = req.body ?? {}
+  if (!sourceSessionKey) return reply.status(400).send({ error: 'sourceSessionKey is required' })
+
+  const sourceSession = get(sourceSessionKey)
+  if (!sourceSession || sourceSession.messages.length === 0) {
+    return reply.status(404).send({ error: 'Source session not found or empty' })
+  }
+
+  try {
+    const recommendation = await recommendCrew(sourceSession.messages)
+    return reply.send(recommendation)
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    return reply.status(500).send({ error: `Crew recommendation failed: ${msg}` })
+  }
 })
 
 // ─── Providers API (continued) ────────────────────────────────────────────────

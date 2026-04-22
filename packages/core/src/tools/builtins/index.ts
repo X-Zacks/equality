@@ -31,6 +31,7 @@ import { subagentKillTool, setSubagentManagerForKill } from './subagent-kill.js'
 import { sessionSearchTool } from './session-search.js'
 import { codebaseSearchTool } from './codebase-search.js'
 import { skillViewTool, setWorkspaceDirForSkillView } from './skill-view.js'
+import { skillSearchTool } from './skill-search.js'
 import { imageGenerateTool } from './image-generate.js'
 import { todoTool } from './todo.js'
 
@@ -78,6 +79,8 @@ export const builtinTools: ToolDefinition[] = [
   codebaseSearchTool,
   // Skill 按需查看 (Phase T2)
   skillViewTool,
+  // Skill 搜索 (Phase 3: chat-crew-dual-mode)
+  skillSearchTool,
   // 图片生成 (Phase Y3.1)
   imageGenerateTool,
   // 待办事项 (Phase Y1.1)
@@ -119,6 +122,7 @@ export {
   codebaseSearchTool,
   skillViewTool,
   setWorkspaceDirForSkillView,
+  skillSearchTool,
   imageGenerateTool,
   todoTool,
   memoryListTool,

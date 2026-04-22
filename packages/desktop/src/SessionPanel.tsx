@@ -182,7 +182,7 @@ export default function SessionPanel({ activeKey, onSelect, onNewChat, disabled,
   const [sessions, setSessions] = useState<SessionItem[]>([])
   const [titles, setTitles] = useState<Record<string, string>>({})
   const { listSessions, loadSession, deleteSession } = useGateway()
-  const { t, locale } = useT()
+  const { t } = useT()
   const prevStreaming = useRef(streaming)
 
   // 加载会话列表

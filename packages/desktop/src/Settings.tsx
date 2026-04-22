@@ -1129,8 +1129,8 @@ export default function Settings({
   // 配额状态 (V4.1)
   const [quotaConfigs, setQuotaConfigs] = useState<Array<{ provider: string; tier: string; monthlyLimit: number; warnPct: number; criticalPct: number; autoDowngrade: boolean }>>([])
   const [quotaStatuses, setQuotaStatuses] = useState<Array<{ provider: string; tier: string; used: number; limit: number; remaining: number; pct: number; level: string }>>([])
-  const [showQuotaForm, setShowQuotaForm] = useState(false)
-  const [quotaDraft, setQuotaDraft] = useState({ provider: 'copilot', tier: 'premium', monthlyLimit: 500, warnPct: 80, criticalPct: 95, autoDowngrade: true })
+  const [_showQuotaForm, _setShowQuotaForm] = useState(false)
+  const [_quotaDraft, _setQuotaDraft] = useState({ provider: 'copilot', tier: 'premium', monthlyLimit: 500, warnPct: 80, criticalPct: 95, autoDowngrade: true })
   // 费用统计
   const [globalCost, setGlobalCost] = useState<{ totalCny: number; totalTokens: number; callCount: number; sessionCount: number } | null>(null)
 
