@@ -1,128 +1,232 @@
 ---
 name: pptx
-description: '读取、提取、创建或编辑 PowerPoint 演示文稿（.pptx 文件）。Use when: 用户提交了 .pptx 文件需要提取内容/分析结构，或需要生成新的 PPT。NOT for: Word 文档、PDF、Excel 表格、Google Slides 在线文档。'
+description: "Use this skill any time a .pptx file is involved in any way — as input, output, or both. This includes: creating slide decks, pitch decks, or presentations; reading, parsing, or extracting text from any .pptx file (even if the extracted content will be used elsewhere, like in an email or summary); editing, modifying, or updating existing presentations; combining or splitting slide files; working with templates, layouts, speaker notes, or comments. Trigger whenever the user mentions \"deck,\" \"slides,\" \"presentation,\" or references a .pptx filename, regardless of what they plan to do with the content afterward. If a .pptx file needs to be opened, created, or touched, use this skill."
+license: Proprietary. LICENSE.txt has complete terms
 ---
 
-## 概述
+# PPTX Skill
 
-`markitdown` 是 Microsoft 开源的文档转 Markdown 工具（MIT 协议），**本地运行，无需 LLM**，支持 PPTX、DOCX、PDF、Excel 等格式。
+## Quick Reference
 
-## 安装
+| Task | Guide |
+|------|-------|
+| Read/analyze content | `python -m markitdown presentation.pptx` |
+| Edit or create from template | Read [editing.md](editing.md) |
+| Create from scratch | Read [pptxgenjs.md](pptxgenjs.md) |
+
+---
+
+## Reading Content
 
 ```bash
-# 仅 PPTX 支持
-pip install "markitdown[pptx]"
+# Text extraction
+python -m markitdown presentation.pptx
 
-# 全格式支持（推荐）
-pip install "markitdown[all]"
+# Visual overview
+python scripts/thumbnail.py presentation.pptx
+
+# Raw XML
+python scripts/office/unpack.py presentation.pptx unpacked/
 ```
 
 ---
 
-## 提取内容（最常用）
+## Editing Workflow
+
+**Read [editing.md](editing.md) for full details.**
+
+1. Analyze template with `thumbnail.py`
+2. Unpack → manipulate slides → edit content → clean → pack
+
+---
+
+## Creating from Scratch
+
+**Read [pptxgenjs.md](pptxgenjs.md) for full details.**
+
+Use when no template or reference presentation is available.
+
+---
+
+## Design Ideas
+
+**Don't create boring slides.** Plain bullets on a white background won't impress anyone. Consider ideas from this list for each slide.
+
+### Before Starting
+
+- **Pick a bold, content-informed color palette**: The palette should feel designed for THIS topic. If swapping your colors into a completely different presentation would still "work," you haven't made specific enough choices.
+- **Dominance over equality**: One color should dominate (60-70% visual weight), with 1-2 supporting tones and one sharp accent. Never give all colors equal weight.
+- **Dark/light contrast**: Dark backgrounds for title + conclusion slides, light for content ("sandwich" structure). Or commit to dark throughout for a premium feel.
+- **Commit to a visual motif**: Pick ONE distinctive element and repeat it — rounded image frames, icons in colored circles, thick single-side borders. Carry it across every slide.
+
+### Color Palettes
+
+Choose colors that match your topic — don't default to generic blue. Use these palettes as inspiration:
+
+| Theme | Primary | Secondary | Accent |
+|-------|---------|-----------|--------|
+| **Midnight Executive** | `1E2761` (navy) | `CADCFC` (ice blue) | `FFFFFF` (white) |
+| **Forest & Moss** | `2C5F2D` (forest) | `97BC62` (moss) | `F5F5F5` (cream) |
+| **Coral Energy** | `F96167` (coral) | `F9E795` (gold) | `2F3C7E` (navy) |
+| **Warm Terracotta** | `B85042` (terracotta) | `E7E8D1` (sand) | `A7BEAE` (sage) |
+| **Ocean Gradient** | `065A82` (deep blue) | `1C7293` (teal) | `21295C` (midnight) |
+| **Charcoal Minimal** | `36454F` (charcoal) | `F2F2F2` (off-white) | `212121` (black) |
+| **Teal Trust** | `028090` (teal) | `00A896` (seafoam) | `02C39A` (mint) |
+| **Berry & Cream** | `6D2E46` (berry) | `A26769` (dusty rose) | `ECE2D0` (cream) |
+| **Sage Calm** | `84B59F` (sage) | `69A297` (eucalyptus) | `50808E` (slate) |
+| **Cherry Bold** | `990011` (cherry) | `FCF6F5` (off-white) | `2F3C7E` (navy) |
+
+### For Each Slide
+
+**Every slide needs a visual element** — image, chart, icon, or shape. Text-only slides are forgettable.
+
+**Layout options:**
+- Two-column (text left, illustration on right)
+- Icon + text rows (icon in colored circle, bold header, description below)
+- 2x2 or 2x3 grid (image on one side, grid of content blocks on other)
+- Half-bleed image (full left or right side) with content overlay
+
+**Data display:**
+- Large stat callouts (big numbers 60-72pt with small labels below)
+- Comparison columns (before/after, pros/cons, side-by-side options)
+- Timeline or process flow (numbered steps, arrows)
+
+**Visual polish:**
+- Icons in small colored circles next to section headers
+- Italic accent text for key stats or taglines
+
+### Typography
+
+**Choose an interesting font pairing** — don't default to Arial. Pick a header font with personality and pair it with a clean body font.
+
+| Header Font | Body Font |
+|-------------|-----------|
+| Georgia | Calibri |
+| Arial Black | Arial |
+| Calibri | Calibri Light |
+| Cambria | Calibri |
+| Trebuchet MS | Calibri |
+| Impact | Arial |
+| Palatino | Garamond |
+| Consolas | Calibri |
+
+| Element | Size |
+|---------|------|
+| Slide title | 36-44pt bold |
+| Section header | 20-24pt bold |
+| Body text | 14-16pt |
+| Captions | 10-12pt muted |
+
+### Spacing
+
+- 0.5" minimum margins
+- 0.3-0.5" between content blocks
+- Leave breathing room—don't fill every inch
+
+### Avoid (Common Mistakes)
+
+- **Don't repeat the same layout** — vary columns, cards, and callouts across slides
+- **Don't center body text** — left-align paragraphs and lists; center only titles
+- **Don't skimp on size contrast** — titles need 36pt+ to stand out from 14-16pt body
+- **Don't default to blue** — pick colors that reflect the specific topic
+- **Don't mix spacing randomly** — choose 0.3" or 0.5" gaps and use consistently
+- **Don't style one slide and leave the rest plain** — commit fully or keep it simple throughout
+- **Don't create text-only slides** — add images, icons, charts, or visual elements; avoid plain title + bullets
+- **Don't forget text box padding** — when aligning lines or shapes with text edges, set `margin: 0` on the text box or offset the shape to account for padding
+- **Don't use low-contrast elements** — icons AND text need strong contrast against the background; avoid light text on light backgrounds or dark text on dark backgrounds
+- **NEVER use accent lines under titles** — these are a hallmark of AI-generated slides; use whitespace or background color instead
+
+---
+
+## QA (Required)
+
+**Assume there are problems. Your job is to find them.**
+
+Your first render is almost never correct. Approach QA as a bug hunt, not a confirmation step. If you found zero issues on first inspection, you weren't looking hard enough.
+
+### Content QA
 
 ```bash
-# 命令行：直接提取 PPT 全文为 Markdown
-markitdown presentation.pptx -o output.md
-
-# 或输出到控制台
-markitdown presentation.pptx
+python -m markitdown output.pptx
 ```
 
-```python
-# Python API
-from markitdown import MarkItDown
+Check for missing content, typos, wrong order.
 
-md = MarkItDown()
-result = md.convert("presentation.pptx")
-print(result.text_content)
-```
-
-输出包含：幻灯片编号、标题、正文文字、表格内容、演讲者备注。
-
----
-
-## 从 PPT 提取需求信息
-
-当用户提交需求 PPT 时：
+**When using templates, check for leftover placeholder text:**
 
 ```bash
-# 1. 提取全文
-markitdown requirements.pptx -o requirement.md
-
-# 2. 读取内容
-cat requirement.md
+python -m markitdown output.pptx | grep -iE "xxxx|lorem|ipsum|this.*(page|slide).*layout"
 ```
 
-提取后重点关注：
-- 产品定义幻灯片（标题 + 一句话描述）
-- 功能列表幻灯片（通常是 bullet points）
-- 用户角色/用户场景幻灯片
-- 技术架构图（文字部分可以提取，图形需要用 `read_image`）
-- 时间线/路线图幻灯片
+If grep returns results, fix them before declaring success.
 
-**PPT 中的图片**（UI 设计图、架构图）不会被提取为文字，需要单独处理：
+### Visual QA
 
-```python
-# 提取 PPT 中的图片并分析（需要 LLM）
-# 如果有 OpenAI/兼容 API：
-from markitdown import MarkItDown
-from openai import OpenAI
+**⚠️ USE SUBAGENTS** — even for 2-3 slides. You've been staring at the code and will see what you expect, not what's there. Subagents have fresh eyes.
 
-client = OpenAI(base_url="your-api-base-url", api_key="your-key")
-md = MarkItDown(llm_client=client, llm_model="gpt-4o")
-result = md.convert("presentation.pptx")
-print(result.text_content)  # 图片会被描述为文字
+Convert slides to images (see [Converting to Images](#converting-to-images)), then use this prompt:
+
+```
+Visually inspect these slides. Assume there are issues — find them.
+
+Look for:
+- Overlapping elements (text through shapes, lines through words, stacked elements)
+- Text overflow or cut off at edges/box boundaries
+- Decorative lines positioned for single-line text but title wrapped to two lines
+- Source citations or footers colliding with content above
+- Elements too close (< 0.3" gaps) or cards/sections nearly touching
+- Uneven gaps (large empty area in one place, cramped in another)
+- Insufficient margin from slide edges (< 0.5")
+- Columns or similar elements not aligned consistently
+- Low-contrast text (e.g., light gray text on cream-colored background)
+- Low-contrast icons (e.g., dark icons on dark backgrounds without a contrasting circle)
+- Text boxes too narrow causing excessive wrapping
+- Leftover placeholder content
+
+For each slide, list issues or areas of concern, even if minor.
+
+Read and analyze these images:
+1. /path/to/slide-01.jpg (Expected: [brief description])
+2. /path/to/slide-02.jpg (Expected: [brief description])
+
+Report ALL issues found, including minor ones.
 ```
 
-或者：直接用 `read_image` 工具分析设计图截图。
+### Verification Loop
+
+1. Generate slides → Convert to images → Inspect
+2. **List issues found** (if none found, look again more critically)
+3. Fix issues
+4. **Re-verify affected slides** — one fix often creates another problem
+5. Repeat until a full pass reveals no new issues
+
+**Do not declare success until you've completed at least one fix-and-verify cycle.**
 
 ---
 
-## 创建新 PPT
+## Converting to Images
 
-使用 `pptx`（python-pptx）：
+Convert presentations to individual slide images for visual inspection:
 
 ```bash
-pip install python-pptx
+python scripts/office/soffice.py --headless --convert-to pdf output.pptx
+pdftoppm -jpeg -r 150 output.pdf slide
 ```
 
-```python
-# create_pptx.py
-from pptx import Presentation
-from pptx.util import Inches, Pt
+This creates `slide-01.jpg`, `slide-02.jpg`, etc.
 
-prs = Presentation()
-slide_layout = prs.slide_layouts[1]  # 标题+内容布局
-slide = prs.slides.add_slide(slide_layout)
+To re-render specific slides after fixes:
 
-title = slide.shapes.title
-body = slide.placeholders[1]
-
-title.text = "幻灯片标题"
-body.text = "内容第一行\n内容第二行"
-
-prs.save("output.pptx")
-print("PPT 已创建")
+```bash
+pdftoppm -jpeg -r 150 -f N -l N output.pdf slide-fixed
 ```
 
 ---
 
-## 格式转图片（视觉检查用）
+## Dependencies
 
-如果需要把 PPT 转为图片查看（需要 LibreOffice）：
-
-```powershell
-# Windows - LibreOffice 默认路径
-& "C:\Program Files\LibreOffice\program\soffice.exe" --headless --convert-to pdf presentation.pptx
-```
-
-然后用 `read_image` 工具查看转换出的图片页面。
-
----
-
-## Windows 特别说明
-
-- `markitdown` 在 Windows 上原生支持，直接 `pip install` 即可
-- 图片内容提取（可选）需要兼容 OpenAI 格式的 API，与使用哪个模型无关
-- LibreOffice 仅在需要转图片时才需要，纯文字提取不需要
+- `pip install "markitdown[pptx]"` - text extraction
+- `pip install Pillow` - thumbnail grids
+- `npm install -g pptxgenjs` - creating from scratch
+- LibreOffice (`soffice`) - PDF conversion (auto-configured for sandboxed environments via `scripts/office/soffice.py`)
+- Poppler (`pdftoppm`) - PDF to images

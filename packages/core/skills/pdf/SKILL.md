@@ -1,93 +1,37 @@
 ---
 name: pdf
-description: '读取、提取、合并、拆分或创建 PDF 文件。Use when: 用户提交了 PDF 文件需要提取文本/表格内容、合并/拆分 PDF、添加水印、填写表单，或生成新的 PDF。NOT for: Word 文档、Excel 表格、图片文件（不含 PDF 封装的图片）。'
+description: Use this skill whenever the user wants to do anything with PDF files. This includes reading or extracting text/tables from PDFs, combining or merging multiple PDFs into one, splitting PDFs apart, rotating pages, adding watermarks, creating new PDFs, filling PDF forms, encrypting/decrypting PDFs, extracting images, and OCR on scanned PDFs to make them searchable. If the user mentions a .pdf file or asks to produce one, use this skill.
+license: Proprietary. LICENSE.txt has complete terms
 ---
 
-## 快速参考
+# PDF Processing Guide
 
-| 任务 | 工具 | 方法 |
-|------|------|------|
-| 提取文本 | pdfplumber | `page.extract_text()` |
-| 提取表格 | pdfplumber | `page.extract_tables()` |
-| 合并 PDF | pypdf | `writer.add_page(page)` |
-| 拆分 PDF | pypdf | 逐页写出 |
-| 创建 PDF | reportlab | Canvas 或 Platypus |
-| 扫描件 OCR | pytesseract | 先转图片再 OCR |
+## Overview
 
----
+This guide covers essential PDF processing operations using Python libraries and command-line tools. For advanced features, JavaScript libraries, and detailed examples, see REFERENCE.md. If you need to fill out a PDF form, read FORMS.md and follow its instructions.
 
-## 安装依赖
-
-```bash
-pip install pypdf pdfplumber reportlab
-```
-
----
-
-## 读取内容（最常用）
-
-```python
-# read_pdf.py
-import pdfplumber
-
-with pdfplumber.open("document.pdf") as pdf:
-    print(f"共 {len(pdf.pages)} 页")
-    for i, page in enumerate(pdf.pages):
-        text = page.extract_text()
-        print(f"=== 第 {i+1} 页 ===")
-        print(text)
-```
-
-```bash
-python read_pdf.py
-```
-
----
-
-## 从 PDF 提取需求信息
-
-当用户提交需求文档（PDF 格式）时：
-
-```python
-# extract_requirements.py
-import pdfplumber
-
-with pdfplumber.open("requirements.pdf") as pdf:
-    full_text = ""
-    all_tables = []
-    
-    for i, page in enumerate(pdf.pages):
-        # 提取文本
-        text = page.extract_text()
-        if text:
-            full_text += f"\n--- 第{i+1}页 ---\n{text}"
-        
-        # 提取表格（功能列表、字段定义等常用表格形式）
-        tables = page.extract_tables()
-        for j, table in enumerate(tables):
-            all_tables.append({
-                "page": i + 1,
-                "table_idx": j,
-                "data": table
-            })
-
-print("=== 文档全文 ===")
-print(full_text)
-
-if all_tables:
-    print(f"\n=== 发现 {len(all_tables)} 个表格 ===")
-    for t in all_tables:
-        print(f"\n第{t['page']}页 表格{t['table_idx']+1}:")
-        for row in t["data"]:
-            print(row)
-```
-
----
-
-## 合并 PDF
+## Quick Start
 
 ```python
 from pypdf import PdfReader, PdfWriter
+
+# Read a PDF
+reader = PdfReader("document.pdf")
+print(f"Pages: {len(reader.pages)}")
+
+# Extract text
+text = ""
+for page in reader.pages:
+    text += page.extract_text()
+```
+
+## Python Libraries
+
+### pypdf - Basic Operations
+
+#### Merge PDFs
+```python
+from pypdf import PdfWriter, PdfReader
 
 writer = PdfWriter()
 for pdf_file in ["doc1.pdf", "doc2.pdf", "doc3.pdf"]:
@@ -97,74 +41,274 @@ for pdf_file in ["doc1.pdf", "doc2.pdf", "doc3.pdf"]:
 
 with open("merged.pdf", "wb") as output:
     writer.write(output)
-print("合并完成")
 ```
 
----
-
-## 扫描件 OCR（图片型 PDF）
-
-如果 `extract_text()` 返回空，说明是扫描件，需要 OCR：
-
-```bash
-pip install pytesseract pdf2image
-# Windows 还需要：
-# 1. 安装 Tesseract：https://github.com/UB-Mannheim/tesseract/wiki
-# 2. 安装 Poppler：https://github.com/oschwartz10612/poppler-windows/releases
-```
-
+#### Split PDF
 ```python
-# ocr_pdf.py
+reader = PdfReader("input.pdf")
+for i, page in enumerate(reader.pages):
+    writer = PdfWriter()
+    writer.add_page(page)
+    with open(f"page_{i+1}.pdf", "wb") as output:
+        writer.write(output)
+```
+
+#### Extract Metadata
+```python
+reader = PdfReader("document.pdf")
+meta = reader.metadata
+print(f"Title: {meta.title}")
+print(f"Author: {meta.author}")
+print(f"Subject: {meta.subject}")
+print(f"Creator: {meta.creator}")
+```
+
+#### Rotate Pages
+```python
+reader = PdfReader("input.pdf")
+writer = PdfWriter()
+
+page = reader.pages[0]
+page.rotate(90)  # Rotate 90 degrees clockwise
+writer.add_page(page)
+
+with open("rotated.pdf", "wb") as output:
+    writer.write(output)
+```
+
+### pdfplumber - Text and Table Extraction
+
+#### Extract Text with Layout
+```python
+import pdfplumber
+
+with pdfplumber.open("document.pdf") as pdf:
+    for page in pdf.pages:
+        text = page.extract_text()
+        print(text)
+```
+
+#### Extract Tables
+```python
+with pdfplumber.open("document.pdf") as pdf:
+    for i, page in enumerate(pdf.pages):
+        tables = page.extract_tables()
+        for j, table in enumerate(tables):
+            print(f"Table {j+1} on page {i+1}:")
+            for row in table:
+                print(row)
+```
+
+#### Advanced Table Extraction
+```python
+import pandas as pd
+
+with pdfplumber.open("document.pdf") as pdf:
+    all_tables = []
+    for page in pdf.pages:
+        tables = page.extract_tables()
+        for table in tables:
+            if table:  # Check if table is not empty
+                df = pd.DataFrame(table[1:], columns=table[0])
+                all_tables.append(df)
+
+# Combine all tables
+if all_tables:
+    combined_df = pd.concat(all_tables, ignore_index=True)
+    combined_df.to_excel("extracted_tables.xlsx", index=False)
+```
+
+### reportlab - Create PDFs
+
+#### Basic PDF Creation
+```python
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
+
+c = canvas.Canvas("hello.pdf", pagesize=letter)
+width, height = letter
+
+# Add text
+c.drawString(100, height - 100, "Hello World!")
+c.drawString(100, height - 120, "This is a PDF created with reportlab")
+
+# Add a line
+c.line(100, height - 140, 400, height - 140)
+
+# Save
+c.save()
+```
+
+#### Create PDF with Multiple Pages
+```python
+from reportlab.lib.pagesizes import letter
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak
+from reportlab.lib.styles import getSampleStyleSheet
+
+doc = SimpleDocTemplate("report.pdf", pagesize=letter)
+styles = getSampleStyleSheet()
+story = []
+
+# Add content
+title = Paragraph("Report Title", styles['Title'])
+story.append(title)
+story.append(Spacer(1, 12))
+
+body = Paragraph("This is the body of the report. " * 20, styles['Normal'])
+story.append(body)
+story.append(PageBreak())
+
+# Page 2
+story.append(Paragraph("Page 2", styles['Heading1']))
+story.append(Paragraph("Content for page 2", styles['Normal']))
+
+# Build PDF
+doc.build(story)
+```
+
+#### Subscripts and Superscripts
+
+**IMPORTANT**: Never use Unicode subscript/superscript characters (₀₁₂₃₄₅₆₇₈₉, ⁰¹²³⁴⁵⁶⁷⁸⁹) in ReportLab PDFs. The built-in fonts do not include these glyphs, causing them to render as solid black boxes.
+
+Instead, use ReportLab's XML markup tags in Paragraph objects:
+```python
+from reportlab.platypus import Paragraph
+from reportlab.lib.styles import getSampleStyleSheet
+
+styles = getSampleStyleSheet()
+
+# Subscripts: use <sub> tag
+chemical = Paragraph("H<sub>2</sub>O", styles['Normal'])
+
+# Superscripts: use <super> tag
+squared = Paragraph("x<super>2</super> + y<super>2</super>", styles['Normal'])
+```
+
+For canvas-drawn text (not Paragraph objects), manually adjust font the size and position rather than using Unicode subscripts/superscripts.
+
+## Command-Line Tools
+
+### pdftotext (poppler-utils)
+```bash
+# Extract text
+pdftotext input.pdf output.txt
+
+# Extract text preserving layout
+pdftotext -layout input.pdf output.txt
+
+# Extract specific pages
+pdftotext -f 1 -l 5 input.pdf output.txt  # Pages 1-5
+```
+
+### qpdf
+```bash
+# Merge PDFs
+qpdf --empty --pages file1.pdf file2.pdf -- merged.pdf
+
+# Split pages
+qpdf input.pdf --pages . 1-5 -- pages1-5.pdf
+qpdf input.pdf --pages . 6-10 -- pages6-10.pdf
+
+# Rotate pages
+qpdf input.pdf output.pdf --rotate=+90:1  # Rotate page 1 by 90 degrees
+
+# Remove password
+qpdf --password=mypassword --decrypt encrypted.pdf decrypted.pdf
+```
+
+### pdftk (if available)
+```bash
+# Merge
+pdftk file1.pdf file2.pdf cat output merged.pdf
+
+# Split
+pdftk input.pdf burst
+
+# Rotate
+pdftk input.pdf rotate 1east output rotated.pdf
+```
+
+## Common Tasks
+
+### Extract Text from Scanned PDFs
+```python
+# Requires: pip install pytesseract pdf2image
 import pytesseract
 from pdf2image import convert_from_path
 
-# Windows 需要指定路径（根据实际安装位置调整）
-# pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+# Convert PDF to images
+images = convert_from_path('scanned.pdf')
 
-images = convert_from_path("scanned.pdf")
+# OCR each page
 text = ""
 for i, image in enumerate(images):
-    text += f"\n--- 第{i+1}页 ---\n"
-    text += pytesseract.image_to_string(image, lang="chi_sim+eng")
+    text += f"Page {i+1}:\n"
+    text += pytesseract.image_to_string(image)
+    text += "\n\n"
 
 print(text)
 ```
 
----
-
-## 创建新 PDF
-
+### Add Watermark
 ```python
-# create_pdf.py
-from reportlab.lib.pagesizes import A4
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
-from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont
+from pypdf import PdfReader, PdfWriter
 
-# 注册中文字体（Windows 系统字体）
-try:
-    pdfmetrics.registerFont(TTFont('SimSun', 'C:/Windows/Fonts/simsun.ttc'))
-    font_name = 'SimSun'
-except:
-    font_name = 'Helvetica'  # 回退到英文字体
+# Create watermark (or load existing)
+watermark = PdfReader("watermark.pdf").pages[0]
 
-doc = SimpleDocTemplate("output.pdf", pagesize=A4)
-styles = getSampleStyleSheet()
-story = []
+# Apply to all pages
+reader = PdfReader("document.pdf")
+writer = PdfWriter()
 
-story.append(Paragraph("标题", styles['Title']))
-story.append(Spacer(1, 12))
-story.append(Paragraph("正文内容", styles['Normal']))
+for page in reader.pages:
+    page.merge_page(watermark)
+    writer.add_page(page)
 
-doc.build(story)
-print("PDF 已创建")
+with open("watermarked.pdf", "wb") as output:
+    writer.write(output)
 ```
 
----
+### Extract Images
+```bash
+# Using pdfimages (poppler-utils)
+pdfimages -j input.pdf output_prefix
 
-## Windows 特别说明
+# This extracts all images as output_prefix-000.jpg, output_prefix-001.jpg, etc.
+```
 
-- **Poppler**（pdf2image 依赖）：需手动安装并添加到 PATH，或指定 `poppler_path` 参数
-- **中文 OCR**：需要下载 Tesseract 中文语言包 `chi_sim.traineddata`
-- **中文 PDF 创建**：reportlab 默认不含中文字体，需注册系统字体
+### Password Protection
+```python
+from pypdf import PdfReader, PdfWriter
+
+reader = PdfReader("input.pdf")
+writer = PdfWriter()
+
+for page in reader.pages:
+    writer.add_page(page)
+
+# Add password
+writer.encrypt("userpassword", "ownerpassword")
+
+with open("encrypted.pdf", "wb") as output:
+    writer.write(output)
+```
+
+## Quick Reference
+
+| Task | Best Tool | Command/Code |
+|------|-----------|--------------|
+| Merge PDFs | pypdf | `writer.add_page(page)` |
+| Split PDFs | pypdf | One page per file |
+| Extract text | pdfplumber | `page.extract_text()` |
+| Extract tables | pdfplumber | `page.extract_tables()` |
+| Create PDFs | reportlab | Canvas or Platypus |
+| Command line merge | qpdf | `qpdf --empty --pages ...` |
+| OCR scanned PDFs | pytesseract | Convert to image first |
+| Fill PDF forms | pdf-lib or pypdf (see FORMS.md) | See FORMS.md |
+
+## Next Steps
+
+- For advanced pypdfium2 usage, see REFERENCE.md
+- For JavaScript libraries (pdf-lib), see REFERENCE.md
+- If you need to fill out a PDF form, follow the instructions in FORMS.md
+- For troubleshooting guides, see REFERENCE.md
