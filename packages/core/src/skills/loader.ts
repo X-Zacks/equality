@@ -20,6 +20,7 @@ const SKILLS_LOAD_ORDER: Array<{
 }> = [
   { source: 'extra',           resolveDir: () => '' },  // TODO: 从配置读取 extraDirs
   { source: 'bundled',         resolveDir: () => getBundledSkillsDir() },
+  { source: 'synced-bundled',  resolveDir: (ws) => path.join(ws, '.equality', 'skills') },
   { source: 'managed',         resolveDir: () => path.join(getAppDataDir(), 'Equality', 'skills') },
   { source: 'personal-agents', resolveDir: () => path.join(os.homedir(), '.agents', 'skills') },
   { source: 'project-agents',  resolveDir: (ws) => path.join(ws, '.agents', 'skills') },

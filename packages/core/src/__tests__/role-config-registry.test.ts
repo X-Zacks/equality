@@ -49,7 +49,7 @@ console.log('\n── RC2: 加载 developer 角色 ──')
   const cfg = getRoleConfig('developer')
   assert(cfg.role === 'developer', 'role=developer')
   assert(cfg.identity.includes('开发'), 'identity 包含 "开发"')
-  assert(cfg.toolDenyPrefixes?.includes('subagent_') === true, 'toolDenyPrefixes 包含 subagent_')
+  assert(cfg.toolDenyPrefixes?.includes('subtask_') === true, 'toolDenyPrefixes 包含 subtask_')
   assert(cfg.skills?.includes('project-dev-workflow') === true, 'skills 包含 project-dev-workflow')
   assert(cfg.toolProfile === 'coding', 'toolProfile=coding')
 }
@@ -58,7 +58,7 @@ console.log('\n── RC3: supervisor 工具白名单 ──')
 {
   const cfg = getRoleConfig('supervisor')
   assert(cfg.toolAllow !== undefined, 'supervisor 有 toolAllow')
-  assert(cfg.toolAllow!.includes('subagent_spawn'), 'allow 包含 subagent_spawn')
+  assert(cfg.toolAllow!.includes('subtask_spawn'), 'allow 包含 subtask_spawn')
   assert(cfg.toolDeny!.includes('bash'), 'deny 包含 bash')
   assert(cfg.maxToolLoops === 100, 'maxToolLoops=100')
 }
@@ -69,7 +69,7 @@ console.log('\n── RC4: reviewer 限制 ──')
   assert(cfg.toolDeny!.includes('write_file'), 'deny write_file')
   assert(cfg.toolDeny!.includes('edit_file'), 'deny edit_file')
   assert(cfg.toolDeny!.includes('bash'), 'deny bash')
-  assert(cfg.toolDenyPrefixes?.includes('subagent_') === true, 'deny subagent_ prefix')
+  assert(cfg.toolDenyPrefixes?.includes('subtask_') === true, 'deny subtask_ prefix')
 }
 
 console.log('\n── RC5: 自定义覆盖 ──')
@@ -78,7 +78,7 @@ console.log('\n── RC5: 自定义覆盖 ──')
   assert(cfg.maxToolLoops === 200, 'maxToolLoops 被覆盖为 200')
   assert(cfg.model === 'gpt-4o', 'model 被覆盖')
   assert(cfg.toolProfile === 'coding', 'toolProfile 保持默认')
-  assert(cfg.toolDenyPrefixes?.includes('subagent_') === true, 'toolDenyPrefixes 保持默认')
+  assert(cfg.toolDenyPrefixes?.includes('subtask_') === true, 'toolDenyPrefixes 保持默认')
 }
 
 console.log('\n── RC6: 未知角色 ──')
@@ -106,9 +106,9 @@ console.log('\n── PC1: 精确名称阻止 ──')
 
 console.log('\n── PC2: 前缀阻止 ──')
 {
-  const ctx = createPermissionContext({ toolDenyPrefixes: ['subagent_'] })
-  assert(isToolBlocked('subagent_spawn', ctx) === true, 'subagent_spawn 被阻止')
-  assert(isToolBlocked('subagent_list', ctx) === true, 'subagent_list 被阻止')
+  const ctx = createPermissionContext({ toolDenyPrefixes: ['subtask_'] })
+  assert(isToolBlocked('subtask_spawn', ctx) === true, 'subtask_spawn 被阻止')
+  assert(isToolBlocked('subtask_list', ctx) === true, 'subtask_list 被阻止')
   assert(isToolBlocked('read_file', ctx) === false, 'read_file 不被阻止')
 }
 

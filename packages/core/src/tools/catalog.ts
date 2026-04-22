@@ -81,10 +81,10 @@ const CORE_TOOL_DEFINITIONS: CoreToolDefinition[] = [
   { id: 'memory_delete', label: 'memory_delete', description: 'Delete a specific memory', sectionId: 'memory', profiles: ['coding'] },
 
   // Sessions
-  { id: 'subagent_spawn', label: 'subagent_spawn', description: 'Spawn sub-agent', sectionId: 'sessions', profiles: ['coding'] },
-  { id: 'subagent_list', label: 'subagent_list', description: 'List sub-agents', sectionId: 'sessions', profiles: ['coding', 'messaging'] },
-  { id: 'subagent_steer', label: 'subagent_steer', description: 'Steer sub-agent', sectionId: 'sessions', profiles: ['coding'] },
-  { id: 'subagent_kill', label: 'subagent_kill', description: 'Kill sub-agent', sectionId: 'sessions', profiles: ['coding'] },
+  { id: 'subtask_spawn', label: 'subtask_spawn', description: 'Spawn subtask', sectionId: 'sessions', profiles: ['coding'] },
+  { id: 'subtask_list', label: 'subtask_list', description: 'List subtasks', sectionId: 'sessions', profiles: ['coding', 'messaging'] },
+  { id: 'subtask_steer', label: 'subtask_steer', description: 'Steer subtask', sectionId: 'sessions', profiles: ['coding'] },
+  { id: 'subtask_kill', label: 'subtask_kill', description: 'Kill subtask', sectionId: 'sessions', profiles: ['coding'] },
 
   // UI
   { id: 'browser', label: 'browser', description: 'Control web browser', sectionId: 'ui', profiles: ['coding'] },

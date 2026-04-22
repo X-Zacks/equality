@@ -41,7 +41,7 @@ async function testH1_T1_lostToQueuedTransition() {
   // 实际迁移测试
   const registry = new TaskRegistry({ store: new InMemoryTaskStore() })
   const task = registry.register({
-    runtime: 'subagent',
+    runtime: 'subtask',
     title: '测试孤儿任务',
   })
   registry.transition(task.id, 'running')
@@ -63,7 +63,7 @@ async function testH1_T2_otherTerminalStatesStillBlocked() {
   const registry = new TaskRegistry({ store: new InMemoryTaskStore() })
 
   // succeeded → queued 应抛出
-  const t1 = registry.register({ runtime: 'subagent', title: 'test1' })
+  const t1 = registry.register({ runtime: 'subtask', title: 'test1' })
   registry.transition(t1.id, 'running')
   registry.transition(t1.id, 'succeeded')
   assert.throws(
@@ -72,7 +72,7 @@ async function testH1_T2_otherTerminalStatesStillBlocked() {
   )
 
   // cancelled → queued 应抛出
-  const t2 = registry.register({ runtime: 'subagent', title: 'test2' })
+  const t2 = registry.register({ runtime: 'subtask', title: 'test2' })
   registry.transition(t2.id, 'running')
   registry.transition(t2.id, 'cancelled')
   assert.throws(
@@ -81,7 +81,7 @@ async function testH1_T2_otherTerminalStatesStillBlocked() {
   )
 
   // failed → queued 应抛出
-  const t3 = registry.register({ runtime: 'subagent', title: 'test3' })
+  const t3 = registry.register({ runtime: 'subtask', title: 'test3' })
   registry.transition(t3.id, 'running')
   registry.transition(t3.id, 'failed')
   assert.throws(
@@ -93,18 +93,18 @@ async function testH1_T2_otherTerminalStatesStillBlocked() {
 }
 
 async function testH1_T3_recoverOrphanTasks() {
-  console.log('  H1-T3: recoverOrphanTasks 恢复 subagent 跳过 cron')
+  console.log('  H1-T3: recoverOrphanTasks 恢复 subtask 跳过 cron')
 
   const store = new InMemoryTaskStore()
   const registry = new TaskRegistry({ store })
 
-  // 创建 2 个 lost subagent 任务
-  const sub1 = registry.register({ runtime: 'subagent', title: 'sub1' })
+  // 创建 2 个 lost subtask 任务
+  const sub1 = registry.register({ runtime: 'subtask', title: 'sub1' })
   registry.transition(sub1.id, 'running')
   const sub1Ref = registry.get(sub1.id)!
   ;(sub1Ref as { state: string }).state = 'lost'
 
-  const sub2 = registry.register({ runtime: 'subagent', title: 'sub2' })
+  const sub2 = registry.register({ runtime: 'subtask', title: 'sub2' })
   registry.transition(sub2.id, 'running')
   const sub2Ref = registry.get(sub2.id)!
   ;(sub2Ref as { state: string }).state = 'lost'
@@ -120,7 +120,7 @@ async function testH1_T3_recoverOrphanTasks() {
     spawnFn: async () => true,
   })
 
-  assert.equal(result.recovered, 2, '应恢复 2 个 subagent 任务')
+  assert.equal(result.recovered, 2, '应恢复 2 个 subtask 任务')
   assert.equal(result.skipped, 1, '应跳过 1 个 cron 任务')
   assert.equal(result.failed, 0, '无失败')
 
@@ -132,10 +132,10 @@ async function testH1_T4_partialFailure() {
 
   const registry = new TaskRegistry({ store: new InMemoryTaskStore() })
 
-  // 创建 3 个 lost subagent 任务
+  // 创建 3 个 lost subtask 任务
   const ids: string[] = []
   for (let i = 0; i < 3; i++) {
-    const t = registry.register({ runtime: 'subagent', title: `task-${i}` })
+    const t = registry.register({ runtime: 'subtask', title: `task-${i}` })
     registry.transition(t.id, 'running')
     const ref = registry.get(t.id)!
     ;(ref as { state: string }).state = 'lost'
@@ -163,7 +163,7 @@ async function testH1_T5_buildResumeMessage() {
 
   const msg = buildResumeMessage({
     id: 'test-id',
-    runtime: 'subagent',
+    runtime: 'subtask',
     state: 'lost',
     title: '分析项目代码结构',
     createdAt: Date.now(),
@@ -179,7 +179,7 @@ async function testH1_T5_buildResumeMessage() {
   // 长标题截断
   const longMsg = buildResumeMessage({
     id: 'test-id-2',
-    runtime: 'subagent',
+    runtime: 'subtask',
     state: 'lost',
     title: 'x'.repeat(3000),
     createdAt: Date.now(),
@@ -194,7 +194,7 @@ async function testH1_T6_idempotency() {
   console.log('  H1-T6: 幂等保护')
 
   const registry = new TaskRegistry({ store: new InMemoryTaskStore() })
-  const t = registry.register({ runtime: 'subagent', title: 'idempotent' })
+  const t = registry.register({ runtime: 'subtask', title: 'idempotent' })
   registry.transition(t.id, 'running')
   const ref = registry.get(t.id)!
   ;(ref as { state: string }).state = 'lost'
@@ -262,7 +262,7 @@ async function testH2_T2_roundTrip() {
 
   const record: TaskRecord = {
     id: 'task-001',
-    runtime: 'subagent',
+    runtime: 'subtask',
     state: 'running',
     title: '测试任务',
     sessionKey: 'session-abc',
@@ -283,7 +283,7 @@ async function testH2_T2_roundTrip() {
   assert.equal(loaded.length, 1)
   const r = loaded[0]
   assert.equal(r.id, 'task-001')
-  assert.equal(r.runtime, 'subagent')
+  assert.equal(r.runtime, 'subtask')
   assert.equal(r.state, 'running')
   assert.equal(r.title, '测试任务')
   assert.equal(r.sessionKey, 'session-abc')
@@ -370,7 +370,7 @@ async function testH2_T5_registryIntegration() {
   const store = new SqliteTaskStore(dbPath)
   const registry = new TaskRegistry({ store, flushDebounceMs: 0 })
 
-  const task = registry.register({ runtime: 'subagent', title: 'SQLite 集成测试' })
+  const task = registry.register({ runtime: 'subtask', title: 'SQLite 集成测试' })
   registry.transition(task.id, 'running')
   registry.transition(task.id, 'succeeded', '完成了')
 

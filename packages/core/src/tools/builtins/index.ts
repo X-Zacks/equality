@@ -24,10 +24,10 @@ import { lspHoverTool } from './lsp-hover.js'
 import { lspDefinitionTool } from './lsp-definition.js'
 import { lspReferencesTool } from './lsp-references.js'
 import { lspDiagnosticsTool } from './lsp-diagnostics.js'
-import { subagentSpawnTool, setSubagentManagerForSpawn } from './subagent-spawn.js'
-import { subagentListTool, setSubagentManagerForList } from './subagent-list.js'
-import { subagentSteerTool, setSubagentManagerForSteer } from './subagent-steer.js'
-import { subagentKillTool, setSubagentManagerForKill } from './subagent-kill.js'
+import { subtaskSpawnTool, setSubtaskManagerForSpawn } from './subtask-spawn.js'
+import { subtaskListTool, setSubtaskManagerForList } from './subtask-list.js'
+import { subtaskSteerTool, setSubtaskManagerForSteer } from './subtask-steer.js'
+import { subtaskKillTool, setSubtaskManagerForKill } from './subtask-kill.js'
 import { sessionSearchTool } from './session-search.js'
 import { codebaseSearchTool } from './codebase-search.js'
 import { skillViewTool, setWorkspaceDirForSkillView } from './skill-view.js'
@@ -68,11 +68,11 @@ export const builtinTools: ToolDefinition[] = [
   lspDefinitionTool,
   lspReferencesTool,
   lspDiagnosticsTool,
-  // 子 Agent 管理 (Phase E3/E4)
-  subagentSpawnTool,
-  subagentListTool,
-  subagentSteerTool,
-  subagentKillTool,
+  // 子任务 管理 (Phase E3/E4)
+  subtaskSpawnTool,
+  subtaskListTool,
+  subtaskSteerTool,
+  subtaskKillTool,
   // 历史会话搜索 (Phase O4)
   sessionSearchTool,
   // 代码库语义搜索 (Phase N3)
@@ -110,14 +110,14 @@ export {
   lspDefinitionTool,
   lspReferencesTool,
   lspDiagnosticsTool,
-  subagentSpawnTool,
-  subagentListTool,
-  subagentSteerTool,
-  subagentKillTool,
-  setSubagentManagerForSpawn,
-  setSubagentManagerForList,
-  setSubagentManagerForSteer,
-  setSubagentManagerForKill,
+  subtaskSpawnTool,
+  subtaskListTool,
+  subtaskSteerTool,
+  subtaskKillTool,
+  setSubtaskManagerForSpawn,
+  setSubtaskManagerForList,
+  setSubtaskManagerForSteer,
+  setSubtaskManagerForKill,
   sessionSearchTool,
   codebaseSearchTool,
   skillViewTool,

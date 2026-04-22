@@ -313,9 +313,9 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings, on
     setPauseIntentVis(false)
   }, [sessionKey, loadSession]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 子 Agent 会话自动轮询：::sub:: session 定时刷新直到子 agent 完成
+  // 子任务 会话自动轮询：::task:: session 定时刷新直到子 agent 完成
   useEffect(() => {
-    if (!sessionKey.includes('::sub::')) return
+    if (!sessionKey.includes('::task::')) return
     let cancelled = false
     let pollCount = 0
     const maxPolls = 150 // 最多 10 分钟 (150 × 4s)

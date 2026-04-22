@@ -1,7 +1,7 @@
 /**
  * SessionTreeView.tsx — 树形会话列表
  *
- * Phase N4 (N4.2.1): 支持父子 Agent 会话的层级展示
+ * Phase N4 (N4.2.1): 支持父子任务 会话的层级展示
  */
 
 import { useState, useMemo } from 'react'

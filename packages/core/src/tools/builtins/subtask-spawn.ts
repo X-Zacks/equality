@@ -1,31 +1,31 @@
 /**
- * tools/builtins/subagent-spawn.ts — subagent_spawn 工具
+ * tools/builtins/subtask-spawn.ts — subtask_spawn 工具
  *
- * Phase E3 (GAP-8): 让主 Agent 创建子 Agent 任务
- * Phase E4: execute 通过延迟绑定接入 SubagentManager
+ * Phase E3 (GAP-8): 让主 Agent 创建子任务 任务
+ * Phase E4: execute 通过延迟绑定接入 SubtaskManager
  */
 
 import type { ToolDefinition } from '../types.js'
-import type { SubagentManager } from '../../agent/subagent-manager.js'
+import type { SubtaskManager } from '../../agent/subtask-manager.js'
 
-let _manager: SubagentManager | null = null
+let _manager: SubtaskManager | null = null
 
-/** 延迟绑定：Gateway 创建 SubagentManager 后调用此函数注入引用 */
-export function setSubagentManagerForSpawn(manager: SubagentManager): void {
+/** 延迟绑定：Gateway 创建 SubtaskManager 后调用此函数注入引用 */
+export function setSubtaskManagerForSpawn(manager: SubtaskManager): void {
   _manager = manager
 }
 
-export const subagentSpawnTool: ToolDefinition = {
-  name: 'subagent_spawn',
+export const subtaskSpawnTool: ToolDefinition = {
+  name: 'subtask_spawn',
   description:
-    '创建一个子 Agent 来执行特定任务。子 Agent 在独立上下文中运行，完成后返回摘要结果。' +
+    '创建一个子任务 来执行特定任务。子任务 在独立上下文中运行，完成后返回摘要结果。' +
     '适用于需要独立调查、执行或分析的工作。',
   inputSchema: {
     type: 'object',
     properties: {
       prompt: {
         type: 'string',
-        description: '子 Agent 的初始任务指令',
+        description: '子任务 的初始任务指令',
       },
       goal: {
         type: 'string',
@@ -33,7 +33,7 @@ export const subagentSpawnTool: ToolDefinition = {
       },
       allowed_tools: {
         type: 'string',
-        description: '子 Agent 可用的工具名列表（逗号分隔）。不指定则继承父 Agent 的工具白名单',
+        description: '子任务 可用的工具名列表（逗号分隔）。不指定则继承父 Agent 的工具白名单',
       },
       timeout_seconds: {
         type: 'string',
@@ -44,11 +44,11 @@ export const subagentSpawnTool: ToolDefinition = {
   },
   execute: async (input, ctx) => {
     if (!_manager) {
-      return { content: 'SubagentManager not initialized', isError: true }
+      return { content: 'SubtaskManager not initialized', isError: true }
     }
     const parentSessionKey = ctx.sessionKey
     if (!parentSessionKey) {
-      return { content: 'sessionKey is required for subagent_spawn', isError: true }
+      return { content: 'sessionKey is required for subtask_spawn', isError: true }
     }
 
     const prompt = String(input.prompt ?? '')
@@ -80,7 +80,7 @@ export const subagentSpawnTool: ToolDefinition = {
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
-      return { content: `subagent_spawn failed: ${msg}`, isError: true }
+      return { content: `subtask_spawn failed: ${msg}`, isError: true }
     }
   },
 }

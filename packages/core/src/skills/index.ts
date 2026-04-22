@@ -11,3 +11,4 @@ export { SkillsWatcher, type SkillsWatcherOptions, type SkillsChangeEvent } from
 export { scanSkillDir, scanSkillDirNoCache } from './scanner.js'
 export { buildSkillStatus, checkBinExists, checkEnvExists } from './status.js'
 export { fetchGallery, installSkill, uninstallSkill, scanSkillContent, TRUSTED_REPOS, type GallerySkill, type TrustedRepo, type ScanResult } from './gallery.js'
+export { syncBundledSkills } from './sync.js'

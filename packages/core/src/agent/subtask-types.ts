@@ -1,10 +1,10 @@
 /**
- * agent/subagent-types.ts — 子 Agent 类型定义
+ * agent/subtask-types.ts — 子任务 类型定义
  *
  * Phase E3 (GAP-8) + Phase N2 (N2.4.1)
  */
 
-export interface SpawnSubagentParams {
+export interface SpawnSubtaskParams {
   /** 子任务的初始 prompt */
   prompt: string
   /** 子任务目标描述（可选，用于 title） */
@@ -17,7 +17,7 @@ export interface SpawnSubagentParams {
   timeoutMs?: number
 }
 
-export interface SubagentInfo {
+export interface SubtaskInfo {
   taskId: string
   title: string
   state: string
@@ -25,7 +25,7 @@ export interface SubagentInfo {
   createdAt: number
 }
 
-export interface SubagentResult {
+export interface SubtaskResult {
   taskId: string
   success: boolean
   summary: string
@@ -33,11 +33,11 @@ export interface SubagentResult {
 
 // ─── Phase N2 新增类型 ──────────────────────────────────────────────────────
 
-/** SubagentManager 配置 */
-export interface SubagentManagerConfig {
+/** SubtaskManager 配置 */
+export interface SubtaskManagerConfig {
   /** 最大嵌套深度（默认 3）。主 Agent=depth0, 子=depth1, 孙=depth2 */
   maxDepth: number
-  /** 全局子 Agent 数量上限（默认 20） */
+  /** 全局子任务 数量上限（默认 20） */
   maxTotalAgents: number
   /** 单次 spawnParallel 的并行上限（默认 5） */
   maxConcurrent: number
@@ -45,12 +45,12 @@ export interface SubagentManagerConfig {
 
 /** spawnParallel 的单个 item */
 export interface ParallelSpawnItem {
-  params: SpawnSubagentParams
-  onComplete?: (result: SubagentResult) => void
+  params: SpawnSubtaskParams
+  onComplete?: (result: SubtaskResult) => void
 }
 
-/** SubagentManagerConfig 的默认值 */
-export const DEFAULT_SUBAGENT_CONFIG: SubagentManagerConfig = {
+/** SubtaskManagerConfig 的默认值 */
+export const DEFAULT_SUBTASK_CONFIG: SubtaskManagerConfig = {
   maxDepth: 3,
   maxTotalAgents: 20,
   maxConcurrent: 5,

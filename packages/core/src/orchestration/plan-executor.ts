@@ -4,7 +4,7 @@
  * Phase N1 (N1.3.1): 调度循环、暂停/恢复、取消、重试、跳过、steer、进度查询
  *
  * 设计要点:
- * - 通过 NodeSpawner 接口与 SubagentManager 解耦
+ * - 通过 NodeSpawner 接口与 SubtaskManager 解耦
  * - 事件驱动的调度循环（非轮询）
  * - 支持暂停/恢复、取消、重试、跳过
  * - 节点超时 + 全局超时
@@ -26,7 +26,7 @@ import { HistoryLog } from './history-log.js'
 
 /**
  * 节点执行器抽象接口。
- * PlanExecutor 通过这个接口与实际的 SubagentManager 解耦。
+ * PlanExecutor 通过这个接口与实际的 SubtaskManager 解耦。
  * 测试时可提供 mock 实现。
  */
 export interface NodeSpawner {

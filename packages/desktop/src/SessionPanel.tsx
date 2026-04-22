@@ -3,7 +3,7 @@ import { useGateway } from './useGateway'
 import { useT } from './i18n'
 import './SessionPanel.css'
 
-const SUB_SEP = '::sub::'
+const SUB_SEP = '::task::'
 
 interface SessionItem {
   key: string
@@ -52,7 +52,7 @@ function dateGroup(ts: number, t: (key: string) => string): string {
   return t('time.older')
 }
 
-/** 将平铺 session 列表构建为树。子 session（含 ::sub::）归到父节点下，不单独出现在顶层 */
+/** 将平铺 session 列表构建为树。子 session（含 ::task::）归到父节点下，不单独出现在顶层 */
 function buildTree(sessions: SessionItem[]): TreeNode[] {
   const map = new Map<string, TreeNode>()
   for (const s of sessions) {
@@ -227,7 +227,7 @@ export default function SessionPanel({ activeKey, onSelect, onNewChat, disabled,
     prevStreaming.current = streaming
   }, [streaming, refreshList])
 
-  // 子 Agent 运行期间定时刷新列表（每 3 秒），让子 session 及时出现
+  // 子任务 运行期间定时刷新列表（每 3 秒），让子 session 及时出现
   useEffect(() => {
     if (!streaming) return
     const timer = setInterval(refreshList, 3000)

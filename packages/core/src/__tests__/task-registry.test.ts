@@ -59,15 +59,15 @@ console.log('\n── T27: 注册任务后初始状态为 queued ──')
   assert(task2.state === 'queued', 'cron 任务初始状态为 queued')
   assert(task2.runtime === 'cron', 'runtime 为 cron')
 
-  // 注册 subagent 任务（带 parent 关联）
+  // 注册 subtask 任务（带 parent 关联）
   const task3 = registry.register({
-    runtime: 'subagent',
+    runtime: 'subtask',
     title: '子任务',
     parentTaskId: task1.id,
     parentSessionKey: 'session-abc',
     notificationPolicy: 'state_changes',
   })
-  assert(task3.state === 'queued', 'subagent 任务初始状态为 queued')
+  assert(task3.state === 'queued', 'subtask 任务初始状态为 queued')
   assert(task3.parentTaskId === task1.id, 'parentTaskId 正确')
   assert(task3.notificationPolicy === 'state_changes', '自定义通知策略生效')
 
@@ -208,7 +208,7 @@ console.log('\n── T30: 启动恢复时 running → lost ──')
   const oldRecords: TaskRecord[] = [
     {
       id: 'task-running-1',
-      runtime: 'subagent',
+      runtime: 'subtask',
       state: 'running',
       title: '上次崩溃时运行中的子任务',
       createdAt: Date.now() - 60_000,
@@ -314,7 +314,7 @@ console.log('\n── T32: steerTask 投递消息 ──')
   registry.events.on(e => events.push(e))
 
   const task = registry.register({
-    runtime: 'subagent',
+    runtime: 'subtask',
     title: 'steering 测试',
     notificationPolicy: 'state_changes',
   })

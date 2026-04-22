@@ -1,5 +1,5 @@
 /**
- * Phase E3 — 子 Agent 系统单元测试
+ * Phase E3 — 子任务 系统单元测试
  *
  * T39: spawn 创建子任务并返回 taskId
  * T40: 子任务使用独立 sessionKey
@@ -10,7 +10,7 @@
  */
 
 import { TaskRegistry } from '../tasks/registry.js'
-import { SubagentManager } from '../agent/subagent-manager.js'
+import { SubtaskManager } from '../agent/subtask-manager.js'
 import type { RunAttemptParams, RunAttemptResult } from '../agent/runner.js'
 import type { TaskEvent } from '../tasks/types.js'
 
@@ -80,7 +80,7 @@ console.log('\n── T39: spawn 返回 taskId ──')
   const registry = new TaskRegistry()
   const callParams: RunAttemptParams[] = []
 
-  const manager = new SubagentManager({
+  const manager = new SubtaskManager({
     taskRegistry: registry,
     runAttempt: createMockRunAttempt({
       result: '调查结果：找到 3 个错误',
@@ -102,7 +102,7 @@ console.log('\n── T39: spawn 返回 taskId ──')
   const task = registry.get(result.taskId)
   assert(task !== undefined, '任务在注册中心中')
   assert(task!.state === 'succeeded', '状态为 succeeded')
-  assert(task!.runtime === 'subagent', 'runtime=subagent')
+  assert(task!.runtime === 'subtask', 'runtime=subtask')
   assert(task!.parentSessionKey === 'parent-session', 'parentSessionKey 正确')
   assert(task!.title === '日志分析', 'title 来自 goal')
 
@@ -114,12 +114,12 @@ console.log('\n── T39: spawn 返回 taskId ──')
 
 // ─── T40: 子任务使用独立 sessionKey ──────────────────────────────────────────
 
-console.log('\n── T40: 子 Agent 独立 session ──')
+console.log('\n── T40: 子任务 独立 session ──')
 {
   const registry = new TaskRegistry()
   const callParams: RunAttemptParams[] = []
 
-  const manager = new SubagentManager({
+  const manager = new SubtaskManager({
     taskRegistry: registry,
     runAttempt: createMockRunAttempt({
       onCall: p => callParams.push(p),
@@ -134,7 +134,7 @@ console.log('\n── T40: 子 Agent 独立 session ──')
 
   const childSessionKey = callParams[0].sessionKey
   assert(childSessionKey.includes('main-session-123'), 'child session 包含父 session')
-  assert(childSessionKey.includes('::sub::'), 'child session 包含 ::sub:: 分隔符')
+  assert(childSessionKey.includes('::task::'), 'child session 包含 ::task:: 分隔符')
   assert(childSessionKey.includes(result.taskId), 'child session 包含 taskId')
   assert(childSessionKey !== 'main-session-123', 'child session ≠ 父 session')
 
@@ -146,7 +146,7 @@ console.log('\n── T40: 子 Agent 独立 session ──')
 console.log('\n── T41: list 返回子任务 ──')
 {
   const registry = new TaskRegistry()
-  const manager = new SubagentManager({
+  const manager = new SubtaskManager({
     taskRegistry: registry,
     runAttempt: createMockRunAttempt(),
   })
@@ -183,7 +183,7 @@ console.log('\n── T42: steer 注入方向消息 ──')
   const runPromise = new Promise<void>(r => { resolveRun = r })
 
   // 长运行子任务（不会自动结束，直到 resolve）
-  const manager = new SubagentManager({
+  const manager = new SubtaskManager({
     taskRegistry: registry,
     runAttempt: async (params) => {
       // 模拟长运行：等待 steering 消息到达
@@ -217,7 +217,7 @@ console.log('\n── T42: steer 注入方向消息 ──')
   await new Promise(r => setTimeout(r, 50))
 
   // 通过 registry 找到任务
-  const tasks = registry.list({ runtime: 'subagent' })
+  const tasks = registry.list({ runtime: 'subtask' })
   assert(tasks.length >= 1, `有运行中的子任务 (${tasks.length})`)
 
   const taskId = tasks[0].id
@@ -244,7 +244,7 @@ console.log('\n── T43: kill 取消子任务 ──')
   const events: TaskEvent[] = []
   registry.events.on(e => events.push(e))
 
-  const manager = new SubagentManager({
+  const manager = new SubtaskManager({
     taskRegistry: registry,
     runAttempt: createMockRunAttempt({ delay: 5000 }), // 长运行
   })
@@ -283,17 +283,17 @@ console.log('\n── T44: depth>1 被拒绝 ──')
 {
   const registry = new TaskRegistry()
   // N2: 使用 maxDepth=1 模拟 V1 行为（仅允许 depth=0）
-  const manager = new SubagentManager({
+  const manager = new SubtaskManager({
     taskRegistry: registry,
     runAttempt: createMockRunAttempt(),
     config: { maxDepth: 1, maxTotalAgents: 20, maxConcurrent: 5 },
   })
 
-  // depth=0 正常（主 Agent 创建子 Agent）
+  // depth=0 正常（主 Agent 创建子任务）
   const r0 = await manager.spawn('root-session', { prompt: '子任务' }, { depth: 0 })
   assert(r0.success === true, 'depth=0 允许')
 
-  // depth=1 被拒（子 Agent 尝试再创建孙子 Agent）
+  // depth=1 被拒（子任务 尝试再创建孙子任务）
   const r1 = await manager.spawn('child-session', { prompt: '孙子任务' }, { depth: 1 })
   assert(r1.success === false, 'depth=1 被拒绝')
   assert(r1.summary.includes('深度限制') || r1.summary.includes('depth') || r1.summary.includes('maxDepth'), '错误信息说明原因')
@@ -309,7 +309,7 @@ console.log('\n── T44: depth>1 被拒绝 ──')
 // ─── 汇总 ─────────────────────────────────────────────────────────────────────
 
 console.log(`\n${'═'.repeat(60)}`)
-console.log(`Phase E3 — SubAgent: ${passed} passed, ${failed} failed`)
+console.log(`Phase E3 — Subtask: ${passed} passed, ${failed} failed`)
 console.log(`${'═'.repeat(60)}`)
 
 if (failed > 0) process.exit(1)

@@ -6,6 +6,7 @@
 export type SkillSource =
   | 'extra'             // 1: 额外目录（config.skills.extraDirs）
   | 'bundled'           // 2: 内置（随安装包分发）
+  | 'synced-bundled'    // 2.5: 同步到 workspace 的内置 skills
   | 'managed'           // 3: 用户管理（%APPDATA%\Equality\skills）
   | 'personal-agents'   // 4: 用户个人（~/.agents/skills）
   | 'project-agents'    // 5: 项目级（<cwd>/.agents/skills）

@@ -3,9 +3,9 @@
  *
  * Phase H1 (GAP-17): 服务重启后，自动扫描 lost 状态的子任务并恢复执行。
  *
- * 参考 OpenClaw subagent-orphan-recovery.ts 的设计：
+ * 参考 OpenClaw subtask-orphan-recovery.ts 的设计：
  *   1. 启动后延迟执行（等系统就绪）
- *   2. 扫描 lost + subagent 类型的任务
+ *   2. 扫描 lost + subtask 类型的任务
  *   3. 构建合成 resume 消息 → 重新 spawn
  *   4. 失败 → 指数退避重试（最多 3 次）
  *   5. 幂等保护（已恢复的不重复恢复）
@@ -61,7 +61,7 @@ export function buildResumeMessage(task: TaskRecord): string {
 /**
  * 扫描并恢复 lost 状态的子任务。
  *
- * 只恢复 runtime === 'subagent' 的任务。
+ * 只恢复 runtime === 'subtask' 的任务。
  * cron/manual 类型的 lost 任务跳过（它们有各自的恢复机制或不需要恢复）。
  */
 export async function recoverOrphanTasks(params: {
@@ -93,8 +93,8 @@ export async function recoverOrphanTasks(params: {
       continue
     }
 
-    // 只恢复 subagent 类型
-    if (task.runtime !== 'subagent') {
+    // 只恢复 subtask 类型
+    if (task.runtime !== 'subtask') {
       result.skipped++
       continue
     }

@@ -1,5 +1,5 @@
 /**
- * Phase N2 — SubagentManager 深度增强 + 并行 spawn 单元测试
+ * Phase N2 — SubtaskManager 深度增强 + 并行 spawn 单元测试
  *
  * N2.5.1: ~35 断言
  * - 可配置深度限制
@@ -14,9 +14,9 @@
  * - 非级联终止（默认）
  */
 
-import { SubagentManager } from '../agent/subagent-manager.js'
-import type { RunAttemptFn, SubagentManagerDeps } from '../agent/subagent-manager.js'
-import type { SubagentResult } from '../agent/subagent-types.js'
+import { SubtaskManager } from '../agent/subtask-manager.js'
+import type { RunAttemptFn, SubtaskManagerDeps } from '../agent/subtask-manager.js'
+import type { SubtaskResult } from '../agent/subtask-types.js'
 import { TaskRegistry } from '../tasks/registry.js'
 import type { RunAttemptResult } from '../agent/runner.js'
 
@@ -58,10 +58,10 @@ function createMockRunAttempt(opts?: {
 function createDeps(overrides?: {
   delayMs?: number
   failForSession?: Set<string>
-  config?: Partial<SubagentManagerDeps['config']>
-}): { registry: TaskRegistry; manager: SubagentManager } {
+  config?: Partial<SubtaskManagerDeps['config']>
+}): { registry: TaskRegistry; manager: SubtaskManager } {
   const registry = new TaskRegistry()
-  const manager = new SubagentManager({
+  const manager = new SubtaskManager({
     taskRegistry: registry,
     runAttempt: createMockRunAttempt({
       delayMs: overrides?.delayMs,
@@ -83,11 +83,11 @@ console.log('\n── N2-1: 默认 maxDepth=3 ──')
   assert(r0.success === true, 'depth=0 允许（默认 maxDepth=3）')
 
   // depth=1: 允许
-  const r1 = await manager.spawn('root::sub::x', { prompt: '任务1' }, { depth: 1 })
+  const r1 = await manager.spawn('root::task::x', { prompt: '任务1' }, { depth: 1 })
   assert(r1.success === true, 'depth=1 允许')
 
   // depth=2: 允许
-  const r2 = await manager.spawn('root::sub::x::sub::y', { prompt: '任务2' }, { depth: 2 })
+  const r2 = await manager.spawn('root::task::x::task::y', { prompt: '任务2' }, { depth: 2 })
   assert(r2.success === true, 'depth=2 允许')
 
   // depth=3: 拒绝
@@ -176,7 +176,7 @@ console.log('\n── N2-6: spawnParallel 并发限制 ──')
   let currentConcurrent = 0
 
   const registry = new TaskRegistry()
-  const manager = new SubagentManager({
+  const manager = new SubtaskManager({
     taskRegistry: registry,
     runAttempt: async (params) => {
       currentConcurrent++
@@ -206,7 +206,7 @@ console.log('\n── N2-7: spawnParallel 部分失败 ──')
 {
   let spawnIndex = 0
   const registry = new TaskRegistry()
-  const manager = new SubagentManager({
+  const manager = new SubtaskManager({
     taskRegistry: registry,
     runAttempt: async (params) => {
       await sleep(10)
@@ -240,7 +240,7 @@ console.log('\n── N2-8: onComplete 回调 ──')
 {
   const { registry, manager } = createDeps({ delayMs: 10 })
 
-  const completions: SubagentResult[] = []
+  const completions: SubtaskResult[] = []
 
   const results = await manager.spawnParallel('root', [
     {
@@ -266,7 +266,7 @@ console.log('\n── N2-9: 单个 spawn onComplete ──')
 {
   const { registry, manager } = createDeps({ delayMs: 10 })
 
-  let callbackResult: SubagentResult | null = null
+  let callbackResult: SubtaskResult | null = null
   const result = await manager.spawn('root', { prompt: '单个回调' }, {
     onComplete: (r) => { callbackResult = r },
   })
@@ -285,14 +285,14 @@ console.log('\n── N2-10: 级联终止 ──')
 
   // 手动构建任务层级（不通过实际 spawn，直接注册）
   const parentTask = registry.register({
-    runtime: 'subagent',
+    runtime: 'subtask',
     title: '父任务',
     notificationPolicy: 'state_changes',
   })
   registry.transition(parentTask.id, 'running')
 
   const childTask = registry.register({
-    runtime: 'subagent',
+    runtime: 'subtask',
     title: '子任务',
     parentTaskId: parentTask.id,
     notificationPolicy: 'state_changes',
@@ -300,14 +300,14 @@ console.log('\n── N2-10: 级联终止 ──')
   registry.transition(childTask.id, 'running')
 
   const grandchildTask = registry.register({
-    runtime: 'subagent',
+    runtime: 'subtask',
     title: '孙任务',
     parentTaskId: childTask.id,
     notificationPolicy: 'state_changes',
   })
   registry.transition(grandchildTask.id, 'running')
 
-  const manager = new SubagentManager({
+  const manager = new SubtaskManager({
     taskRegistry: registry,
     runAttempt: createMockRunAttempt(),
   })
@@ -333,21 +333,21 @@ console.log('\n── N2-11: 非级联终止（默认）──')
   const registry = new TaskRegistry()
 
   const parentTask = registry.register({
-    runtime: 'subagent',
+    runtime: 'subtask',
     title: '父任务',
     notificationPolicy: 'state_changes',
   })
   registry.transition(parentTask.id, 'running')
 
   const childTask = registry.register({
-    runtime: 'subagent',
+    runtime: 'subtask',
     title: '子任务',
     parentTaskId: parentTask.id,
     notificationPolicy: 'state_changes',
   })
   registry.transition(childTask.id, 'running')
 
-  const manager = new SubagentManager({
+  const manager = new SubtaskManager({
     taskRegistry: registry,
     runAttempt: createMockRunAttempt(),
   })
@@ -378,7 +378,7 @@ console.log('\n── N2-12: managerConfig ──')
 // ─── 结果汇总 ────────────────────────────────────────────────────────────────
 
 console.log(`\n${'═'.repeat(60)}`)
-console.log(`Phase N2 — SubagentManager 深度增强: ${passed} passed, ${failed} failed`)
+console.log(`Phase N2 — SubtaskManager 深度增强: ${passed} passed, ${failed} failed`)
 console.log(`${'═'.repeat(60)}`)
 
 if (failed > 0) process.exit(1)

@@ -79,11 +79,11 @@ async function testI1_T4_minimalProfile() {
 }
 
 async function testI1_T5_messagingProfile() {
-  console.log('  I1-T5: messaging profile 包含 subagent_list')
+  console.log('  I1-T5: messaging profile 包含 subtask_list')
 
   const policy = resolveCoreToolProfilePolicy('messaging')
   assert.ok(policy, 'messaging 有策略')
-  assert.ok(policy!.allow!.includes('subagent_list'), 'messaging 含 subagent_list')
+  assert.ok(policy!.allow!.includes('subtask_list'), 'messaging 含 subtask_list')
 
   console.log(`    ✅ (2 assertions)`)
 }
@@ -158,23 +158,23 @@ async function testI1_T11_registryProfileFilter() {
   registry.register(makeTool('read_file'))
   registry.register(makeTool('write_file'))
   registry.register(makeTool('bash'))
-  registry.register(makeTool('subagent_list'))
+  registry.register(makeTool('subtask_list'))
 
   // 无 profile → 全部
   const all = registry.getToolSchemas()
   assert.equal(all.length, 4, '无 profile 返回全部')
 
-  // coding → read_file, write_file, bash, subagent_list 不一定全在 coding
+  // coding → read_file, write_file, bash, subtask_list 不一定全在 coding
   // 但 read_file, write_file, bash 都在 coding
   const coding = registry.getToolSchemas({ profile: 'coding' })
   const codingNames = coding.map((s) => s.function.name)
   assert.ok(codingNames.includes('read_file'), 'coding 含 read_file')
   assert.ok(codingNames.includes('bash'), 'coding 含 bash')
 
-  // messaging → subagent_list 在 messaging，但 read_file 不在
+  // messaging → subtask_list 在 messaging，但 read_file 不在
   const messaging = registry.getToolSchemas({ profile: 'messaging' })
   const msgNames = messaging.map((s) => s.function.name)
-  assert.ok(msgNames.includes('subagent_list'), 'messaging 含 subagent_list')
+  assert.ok(msgNames.includes('subtask_list'), 'messaging 含 subtask_list')
   assert.ok(!msgNames.includes('read_file'), 'messaging 不含 read_file')
 
   // full → 全部（undefined policy）

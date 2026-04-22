@@ -1,10 +1,10 @@
 /**
- * agent/subagent-manager.ts — 子 Agent 管理器
+ * agent/subtask-manager.ts — 子任务 管理器
  *
  * Phase E3 (GAP-8) + Phase N2: spawn / list / steer / kill / spawnParallel / cascade kill
  *
  * 核心设计：
- * - 每个子 Agent 运行在独立 child session 中
+ * - 每个子任务 运行在独立 child session 中
  * - 所有子任务注册到统一 TaskRegistry
  * - N2: 可配置深度限制（maxDepth）、全局上限（maxTotalAgents）、并行 spawn
  */
@@ -12,19 +12,19 @@
 import type { TaskRegistry } from '../tasks/index.js'
 import type {
   ParallelSpawnItem,
-  SpawnSubagentParams,
-  SubagentInfo,
-  SubagentManagerConfig,
-  SubagentResult,
-} from './subagent-types.js'
-import { DEFAULT_SUBAGENT_CONFIG } from './subagent-types.js'
+  SpawnSubtaskParams,
+  SubtaskInfo,
+  SubtaskManagerConfig,
+  SubtaskResult,
+} from './subtask-types.js'
+import { DEFAULT_SUBTASK_CONFIG } from './subtask-types.js'
 import type { RunAttemptParams, RunAttemptResult } from './runner.js'
 import type { ToolRegistry } from '../tools/index.js'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-/** 运行中子 Agent 的元数据 */
-interface LiveSubagent {
+/** 运行中子任务 的元数据 */
+interface LiveSubtask {
   taskId: string
   sessionKey: string
   parentSessionKey: string
@@ -34,11 +34,11 @@ interface LiveSubagent {
 
 export type RunAttemptFn = (params: RunAttemptParams) => Promise<RunAttemptResult>
 
-export interface SubagentManagerDeps {
+export interface SubtaskManagerDeps {
   taskRegistry: TaskRegistry
   /** runAttempt 函数引用（避免循环 import） */
   runAttempt: RunAttemptFn
-  /** 子 Agent 默认继承的参数 */
+  /** 子任务 默认继承的参数 */
   defaults?: {
     workspaceDir?: string
     toolRegistry?: ToolRegistry
@@ -47,28 +47,28 @@ export interface SubagentManagerDeps {
     contextEngine?: RunAttemptParams['contextEngine']
   }
   /** N2: 可配置限制参数 */
-  config?: Partial<SubagentManagerConfig>
+  config?: Partial<SubtaskManagerConfig>
 }
 
-// ─── SubagentManager ────────────────────────────────────────────────────────
+// ─── SubtaskManager ────────────────────────────────────────────────────────
 
-export class SubagentManager {
-  private deps: SubagentManagerDeps
-  private liveAgents = new Map<string, LiveSubagent>()
-  private readonly config: SubagentManagerConfig
+export class SubtaskManager {
+  private deps: SubtaskManagerDeps
+  private liveAgents = new Map<string, LiveSubtask>()
+  private readonly config: SubtaskManagerConfig
 
-  constructor(deps: SubagentManagerDeps) {
+  constructor(deps: SubtaskManagerDeps) {
     this.deps = deps
-    this.config = { ...DEFAULT_SUBAGENT_CONFIG, ...deps.config }
+    this.config = { ...DEFAULT_SUBTASK_CONFIG, ...deps.config }
   }
 
   // ─── spawn ──────────────────────────────────────────────────────────────
 
   async spawn(
     parentSessionKey: string,
-    params: SpawnSubagentParams,
-    opts?: { depth?: number; onComplete?: (result: SubagentResult) => void },
-  ): Promise<SubagentResult> {
+    params: SpawnSubtaskParams,
+    opts?: { depth?: number; onComplete?: (result: SubtaskResult) => void },
+  ): Promise<SubtaskResult> {
     const depth = opts?.depth ?? 0
 
     // N2: 可配置深度限制（替代 V1 的 depth>=1 硬限）
@@ -80,12 +80,12 @@ export class SubagentManager {
       }
     }
 
-    // N2: 全局子 Agent 数量限制
+    // N2: 全局子任务 数量限制
     if (this.liveAgents.size >= this.config.maxTotalAgents) {
       return {
         taskId: '',
         success: false,
-        summary: `达到全局子Agent上限 (${this.config.maxTotalAgents})`,
+        summary: `达到全局子任务上限 (${this.config.maxTotalAgents})`,
       }
     }
 
@@ -93,14 +93,14 @@ export class SubagentManager {
 
     // 注册任务
     const task = registry.register({
-      runtime: 'subagent',
+      runtime: 'subtask',
       title: params.goal ?? params.prompt.slice(0, 80),
       parentSessionKey,
       notificationPolicy: 'state_changes',
       timeoutMs: params.timeoutMs,
     })
 
-    const childSessionKey = `${parentSessionKey}::sub::${task.id}`
+    const childSessionKey = `${parentSessionKey}::task::${task.id}`
     const abortController = new AbortController()
     const steeringQueue = registry.getSteeringQueue(task.id)
 
@@ -126,37 +126,37 @@ export class SubagentManager {
     const taskRecord = registry.get(task.id)
     const summary = taskRecord?.summary ?? result?.text?.slice(0, 500) ?? '子任务无输出'
 
-    const subagentResult: SubagentResult = {
+    const subtaskResult: SubtaskResult = {
       taskId: task.id,
       success: taskRecord?.state === 'succeeded',
       summary,
     }
 
     // N2: onComplete 回调
-    opts?.onComplete?.(subagentResult)
+    opts?.onComplete?.(subtaskResult)
 
-    return subagentResult
+    return subtaskResult
   }
 
   // ─── spawnParallel (N2.2.1) ───────────────────────────────────────────
 
   /**
-   * 并行启动多个子 Agent。
+   * 并行启动多个子任务。
    * - 使用 Promise.allSettled 确保不因单个失败而全部中断
    * - 内部维护并发信号量
-   * - 每个子 Agent 完成后立即触发 onComplete
+   * - 每个子任务 完成后立即触发 onComplete
    * - 返回所有结果（顺序与 items 一致）
    */
   async spawnParallel(
     parentSessionKey: string,
     items: ParallelSpawnItem[],
     opts?: { depth?: number; maxConcurrent?: number },
-  ): Promise<SubagentResult[]> {
+  ): Promise<SubtaskResult[]> {
     if (items.length === 0) return []
 
     const depth = opts?.depth ?? 0
     const maxConcurrent = opts?.maxConcurrent ?? this.config.maxConcurrent
-    const results: SubagentResult[] = new Array(items.length)
+    const results: SubtaskResult[] = new Array(items.length)
 
     // 并发信号量
     let running = 0
@@ -192,7 +192,7 @@ export class SubagentManager {
         results[index] = result
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err)
-        const failResult: SubagentResult = {
+        const failResult: SubtaskResult = {
           taskId: '',
           success: false,
           summary: msg,
@@ -214,7 +214,7 @@ export class SubagentManager {
   private async executeChild(
     taskId: string,
     childSessionKey: string,
-    params: SpawnSubagentParams,
+    params: SpawnSubtaskParams,
     abortController: AbortController,
     steeringQueue: string[],
     parentSessionKey?: string,
@@ -233,14 +233,14 @@ export class SubagentManager {
         }, params.timeoutMs)
       }
 
-      // 通过 TaskEventBus 广播子 Agent 进度事件，让前端实时感知
+      // 通过 TaskEventBus 广播子任务 进度事件，让前端实时感知
       const emitProgress = (detail: string) => {
         try {
           registry.events.emit({
-            type: 'subagent_progress',
+            type: 'subtask_progress',
             taskId,
             state: 'running',
-            runtime: 'subagent',
+            runtime: 'subtask',
             timestamp: Date.now(),
             detail,
             parentSessionKey,
@@ -291,7 +291,7 @@ export class SubagentManager {
 
   // ─── list ─────────────────────────────────────────────────────────────
 
-  list(parentSessionKey: string): SubagentInfo[] {
+  list(parentSessionKey: string): SubtaskInfo[] {
     return this.deps.taskRegistry
       .list({ parentTaskId: undefined })
       .filter(t => {
@@ -304,7 +304,7 @@ export class SubagentManager {
           taskId: t.id,
           title: t.title,
           state: t.state,
-          sessionKey: live?.sessionKey ?? `${parentSessionKey}::sub::${t.id}`,
+          sessionKey: live?.sessionKey ?? `${parentSessionKey}::task::${t.id}`,
           createdAt: t.createdAt,
         }
       })
@@ -357,7 +357,7 @@ export class SubagentManager {
   }
 
   /** N2: 暴露配置（只读） */
-  get managerConfig(): Readonly<SubagentManagerConfig> {
+  get managerConfig(): Readonly<SubtaskManagerConfig> {
     return this.config
   }
 }

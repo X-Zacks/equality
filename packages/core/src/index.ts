@@ -16,11 +16,11 @@ import { dailySummary, sessionCostSummary, allSessionsCostSummary, globalCostSum
 import { allQuotaStatuses, setQuotaConfig, deleteQuotaConfig, listQuotaConfigs, type QuotaConfig } from './cost/request-quota.js'
 import { startDeviceFlow, pollForToken, clearCopilotAuth, isCopilotLoggedIn, getPollingInterval } from './providers/copilot-auth.js'
 import { COPILOT_MODELS, fetchCopilotModels } from './providers/copilot.js'
-import { ToolRegistry, builtinTools, resolvePolicyForTool, classifyMutation, McpClientManager, parseMcpServersConfig, setSubagentManagerForSpawn, setSubagentManagerForList, setSubagentManagerForSteer, setSubagentManagerForKill } from './tools/index.js'
+import { ToolRegistry, builtinTools, resolvePolicyForTool, classifyMutation, McpClientManager, parseMcpServersConfig, setSubtaskManagerForSpawn, setSubtaskManagerForList, setSubtaskManagerForSteer, setSubtaskManagerForKill } from './tools/index.js'
 import { ensureWorkspaceBootstrap } from './agent/workspace-bootstrap.js'
 import type { PolicyContext } from './tools/index.js'
 import type { BeforeToolCallInfo } from './agent/runner.js'
-import { SubagentManager } from './agent/subagent-manager.js'
+import { SubtaskManager } from './agent/subtask-manager.js'
 import { DefaultContextEngine } from './context/index.js'
 import { closeSessionBrowser } from './tools/builtins/browser.js'
 import {
@@ -194,6 +194,17 @@ try {
   log.warn(`引导文件初始化失败（不影响启动）: ${(err as Error).message}`)
 }
 
+// Skills 同步：将 bundled skills 复制到用户 workspace，解决沙箱访问限制
+import { syncBundledSkills } from './skills/sync.js'
+try {
+  const syncResult = syncBundledSkills(getWorkspaceDir())
+  if (syncResult.synced > 0) {
+    log.info(`Skills 同步: ${syncResult.synced} synced, ${syncResult.skipped} skipped`)
+  }
+} catch (err) {
+  log.warn(`Skills 同步失败（不影响启动）: ${(err as Error).message}`)
+}
+
 // 初始化 Skills 热加载
 const skillsWatcher = new SkillsWatcher({
   workspaceDir: getWorkspaceDir(),
@@ -225,8 +236,8 @@ const taskRegistry = new TaskRegistry({
 const restoredTaskCount = await taskRegistry.restore()
 log.info(`TaskRegistry 已恢复 ${restoredTaskCount} 个任务`)
 
-// ─── 初始化 SubagentManager（Phase E4.3）────────────────────────────────────
-const subagentManager = new SubagentManager({
+// ─── 初始化 SubtaskManager（Phase E4.3）────────────────────────────────────
+const subagentManager = new SubtaskManager({
   taskRegistry,
   runAttempt,
   defaults: {
@@ -237,11 +248,11 @@ const subagentManager = new SubagentManager({
     contextEngine: new DefaultContextEngine(),
   },
 })
-setSubagentManagerForSpawn(subagentManager)
-setSubagentManagerForList(subagentManager)
-setSubagentManagerForSteer(subagentManager)
-setSubagentManagerForKill(subagentManager)
-log.info('SubagentManager 已初始化')
+setSubtaskManagerForSpawn(subagentManager)
+setSubtaskManagerForList(subagentManager)
+setSubtaskManagerForSteer(subagentManager)
+setSubtaskManagerForKill(subagentManager)
+log.info('SubtaskManager 已初始化')
 
 // G7: Links beforeLLMCall hook — 检测用户消息中的 URL 并记录
 import { globalHookRegistry } from './hooks/index.js'
@@ -1142,6 +1153,10 @@ app.post<{ Body: SaveKeyBody }>('/settings/api-key', async (req, reply) => {
   // 搜索引擎偏好变更时同步更新
   if (provider === 'WEB_SEARCH_PROVIDER') {
     setPreferredProvider(key)
+  }
+  // Workspace Dir 变更时重新同步 skills
+  if (provider === 'WORKSPACE_DIR') {
+    try { syncBundledSkills(key) } catch { /* non-fatal */ }
   }
   return reply.send({ ok: true })
 })

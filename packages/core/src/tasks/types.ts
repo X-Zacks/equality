@@ -6,7 +6,7 @@
 
 // ─── 任务运行时来源 ──────────────────────────────────────────────────────────
 
-export type TaskRuntime = 'manual' | 'cron' | 'subagent'
+export type TaskRuntime = 'manual' | 'cron' | 'subtask'
 
 // ─── 任务状态 ────────────────────────────────────────────────────────────────
 
@@ -55,7 +55,7 @@ export interface TaskSummary {
 
 // ─── 任务事件 ────────────────────────────────────────────────────────────────
 
-export type TaskEventType = 'state_changed' | 'finished' | 'cancelled' | 'steer' | 'subagent_progress'
+export type TaskEventType = 'state_changed' | 'finished' | 'cancelled' | 'steer' | 'subtask_progress'
 
 export interface TaskEvent {
   type: TaskEventType

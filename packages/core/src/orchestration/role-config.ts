@@ -46,11 +46,11 @@ export const DEFAULT_ROLE_CONFIGS: Record<AgentRole, AgentRoleConfig> = {
     displayName: '项目监管',
     identity:
       '你是项目监管 Agent。你负责需求澄清、任务拆分、进度监控和最终汇总。' +
-      '你不直接编写代码，而是通过 subagent_spawn 委派给专业角色。' +
+      '你不直接编写代码，而是通过 subtask_spawn 委派给专业角色。' +
       '你关注全局进度、阻塞问题和跨模块协调。',
     toolProfile: 'minimal',
     toolAllow: [
-      'subagent_spawn', 'subagent_list', 'subagent_steer', 'subagent_kill',
+      'subtask_spawn', 'subtask_list', 'subtask_steer', 'subtask_kill',
       'read_file', 'write_file', 'list_dir', 'glob',
       'memory_save', 'memory_search', 'codebase_search',
     ],
@@ -68,7 +68,7 @@ export const DEFAULT_ROLE_CONFIGS: Record<AgentRole, AgentRoleConfig> = {
       '你可以读取代码但不应该直接修改生产代码，只写设计文档。',
     toolProfile: 'coding',
     toolDeny: ['bash'],
-    toolDenyPrefixes: ['subagent_'],
+    toolDenyPrefixes: ['subtask_'],
     skills: ['openspec-skill'],
     maxToolLoops: 50,
   },
@@ -81,7 +81,7 @@ export const DEFAULT_ROLE_CONFIGS: Record<AgentRole, AgentRoleConfig> = {
       '你遵循 tasks.md 中分配给你的具体任务，不偏离范围。' +
       '完成后更新 tasks.md 标记进度。',
     toolProfile: 'coding',
-    toolDenyPrefixes: ['subagent_'],
+    toolDenyPrefixes: ['subtask_'],
     skills: ['project-dev-workflow'],
     maxToolLoops: 80,
   },
@@ -94,7 +94,7 @@ export const DEFAULT_ROLE_CONFIGS: Record<AgentRole, AgentRoleConfig> = {
       '你关注边界情况、错误处理和回归测试。' +
       '发现问题后写明确的 bug 描述到 tasks.md。',
     toolProfile: 'coding',
-    toolDenyPrefixes: ['subagent_'],
+    toolDenyPrefixes: ['subtask_'],
     skills: ['testing-workflow'],
     maxToolLoops: 60,
   },
@@ -107,7 +107,7 @@ export const DEFAULT_ROLE_CONFIGS: Record<AgentRole, AgentRoleConfig> = {
       '你只读代码，输出审查报告到 reviews/ 目录。你不修改任何代码文件。',
     toolProfile: 'coding',
     toolDeny: ['write_file', 'edit_file', 'apply_patch', 'bash'],
-    toolDenyPrefixes: ['subagent_'],
+    toolDenyPrefixes: ['subtask_'],
     skills: ['review-workflow'],
     maxToolLoops: 40,
   },
