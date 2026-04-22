@@ -18,18 +18,28 @@ export interface CrewRecommendation {
   recommendedSkillNames: string[]
 }
 
-const RECOMMEND_SYSTEM_PROMPT = `你是一个 Crew 配置推荐器。根据用户的对话历史，推荐一个 Crew（任务执行体）配置。
+const RECOMMEND_SYSTEM_PROMPT = `你是一个 Crew 配置推荐器。根据用户的完整对话历史，深度分析用户的工作领域和任务需求，推荐一个 Crew（任务执行体）配置。
+
+仔细阅读对话中的所有细节：用户讨论了什么主题、用了哪些工具、涉及什么技术栈、提到了什么文件类型或工作流程。
 
 输出严格的 JSON（不要 markdown 代码块包裹）：
 {
-  "name": "简短名称（中文，≤20字）",
-  "description": "一句话描述用途",
-  "emoji": "一个合适的 emoji",
-  "systemPromptExtra": "针对此任务的额外指令（可为空字符串）",
-  "keywords": ["关键词1", "关键词2", "关键词3"]
+  "name": "简短但精确的名称（中文，≤20字，体现具体领域）",
+  "description": "一句话描述这个 Crew 能做什么（具体到技术栈/工具/场景）",
+  "emoji": "一个最贴合任务领域的 emoji",
+  "systemPromptExtra": "详细的角色定义和行为指令（至少3-5条具体规则，基于对话中体现的用户偏好和工作习惯）",
+  "keywords": ["关键词1", "关键词2", ..., "关键词N"]
 }
 
-keywords 用于搜索匹配的 Skills，选择 3-5 个最相关的关键词。`
+systemPromptExtra 要求：
+- 基于对话中用户的实际需求和偏好来写
+- 包含具体的技术约定（如语言偏好、代码风格、输出格式等）
+- 至少100字，要有实质内容
+
+keywords 用于搜索匹配的 Skills（技能包），选择 5-10 个最相关的关键词，覆盖：
+- 工具类（如 git, bash, docx, excel 等）
+- 领域类（如 frontend, coding, data-analysis 等）
+- 场景类（如 report, design, automation 等）`
 
 export async function recommendCrew(
   messages: ChatCompletionMessageParam[],
@@ -37,11 +47,15 @@ export async function recommendCrew(
 ): Promise<CrewRecommendation> {
   const resolvedProvider = provider ?? routeModel('chat').provider
 
-  const recentMessages = messages.slice(-15)
+  const recentMessages = messages.slice(-30)
   const chatText = recentMessages
     .filter(m => m.role === 'user' || m.role === 'assistant')
-    .map(m => `[${m.role}]: ${typeof m.content === 'string' ? m.content.slice(0, 300) : ''}`)
-    .join('\n')
+    .map(m => {
+      const text = typeof m.content === 'string' ? m.content : ''
+      // 保留更多上下文以便 LLM 准确分析
+      return `[${m.role}]: ${text.slice(0, 1000)}`
+    })
+    .join('\n\n')
 
   const reqMessages: ChatCompletionMessageParam[] = [
     { role: 'system', content: RECOMMEND_SYSTEM_PROMPT },

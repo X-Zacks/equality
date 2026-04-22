@@ -48,12 +48,12 @@ export async function generateBriefing(
   const resolvedProvider = provider ?? routeModel('chat').provider
 
   // 只取最近的消息，控制输入量
-  const recentMessages = messages.slice(-20)
+  const recentMessages = messages.slice(-30)
 
-  // 格式化对话历史
+  // 格式化对话历史——保留足够上下文
   const chatText = recentMessages
     .filter(m => m.role === 'user' || m.role === 'assistant')
-    .map(m => `[${m.role}]: ${typeof m.content === 'string' ? m.content.slice(0, 500) : '(non-text)'}`)
+    .map(m => `[${m.role}]: ${typeof m.content === 'string' ? m.content.slice(0, 1500) : '(non-text)'}`)
     .join('\n\n')
 
   const briefingMessages: ChatCompletionMessageParam[] = [

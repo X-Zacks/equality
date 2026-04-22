@@ -368,7 +368,7 @@ await app.register(cors, {
     // 其余（外部网页）一律拒绝
     cb(Object.assign(new Error('CORS: origin not allowed'), { statusCode: 403 }), false)
   },
-  methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   exposedHeaders: ['Content-Type'],
   credentials: false,

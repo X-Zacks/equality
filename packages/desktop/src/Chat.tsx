@@ -1245,6 +1245,34 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings, on
             ))}
           </div>
         )}
+
+        {/* Chat→Crew：对话足够深入时，在消息底部显示建议 */}
+        {messages.filter(m => m.role === 'user').length >= 3 && !streaming && (
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: '12px 16px', margin: '8px 40px',
+            borderTop: '1px solid var(--border-color, #2a2a3e)',
+          }}>
+            <span style={{ fontSize: 12, color: '#555', marginRight: 8 }}>
+              💡 对话已积累足够上下文
+            </span>
+            <button
+              onClick={handleCreateCrewFromChat}
+              disabled={crewCreating}
+              style={{
+                background: 'transparent', color: '#7c6ef6', border: '1px solid #3a3a5a',
+                borderRadius: 16, padding: '4px 14px', cursor: crewCreating ? 'wait' : 'pointer',
+                fontSize: 12, opacity: crewCreating ? 0.6 : 1, transition: 'all 0.15s',
+                whiteSpace: 'nowrap',
+              }}
+              onMouseEnter={e => { if (!crewCreating) (e.target as HTMLButtonElement).style.background = '#1e1e3a' }}
+              onMouseLeave={e => { (e.target as HTMLButtonElement).style.background = 'transparent' }}
+            >
+              {crewCreating ? '⏳ 分析中…' : '🚀 创建专属 Crew'}
+            </button>
+          </div>
+        )}
+
         <div ref={messagesEndRef} />
       </div>
 
@@ -1253,27 +1281,6 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings, on
         <div className={`quota-warning ${quotaWarning.startsWith('🚫') ? 'quota-exhausted' : quotaWarning.startsWith('🔴') ? 'quota-critical' : 'quota-warn'}`}>
           {quotaWarning}
           <button className="quota-warning-close" onClick={() => setQuotaWarning(null)}>✕</button>
-        </div>
-      )}
-
-      {/* Chat→Crew 浮动操作栏：≥3 轮对话时显示 */}
-      {messages.filter(m => m.role === 'user').length >= 3 && !streaming && (
-        <div className="crew-action-bar" style={{
-          display: 'flex', gap: 8, justifyContent: 'center', padding: '8px 16px',
-          background: 'var(--bg-secondary, #2a2a2a)', borderRadius: 8, margin: '0 16px 8px',
-          animation: 'fadeIn 0.3s ease-out',
-        }}>
-          <button
-            onClick={handleCreateCrewFromChat}
-            disabled={crewCreating}
-            style={{
-              background: 'var(--accent, #646cff)', color: '#fff', border: 'none',
-              borderRadius: 6, padding: '6px 14px', cursor: crewCreating ? 'wait' : 'pointer',
-              fontSize: 13, opacity: crewCreating ? 0.6 : 1,
-            }}
-          >
-            {crewCreating ? '⏳ 正在创建…' : '🚀 创建 Crew'}
-          </button>
         </div>
       )}
 
