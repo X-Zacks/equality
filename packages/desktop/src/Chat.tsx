@@ -124,7 +124,7 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
   // Z3.2: TTS 自动播报开关
   const [ttsAutoPlay, setTtsAutoPlay] = useState(true)
   const ttsAutoPlayRef = useRef(true)
-  const { sendMessage, abort, loadSession } = useGateway()
+  const { sendMessage, abort, loadSession, truncateSession } = useGateway()
 
   const toggleToolCall = useCallback((id: string) => {
     setExpandedToolCalls(prev => {
@@ -829,8 +829,14 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
     if (userIdx < 0) return
     const userText = messages[userIdx].content
 
-    // 删掉这条 assistant 及之后的消息
-    setMessages(prev => prev.slice(0, idx))
+    // 找到这个回合的起始位置（user 消息之后第一条 assistant）
+    const turnStart = userIdx + 1
+
+    // 删掉整个回合的 assistant 消息（包括 tool_calls 中间消息）
+    setMessages(prev => prev.slice(0, turnStart))
+
+    // 通知后端截断 session（删除这些消息以免重新生成时带旧内容）
+    await truncateSession(sessionKey, turnStart).catch(() => {})
     streamingTextRef.current = ''
     setStreamingText('')
     activeToolCallsRef.current = []
@@ -1088,8 +1094,15 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings }: 
                 {msg.action.label}
               </button>
             )}
-            {/* 消息操作按钮：仅对有文本内容的消息显示 */}
-            {(msg.role === 'user' || msg.content) && (
+            {/* 消息操作按钮：user 消息始终显示；assistant 仅在该轮最后一条显示 */}
+            {(() => {
+              if (msg.role === 'user') return true
+              if (msg.role !== 'assistant') return false
+              if (!msg.content && !msg.toolCalls?.length) return false
+              // 只在连续 assistant 消息的最后一条显示
+              const next = messages[i + 1]
+              return !next || next.role !== 'assistant'
+            })() && (
               <div className="msg-actions">
                 <button
                   className="msg-action-btn"

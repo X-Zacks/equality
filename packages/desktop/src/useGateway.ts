@@ -422,11 +422,22 @@ export function useGateway() {
     } catch { return null }
   }, [])
 
+  const truncateSession = useCallback(async (key: string, keepCount: number): Promise<boolean> => {
+    try {
+      const resp = await fetch(`${CORE_URL}/sessions/${encodeURIComponent(key)}/truncate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ keepCount }),
+      })
+      return resp.ok
+    } catch { return false }
+  }, [])
+
   return {
     coreOnline, sendMessage, abort,
     saveApiKey, loadSettings, deleteKey,
     copilotLogin, copilotLoginStatus, copilotLogout, copilotModels,
-    listSessions, loadSession, deleteSession,
+    listSessions, loadSession, deleteSession, truncateSession,
     listMemories, getMemory, createMemory, updateMemory, deleteMemory, deleteMemories, getMemoryStats,
     exportMemories, importMemories, triggerMemoryGC,
   }

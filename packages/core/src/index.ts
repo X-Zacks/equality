@@ -708,6 +708,42 @@ app.post<{ Params: { key: string } }>('/sessions/:key/persist', async (req, repl
   return reply.send({ ok: true, messages: session.messages.length })
 })
 
+// ─── Session truncate（重新生成时截断 session messages）─────────────
+app.post<{ Params: { key: string } }>('/sessions/:key/truncate', async (req, reply) => {
+  const { key } = req.params
+  const { keepCount } = req.body as { keepCount?: number }
+  const session = get(key)
+  if (!session) return reply.send({ ok: false, reason: 'session not found' })
+  if (typeof keepCount !== 'number' || keepCount < 0) return reply.send({ ok: false, reason: 'invalid keepCount' })
+
+  // keepCount is the number of frontend-visible messages (user + assistant) to keep.
+  // We need to map this to the backend session.messages array which also contains
+  // system, tool, and assistant+tool_calls messages.
+  let visibleCount = 0
+  let cutIdx = session.messages.length // default: no cut
+
+  for (let i = 0; i < session.messages.length; i++) {
+    const msg = session.messages[i] as { role: string }
+    if (msg.role === 'user' || msg.role === 'assistant') {
+      if (visibleCount === keepCount) {
+        cutIdx = i
+        break
+      }
+      visibleCount++
+    }
+  }
+
+  if (cutIdx < session.messages.length) {
+    session.messages.splice(cutIdx)
+    // Clean up costLines for removed indices
+    for (const idx of Object.keys(session.costLines).map(Number)) {
+      if (idx >= cutIdx) delete session.costLines[idx]
+    }
+    await persist(session)
+  }
+  return reply.send({ ok: true, messages: session.messages.length })
+})
+
 // ─── Tools API ────────────────────────────────────────────────────────────────
 app.get('/tools', async (_req, reply) => {
   return reply.send(toolRegistry.list().map(name => ({ name })))
