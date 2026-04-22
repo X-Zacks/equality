@@ -3,10 +3,11 @@ import { useGateway } from './useGateway'
 import Chat from './Chat'
 import SessionPanel from './SessionPanel'
 import Settings from './Settings'
+import CrewPanel from './CrewPanel'
 import { LocaleContext, detectLocale, t as tRaw, type Locale } from './i18n'
 import './App.css'
 
-type Page = 'chat' | 'settings'
+type Page = 'chat' | 'settings' | 'crews'
 type ThemePreference = 'system' | 'purple' | 'dark' | 'black'
 type EffectiveTheme = 'purple' | 'dark' | 'black'
 
@@ -47,7 +48,7 @@ function App() {
     return [initial]
   })
   const [currentStreaming, setCurrentStreaming] = useState(false)
-  const { coreOnline, loadSettings } = useGateway()
+  const { coreOnline, loadSettings, listCrews, createCrew, updateCrew, deleteCrew, createCrewSession } = useGateway()
   const [providerInfo, setProviderInfo] = useState('')
   const [zoom, setZoom] = useState(() => {
     const saved = localStorage.getItem(ZOOM_KEY)
@@ -205,6 +206,11 @@ function App() {
           title={localeCtx.t('chat.toggle')}
         >💬</button>
         <button
+          className={`sidebar-btn ${page === 'crews' ? 'active' : ''}`}
+          onClick={() => setPage('crews')}
+          title={localeCtx.t('crew.title', 'Crews')}
+        >🤖</button>
+        <button
           className={`sidebar-btn ${page === 'settings' ? 'active' : ''}`}
           onClick={() => setPage('settings')}
           title={localeCtx.t('settings.btn')}
@@ -241,6 +247,20 @@ function App() {
               themePreference={themePreference}
               effectiveTheme={effectiveTheme}
               onThemeChange={setThemePreference}
+            />
+          )}
+          {page === 'crews' && (
+            <CrewPanel
+              listCrews={listCrews}
+              createCrew={createCrew}
+              updateCrew={updateCrew}
+              deleteCrew={deleteCrew}
+              createCrewSession={createCrewSession}
+              onStartCrewSession={(key) => {
+                setSessionKey(key)
+                setOpenedSessions(prev => addToOpenedSessions(prev, key))
+                setPage('chat')
+              }}
             />
           )}
         </div>

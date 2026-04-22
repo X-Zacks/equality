@@ -433,6 +433,58 @@ export function useGateway() {
     } catch { return false }
   }, [])
 
+  // ─── Crew API ───────────────────────────────────────────────────────────────
+
+  const listCrews = useCallback(async () => {
+    try {
+      const resp = await fetch(`${CORE_URL}/crews`)
+      return resp.ok ? await resp.json() : []
+    } catch { return [] }
+  }, [])
+
+  const getCrewById = useCallback(async (id: string) => {
+    try {
+      const resp = await fetch(`${CORE_URL}/crews/${id}`)
+      return resp.ok ? await resp.json() : null
+    } catch { return null }
+  }, [])
+
+  const createCrew = useCallback(async (data: { name: string; description: string; emoji?: string; skillNames?: string[]; systemPromptExtra?: string; source?: string }) => {
+    try {
+      const resp = await fetch(`${CORE_URL}/crews`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...data, source: data.source ?? 'user-created', skillNames: data.skillNames ?? [] }),
+      })
+      return resp.ok ? await resp.json() : null
+    } catch { return null }
+  }, [])
+
+  const updateCrew = useCallback(async (id: string, data: Record<string, unknown>) => {
+    try {
+      const resp = await fetch(`${CORE_URL}/crews/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      })
+      return resp.ok ? await resp.json() : null
+    } catch { return null }
+  }, [])
+
+  const deleteCrew = useCallback(async (id: string): Promise<boolean> => {
+    try {
+      const resp = await fetch(`${CORE_URL}/crews/${id}`, { method: 'DELETE' })
+      return resp.ok
+    } catch { return false }
+  }, [])
+
+  const createCrewSession = useCallback(async (crewId: string) => {
+    try {
+      const resp = await fetch(`${CORE_URL}/crews/${crewId}/session`, { method: 'POST' })
+      return resp.ok ? await resp.json() : null
+    } catch { return null }
+  }, [])
+
   return {
     coreOnline, sendMessage, abort,
     saveApiKey, loadSettings, deleteKey,
@@ -440,5 +492,6 @@ export function useGateway() {
     listSessions, loadSession, deleteSession, truncateSession,
     listMemories, getMemory, createMemory, updateMemory, deleteMemory, deleteMemories, getMemoryStats,
     exportMemories, importMemories, triggerMemoryGC,
+    listCrews, getCrewById, createCrew, updateCrew, deleteCrew, createCrewSession,
   }
 }

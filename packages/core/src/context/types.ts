@@ -7,6 +7,7 @@
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions'
 import type { LLMProvider } from '../providers/types.js'
 import type { Skill } from '../skills/types.js'
+import type { CrewTemplate } from '../crew/types.js'
 
 // ─── assemble() ───────────────────────────────────────────────────────────────
 
@@ -29,6 +30,10 @@ export interface AssembleParams {
   abortSignal?: AbortSignal
   /** Compaction 回调 */
   onCompaction?: (summary: string) => void
+  /** 会话模式 */
+  mode?: 'chat' | 'crew'
+  /** Crew 模板（Crew 模式时传入） */
+  crew?: CrewTemplate
 }
 
 export interface AssembleResult {

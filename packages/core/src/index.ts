@@ -42,6 +42,8 @@ import { setCronScheduler } from './tools/builtins/cron.js'
 import { TaskRegistry, JsonTaskStore, SqliteTaskStore, TERMINAL_STATES } from './tasks/index.js'
 import { scheduleOrphanRecovery } from './tasks/orphan-recovery.js'
 import type { TaskRuntime } from './tasks/index.js'
+import { listCrews, getCrewById, createCrew, updateCrew, deleteCrew } from './crew/index.js'
+import type { CrewCreateInput, CrewUpdateInput } from './crew/index.js'
 
 const PORT = Number(process.env.EQUALITY_PORT ?? 18790)
 const HOST = 'localhost'
@@ -851,6 +853,54 @@ app.post<{ Body: { content: string } }>('/skills/scan', async (req, reply) => {
 })
 
 // ─── Providers API ────────────────────────────────────────────────────────────
+
+// ─── Crew API ─────────────────────────────────────────────────────────────────
+
+app.get('/crews', async (_req, reply) => {
+  const crews = await listCrews()
+  return reply.send(crews)
+})
+
+app.get<{ Params: { id: string } }>('/crews/:id', async (req, reply) => {
+  const crew = await getCrewById(req.params.id)
+  if (!crew) return reply.status(404).send({ error: 'Crew not found' })
+  return reply.send(crew)
+})
+
+app.post<{ Body: CrewCreateInput }>('/crews', async (req, reply) => {
+  const { name, skillNames, ...rest } = req.body ?? {} as CrewCreateInput
+  if (!name?.trim()) return reply.status(400).send({ error: 'name is required' })
+  const crew = await createCrew({ name, skillNames: skillNames ?? [], ...rest })
+  return reply.status(201).send(crew)
+})
+
+app.put<{ Params: { id: string }; Body: CrewUpdateInput }>('/crews/:id', async (req, reply) => {
+  const crew = await updateCrew(req.params.id, req.body ?? {})
+  if (!crew) return reply.status(404).send({ error: 'Crew not found' })
+  return reply.send(crew)
+})
+
+app.delete<{ Params: { id: string } }>('/crews/:id', async (req, reply) => {
+  const ok = await deleteCrew(req.params.id)
+  if (!ok) return reply.status(404).send({ error: 'Crew not found' })
+  return reply.send({ ok: true })
+})
+
+/** 以指定 Crew 创建新的 Crew Session */
+app.post<{ Params: { id: string } }>('/crews/:id/session', async (req, reply) => {
+  const crew = await getCrewById(req.params.id)
+  if (!crew) return reply.status(404).send({ error: 'Crew not found' })
+  const ts = Date.now().toString(36)
+  const rand = Math.random().toString(36).slice(2, 8)
+  const sessionKey = `agent:main:desktop:crew:${crew.id}:${ts}-${rand}`
+  const session = await getOrCreate(sessionKey)
+  // 在 session 上标记 mode 和 crewId
+  ;(session as any).mode = 'crew'
+  ;(session as any).crewId = crew.id
+  return reply.status(201).send({ sessionKey, crewId: crew.id, crewName: crew.name })
+})
+
+// ─── Providers API (continued) ────────────────────────────────────────────────
 
 /** 列出所有 Provider 及其配置状态 */
 app.get('/providers', async (_req, reply) => {

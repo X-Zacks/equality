@@ -127,6 +127,8 @@ export class DefaultContextEngine implements ContextEngine {
     const purposeBlock = formatPurposeBlock(session.purpose)
 
     // 2. 构造 system prompt
+    const sessionMode = params.mode ?? session.mode ?? 'chat'
+    const crew = params.crew
     let systemContent = buildSystemPrompt({
       workspaceDir,
       skills,
@@ -135,6 +137,10 @@ export class DefaultContextEngine implements ContextEngine {
       bootstrapBlock,
       purposeBlock: purposeBlock || undefined,
       language,
+      mode: sessionMode,
+      crewSystemPromptExtra: crew?.systemPromptExtra,
+      crewSkillNames: crew?.skillNames,
+      briefing: (session as any).briefing?.summary,
     })
 
     // 3. Memory Recall：冻结快照模式（O1）

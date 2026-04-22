@@ -16,6 +16,10 @@ export interface Session {
   frozenMemorySnapshot?: string
   /** 会话级目的（替代旧 SOUL/IDENTITY/USER.md） */
   purpose?: SessionPurpose
+  /** 会话模式：chat（轻量聊天）| crew（任务执行） */
+  mode: 'chat' | 'crew'
+  /** Crew 模式时关联的 Crew Template ID */
+  crewId?: string
 }
 
 export function createSession(key: string): Session {
@@ -28,5 +32,6 @@ export function createSession(key: string): Session {
     createdAt: now,
     lastActiveAt: now,
     runningAbort: null,
+    mode: 'chat',
   }
 }

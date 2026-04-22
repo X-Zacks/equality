@@ -658,6 +658,13 @@ export async function runAttempt(params: RunAttemptParams): Promise<RunAttemptRe
         .filter((s): s is import('../skills/types.js').Skill => s !== undefined)
     : undefined
 
+  // 加载 Crew 模板（如果是 Crew Session）
+  let crew: import('../crew/types.js').CrewTemplate | undefined
+  if (session.mode === 'crew' && session.crewId) {
+    const { getCrewById } = await import('../crew/store.js')
+    crew = (await getCrewById(session.crewId)) ?? undefined
+  }
+
   const contextEngine = new DefaultContextEngine()
   const assembled = await contextEngine.assemble({
     sessionKey,
@@ -670,6 +677,8 @@ export async function runAttempt(params: RunAttemptParams): Promise<RunAttemptRe
     abortSignal: abort.signal,
     language: params.language,
     onCompaction: (summary) => params.onDelta?.(`\n\n💭 ${summary}\n\n`),
+    mode: session.mode,
+    crew,
   })
   const messages = assembled.messages
   const messagesBaseline = messages.length  // 记录初始长度，用于后续提取 tool loop 新增的消息

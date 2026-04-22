@@ -37,11 +37,13 @@ export async function persist(session: Session): Promise<void> {
     lastActiveAt: session.lastActiveAt,
     frozenMemorySnapshot: session.frozenMemorySnapshot,
     purpose: session.purpose,
+    mode: session.mode,
+    crewId: session.crewId,
   })
   await writeFile(sessionFile(session.key), payload, 'utf8')
 }
 
-export async function load(key: string): Promise<Pick<Session, 'messages' | 'costLines' | 'createdAt' | 'title' | 'frozenMemorySnapshot' | 'purpose'> | null> {
+export async function load(key: string): Promise<Pick<Session, 'messages' | 'costLines' | 'createdAt' | 'title' | 'frozenMemorySnapshot' | 'purpose' | 'mode' | 'crewId'> | null> {
   const file = sessionFile(key)
   if (!existsSync(file)) return null
   try {

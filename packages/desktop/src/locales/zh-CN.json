@@ -220,5 +220,22 @@
   "mem.gcFail": "清理失败",
   "mem.gcNone": "没有需要清理的记忆",
   "mem.gcArchived": "归档 {n} 条",
-  "mem.gcDeleted": "永删 {n} 条"
+  "mem.gcDeleted": "永删 {n} 条",
+
+  "crew.title": "Crews",
+  "crew.new": "新建",
+  "crew.create": "新建 Crew",
+  "crew.edit": "编辑 Crew",
+  "crew.name": "名称",
+  "crew.namePlaceholder": "如：前端开发助手",
+  "crew.description": "描述",
+  "crew.descPlaceholder": "一句话描述这个 Crew 的用途",
+  "crew.sysPrompt": "追加 System Prompt",
+  "crew.sysPromptPlaceholder": "在默认 System Prompt 之后追加的自定义指令…",
+  "crew.skillFilter": "搜索 Skill…",
+  "crew.tab.info": "基础信息",
+  "crew.tab.prompt": "System Prompt",
+  "crew.tab.skills": "Skills",
+  "crew.start": "开始会话",
+  "crew.empty": "还没有 Crew，点击上方按钮新建一个"
 }

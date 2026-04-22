@@ -220,5 +220,22 @@
   "mem.gcFail": "Cleanup failed",
   "mem.gcNone": "No memories to clean up",
   "mem.gcArchived": "Archived {n}",
-  "mem.gcDeleted": "Permanently deleted {n}"
+  "mem.gcDeleted": "Permanently deleted {n}",
+
+  "crew.title": "Crews",
+  "crew.new": "New",
+  "crew.create": "New Crew",
+  "crew.edit": "Edit Crew",
+  "crew.name": "Name",
+  "crew.namePlaceholder": "e.g. Frontend Dev Assistant",
+  "crew.description": "Description",
+  "crew.descPlaceholder": "Describe what this Crew does in one sentence",
+  "crew.sysPrompt": "Extra System Prompt",
+  "crew.sysPromptPlaceholder": "Custom instructions appended after default System Prompt…",
+  "crew.skillFilter": "Search Skill…",
+  "crew.tab.info": "Basics",
+  "crew.tab.prompt": "System Prompt",
+  "crew.tab.skills": "Skills",
+  "crew.start": "Start Session",
+  "crew.empty": "No Crews yet. Click the button above to create one"
 }

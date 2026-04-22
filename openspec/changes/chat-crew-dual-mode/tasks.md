@@ -4,24 +4,24 @@
 
 ### Core 侧
 
-- [ ] **1.1** 新建 `packages/core/src/crew/types.ts`：CrewTemplate 接口定义
-- [ ] **1.2** 新建 `packages/core/src/crew/store.ts`：Crew Template 文件存储（JSON，`%APPDATA%/Equality/crews/`）
-- [ ] **1.3** 新建 `packages/core/src/crew/index.ts`：导出
-- [ ] **1.4** 修改 `packages/core/src/index.ts`：新增 `/crews` CRUD 路由（GET/POST/PUT/DELETE）
-- [ ] **1.5** 修改 `packages/core/src/session/store.ts`：Session 新增 `mode`（默认 'chat'）和 `crewId` 字段
-- [ ] **1.6** 修改 `packages/core/src/agent/system-prompt.ts`：`buildSystemPrompt` 接受 `mode` 参数
+- [x] **1.1** 新建 `packages/core/src/crew/types.ts`：CrewTemplate 接口定义
+- [x] **1.2** 新建 `packages/core/src/crew/store.ts`：Crew Template 文件存储（JSON，`%APPDATA%/Equality/crews/`）
+- [x] **1.3** 新建 `packages/core/src/crew/index.ts`：导出
+- [x] **1.4** 修改 `packages/core/src/index.ts`：新增 `/crews` CRUD 路由（GET/POST/PUT/DELETE）
+- [x] **1.5** 修改 `packages/core/src/session/store.ts`：Session 新增 `mode`（默认 'chat'）和 `crewId` 字段
+- [x] **1.6** 修改 `packages/core/src/agent/system-prompt.ts`：`buildSystemPrompt` 接受 `mode` 参数
   - Chat 模式：仅注入 always Skills，不注入 `<available_skills>` 全量索引
   - Crew 模式：注入 Crew 绑定的 Skills 索引 + systemPromptExtra
-- [ ] **1.7** 修改 `packages/core/src/agent/runner.ts`：从 Session 读取 crewId → 加载 Crew → 过滤 Skills
-- [ ] **1.8** `pnpm typecheck` 通过
+- [x] **1.7** 修改 `packages/core/src/agent/runner.ts`：从 Session 读取 crewId → 加载 Crew → 过滤 Skills
+- [x] **1.8** `pnpm typecheck` 通过
 
 ### Desktop 侧
 
-- [ ] **1.9** 新建 `packages/desktop/src/CrewPanel.tsx`：Crew 列表 + 编辑页（三 Tab：基础信息/System Prompt/Skills）
-- [ ] **1.10** 修改 `packages/desktop/src/App.tsx`：左侧栏增加 Crew 列表区、新建 Crew 入口
-- [ ] **1.11** 修改 `packages/desktop/src/useGateway.ts`：新增 Crew CRUD API 调用
+- [x] **1.9** 新建 `packages/desktop/src/CrewPanel.tsx`：Crew 列表 + 编辑页（三 Tab：基础信息/System Prompt/Skills）
+- [x] **1.10** 修改 `packages/desktop/src/App.tsx`：侧边栏增加 Crew 入口
+- [x] **1.11** 修改 `packages/desktop/src/useGateway.ts`：新增 Crew CRUD API 调用
 - [ ] **1.12** 修改 `packages/desktop/src/Chat.tsx`：Crew Session 头部显示 Crew 名称和 Skills 数量
-- [ ] **1.13** i18n：`locales/zh-CN.json` 和 `locales/en.json` 新增 Crew 相关翻译
+- [x] **1.13** i18n：`locales/zh-CN.json` 和 `locales/en.json` 新增 Crew 相关翻译
 
 ---
 

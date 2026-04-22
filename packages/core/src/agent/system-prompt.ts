@@ -20,6 +20,14 @@ export interface SystemPromptOptions {
   agentIdentity?: string
   /** UI 语言偏好（影响 AI 回复语言） */
   language?: string
+  /** 会话模式：chat（轻量）| crew（任务执行） */
+  mode?: 'chat' | 'crew'
+  /** Crew 追加的 System Prompt */
+  crewSystemPromptExtra?: string
+  /** Crew 绑定的 Skill 名称列表（Crew 模式时只注入这些） */
+  crewSkillNames?: string[]
+  /** Briefing 文本（Crew 模式从 Chat 导入的上下文） */
+  briefing?: string
 }
 
 // ─── 主构建函数 ───────────────────────────────────────────────────────────────
@@ -236,8 +244,59 @@ ${sk.body}
 
 纯对话或只调用 1 个工具时，正常回答，不使用此格式。`
 
-  // Skills 索引
-  if (options?.skills?.length) {
+  // ─── Briefing 注入（Crew 模式从 Chat 导入的上下文）─────────────────────
+  if (options?.briefing) {
+    prompt += `\n<briefing>\n${options.briefing}\n</briefing>\n`
+  }
+
+  // ─── Crew System Prompt Extra ──────────────────────────────────────────
+  if (options?.crewSystemPromptExtra) {
+    prompt += `\n## Crew 自定义指令\n\n${options.crewSystemPromptExtra}\n`
+  }
+
+  // ─── Skills 索引（按模式分支）──────────────────────────────────────────
+  const mode = options?.mode ?? 'chat'
+
+  if (mode === 'crew' && options?.skills?.length && options?.crewSkillNames?.length) {
+    // Crew 模式：只注入绑定的 Skills
+    const crewSet = new Set(options.crewSkillNames)
+    const boundSkills = options.skills.filter(s => crewSet.has(s.name))
+    if (boundSkills.length > 0) {
+      const skillsBlock = buildSkillsPromptBlock(boundSkills)
+      if (skillsBlock) {
+        prompt += `\n
+## Skills 索引（Crew 绑定，共 ${boundSkills.length} 个）
+
+` + skillsBlock + `
+
+约束：
+- 一次只读取一个 SKILL.md，选定后才读。
+- Skill 是 Markdown 文档，不是可执行程序。不存在任何 CLI 命令来"运行" Skill。
+- 执行 Skill 的方式是：读取 SKILL.md → 按其中的步骤用已有工具（bash、write_file、read_file 等）逐步操作。
+- 如果任务需要未绑定的 Skill，可用 skill_search 工具搜索。
+`
+      }
+    }
+  } else if (mode === 'chat') {
+    // Chat 模式：只注入 always=true 的 Skills（≤5 个），不注入全量索引
+    const alwaysSkills = options?.skills?.filter(s => s.metadata?.always) ?? []
+    if (alwaysSkills.length > 0) {
+      const skillsBlock = buildSkillsPromptBlock(alwaysSkills)
+      if (skillsBlock) {
+        prompt += `\n
+## Skills（常驻）
+
+` + skillsBlock + `
+
+约束：
+- 一次只读取一个 SKILL.md，选定后才读。
+- 执行 Skill 的方式是：读取 SKILL.md → 按其中的步骤用已有工具逐步操作。
+- 如果需要其他技能，可用 skill_search 工具搜索。
+`
+      }
+    }
+  } else if (options?.skills?.length) {
+    // 兜底：原有全量注入（兼容旧逻辑）
     const skillsBlock = buildSkillsPromptBlock(options.skills)
     if (skillsBlock) {
       prompt += `\n
@@ -253,8 +312,9 @@ ${sk.body}
     }
   }
 
-  // Skill 沉淀指令（O3 增强版：匹配 + 引用 + 沉淀 + Patch 四项指引）
-  prompt += `\n
+  // Skill 沉淀指令（O3 增强版）— Chat 模式简化，Crew 模式完整
+  if (mode === 'crew') {
+    prompt += `\n
 ## Skill 使用与管理（O3）
 
 ### 1. 技能匹配
@@ -318,6 +378,14 @@ equality:
 ⚠️ 安装命令使用国内镜像（pip: \`-i https://pypi.tuna.tsinghua.edu.cn/simple\`）
 
 保存后告知用户："已将此任务保存为 Skill '<名称>'，下次可直接使用。"`
+  } else {
+    // Chat 模式：精简的 Skill 提示
+    prompt += `\n
+## Skill 搜索
+
+如果当前任务可能有现成的 Skill 可参考，可用 skill_search 工具搜索可用技能。
+成功完成复杂多步骤任务后，可提议将其保存为 Skill。`
+  }
 
   return prompt
 }

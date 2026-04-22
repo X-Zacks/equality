@@ -23,6 +23,8 @@ export async function getOrCreate(key: string): Promise<Session> {
       session.title = saved.title
       session.frozenMemorySnapshot = saved.frozenMemorySnapshot
       session.purpose = saved.purpose
+      session.mode = saved.mode ?? 'chat'
+      session.crewId = saved.crewId
       // J2: 发射 session:restored 事件
       emitSessionEvent('session:restored', key, { messageCount: session.messages.length })
     } else {
