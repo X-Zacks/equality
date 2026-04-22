@@ -55,6 +55,10 @@ const VERSION = '0.2.1'
 // 初始化 secrets（从环境变量读取）
 initSecrets()
 
+// 注入 secret reader 到 url-validator（使其能读取用户设置的 ALLOW_PRIVATE_IPS）
+import { setSecretReader } from './tools/url-validator.js'
+setSecretReader((k) => { try { return getSecret(k as SecretKey) } catch { return undefined } })
+
 // G9: 结构化日志（替代散落的 console.log）— 尽早初始化，后续所有模块可用
 import { createLogger } from './diagnostics/logger.js'
 const log = createLogger('gateway')
@@ -142,8 +146,12 @@ webSearchRegistry.register(new TavilySearchProvider())
 webSearchRegistry.register(new DuckDuckGoSearchProvider({ proxyUrl }))
 
 // G5: 注入 registry 到 web_search 工具
-import { setWebSearchRegistry } from './tools/builtins/web-search.js'
+import { setWebSearchRegistry, setPreferredProvider } from './tools/builtins/web-search.js'
 setWebSearchRegistry(webSearchRegistry)
+// 读取用户选择的搜索引擎偏好
+if (hasSecret('WEB_SEARCH_PROVIDER' as SecretKey)) {
+  setPreferredProvider(getSecret('WEB_SEARCH_PROVIDER' as SecretKey))
+}
 
 // 初始化工具注册表
 const toolRegistry = new ToolRegistry()
@@ -1130,6 +1138,10 @@ app.post<{ Body: SaveKeyBody }>('/settings/api-key', async (req, reply) => {
   // 代理设置变更时同步更新运行时代理
   if (provider === 'HTTPS_PROXY') {
     setProxyUrl(key)
+  }
+  // 搜索引擎偏好变更时同步更新
+  if (provider === 'WEB_SEARCH_PROVIDER') {
+    setPreferredProvider(key)
   }
   return reply.send({ ok: true })
 })

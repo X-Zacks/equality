@@ -42,6 +42,9 @@ const KEY_NAMES = [
   'MEMORY_AUTO_CAPTURE',
   'INTENT_JUDGE_PROVIDER',
   'INTENT_JUDGE_MODEL',
+  'TAVILY_API_KEY',
+  'ALLOW_PRIVATE_IPS',
+  'WEB_SEARCH_PROVIDER',
 ] as const
 export type SecretKey = (typeof KEY_NAMES)[number]
 
@@ -125,7 +128,7 @@ export function listSecrets(): Array<{ key: SecretKey; masked: string }> {
   return KEY_NAMES.filter(k => hasSecret(k)).map(k => {
     const val = cache.get(k)!
     // URL / Model / Proxy 不遮掩；API Key / Token 只显示前4位
-    const masked = k.endsWith('_URL') || k === 'CUSTOM_MODEL' || k === 'COPILOT_MODEL' || k === 'HTTPS_PROXY' || k === 'MODEL_ROUTING' || k === 'SELECTED_MODEL' || k.startsWith('BASH_') || k.startsWith('AGENT_MAX_') || k === 'WORKSPACE_DIR' || k === 'CHROME_PATH' || k === 'MINIMAX_SHOW_THINKING'
+    const masked = k.endsWith('_URL') || k === 'CUSTOM_MODEL' || k === 'COPILOT_MODEL' || k === 'HTTPS_PROXY' || k === 'MODEL_ROUTING' || k === 'SELECTED_MODEL' || k.startsWith('BASH_') || k.startsWith('AGENT_MAX_') || k === 'WORKSPACE_DIR' || k === 'CHROME_PATH' || k === 'MINIMAX_SHOW_THINKING' || k === 'ALLOW_PRIVATE_IPS' || k === 'WEB_SEARCH_PROVIDER'
       ? val
       : val.length > 6 ? val.slice(0, 4) + '****' + val.slice(-2) : '******'
     return { key: k, masked }

@@ -30,11 +30,19 @@ const PRIVATE_IP_RANGES = [
 const BLOCKED_HOSTNAMES = ['localhost', '0.0.0.0', '[::1]']
 
 /**
- * 检查 env ALLOW_PRIVATE_IPS 是否启用。
+ * 检查 ALLOW_PRIVATE_IPS 是否启用。
+ * 优先读 secrets 缓存（用户在界面设置），回退到 process.env。
  * 支持 '1', 'true', 'yes' 三种值。
  */
+let _getSecretFn: ((k: string) => string | undefined) | undefined
+
+/** 由 index.ts 注入 secrets 读取函数 */
+export function setSecretReader(fn: (k: string) => string | undefined): void {
+  _getSecretFn = fn
+}
+
 export function isPrivateIPsAllowed(): boolean {
-  const v = process.env.ALLOW_PRIVATE_IPS?.toLowerCase()
+  const v = (_getSecretFn?.('ALLOW_PRIVATE_IPS') ?? process.env.ALLOW_PRIVATE_IPS ?? '').toLowerCase()
   return v === '1' || v === 'true' || v === 'yes'
 }
 

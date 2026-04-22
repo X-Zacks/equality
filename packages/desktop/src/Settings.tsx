@@ -762,9 +762,10 @@ interface ToolDetailDrawerProps {
   onDraftChange?: (key: SecretKey, value: string) => void
   onSave?: (groupId: string, keys: SecretKey[]) => Promise<void>
   onClear?: (groupId: string, keys: SecretKey[]) => Promise<void>
+  saveApiKey?: (k: SecretKey, v: string) => Promise<boolean>
 }
 
-function ToolDetailDrawer({ tool, onClose, draft, saving, getMasked, onDraftChange, onSave, onClear }: ToolDetailDrawerProps) {
+function ToolDetailDrawer({ tool, onClose, draft, saving, getMasked, onDraftChange, onSave, onClear, saveApiKey: directSave }: ToolDetailDrawerProps) {
   const props = tool.parameters?.properties ?? {}
   const required = new Set(tool.parameters?.required ?? [])
   const paramEntries = Object.entries(props)
@@ -788,61 +789,88 @@ function ToolDetailDrawer({ tool, onClose, draft, saving, getMasked, onDraftChan
           {/* ─── web_search 配置 ─── */}
           {isWebSearch && draft && saving && getMasked && onDraftChange && onSave && onClear && (
             <div className="tool-detail-section">
-              <div className="tool-detail-label">⚙️ Brave Search API Key</div>
+              <div className="tool-detail-label">⚙️ 搜索引擎选择</div>
               <p style={{ margin: '0 0 8px', fontSize: 12, color: '#888' }}>
-                免费申请：<a href="https://brave.com/search/api/" target="_blank" rel="noreferrer"
-                  style={{ color: 'var(--accent)' }}>brave.com/search/api</a>
-                （免费版每月 2000 次）。未配置时自动回退至 DuckDuckGo。
+                选择一个搜索引擎。未配置 API Key 时自动回退至 DuckDuckGo（无需 Key）。
               </p>
-              <div className="key-row">
-                <label>API Key</label>
+
+              {/* Radio: Brave */}
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', margin: '8px 0' }}>
                 <input
-                  type="password"
-                  placeholder={getMasked('BRAVE_SEARCH_API_KEY') || 'BSAxxxxx…'}
-                  value={draft['BRAVE_SEARCH_API_KEY'] ?? ''}
-                  onChange={e => onDraftChange('BRAVE_SEARCH_API_KEY', e.target.value)}
+                  type="radio"
+                  name="web_search_provider"
+                  checked={(draft['WEB_SEARCH_PROVIDER' as SecretKey] ?? getMasked('WEB_SEARCH_PROVIDER' as SecretKey) ?? 'brave') === 'brave'}
+                  onChange={() => { onDraftChange('WEB_SEARCH_PROVIDER' as SecretKey, 'brave'); directSave?.('WEB_SEARCH_PROVIDER' as SecretKey, 'brave') }}
                 />
-              </div>
-              <div className="provider-actions">
-                {getMasked('BRAVE_SEARCH_API_KEY') && (
-                  <button className="btn-clear" onClick={() => onClear('braveSearch', ['BRAVE_SEARCH_API_KEY'])}>清除</button>
-                )}
-                <button
-                  className="btn-save"
-                  disabled={!draft['BRAVE_SEARCH_API_KEY']?.trim() || saving.braveSearch === 'saving'}
-                  onClick={() => onSave('braveSearch', ['BRAVE_SEARCH_API_KEY'])}
-                >
-                  {saveLabel(saving.braveSearch ?? 'idle')}
-                </button>
+                <span style={{ fontWeight: 500 }}>🔍 Brave Search</span>
+                <span style={{ fontSize: 11, color: '#888' }}>免费 2000 次/月</span>
+              </label>
+              <div style={{ marginLeft: 24, marginBottom: 12 }}>
+                <div className="key-row">
+                  <label>API Key</label>
+                  <input
+                    type="password"
+                    placeholder={getMasked('BRAVE_SEARCH_API_KEY') || 'BSAxxxxx…'}
+                    value={draft['BRAVE_SEARCH_API_KEY'] ?? ''}
+                    onChange={e => onDraftChange('BRAVE_SEARCH_API_KEY', e.target.value)}
+                  />
+                </div>
+                <div className="provider-actions">
+                  {getMasked('BRAVE_SEARCH_API_KEY') && (
+                    <button className="btn-clear" onClick={() => onClear('braveSearch', ['BRAVE_SEARCH_API_KEY'])}>清除</button>
+                  )}
+                  <button className="btn-save" disabled={!draft['BRAVE_SEARCH_API_KEY']?.trim() || saving.braveSearch === 'saving'}
+                    onClick={() => onSave('braveSearch', ['BRAVE_SEARCH_API_KEY'])}>{saveLabel(saving.braveSearch ?? 'idle')}</button>
+                </div>
+                <p style={{ margin: '4px 0 0', fontSize: 11, color: '#666' }}>
+                  申请：<a href="https://brave.com/search/api/" target="_blank" rel="noreferrer" style={{ color: 'var(--accent)' }}>brave.com/search/api</a>
+                </p>
               </div>
 
-              <div className="tool-detail-label" style={{ marginTop: 16 }}>⚙️ Tavily Search API Key</div>
-              <p style={{ margin: '0 0 8px', fontSize: 12, color: '#888' }}>
-                专为 AI Agent 设计的搜索 API。免费申请：<a href="https://tavily.com" target="_blank" rel="noreferrer"
-                  style={{ color: 'var(--accent)' }}>tavily.com</a>
-                （免费版每月 1000 次）。优先级：Brave → Tavily → DuckDuckGo。
-              </p>
-              <div className="key-row">
-                <label>API Key</label>
+              {/* Radio: Tavily */}
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', margin: '8px 0' }}>
                 <input
-                  type="password"
-                  placeholder={getMasked('TAVILY_API_KEY' as SecretKey) || 'tvly-xxxxx…'}
-                  value={draft['TAVILY_API_KEY' as SecretKey] ?? ''}
-                  onChange={e => onDraftChange('TAVILY_API_KEY' as SecretKey, e.target.value)}
+                  type="radio"
+                  name="web_search_provider"
+                  checked={(draft['WEB_SEARCH_PROVIDER' as SecretKey] ?? getMasked('WEB_SEARCH_PROVIDER' as SecretKey) ?? 'brave') === 'tavily'}
+                  onChange={() => { onDraftChange('WEB_SEARCH_PROVIDER' as SecretKey, 'tavily'); directSave?.('WEB_SEARCH_PROVIDER' as SecretKey, 'tavily') }}
                 />
+                <span style={{ fontWeight: 500 }}>🤖 Tavily Search</span>
+                <span style={{ fontSize: 11, color: '#888' }}>AI 专用，免费 1000 次/月</span>
+              </label>
+              <div style={{ marginLeft: 24, marginBottom: 12 }}>
+                <div className="key-row">
+                  <label>API Key</label>
+                  <input
+                    type="password"
+                    placeholder={getMasked('TAVILY_API_KEY' as SecretKey) || 'tvly-xxxxx…'}
+                    value={draft['TAVILY_API_KEY' as SecretKey] ?? ''}
+                    onChange={e => onDraftChange('TAVILY_API_KEY' as SecretKey, e.target.value)}
+                  />
+                </div>
+                <div className="provider-actions">
+                  {getMasked('TAVILY_API_KEY' as SecretKey) && (
+                    <button className="btn-clear" onClick={() => onClear('tavilySearch', ['TAVILY_API_KEY' as SecretKey])}>清除</button>
+                  )}
+                  <button className="btn-save" disabled={!draft['TAVILY_API_KEY' as SecretKey]?.trim() || saving.tavilySearch === 'saving'}
+                    onClick={() => onSave('tavilySearch', ['TAVILY_API_KEY' as SecretKey])}>{saveLabel(saving.tavilySearch ?? 'idle')}</button>
+                </div>
+                <p style={{ margin: '4px 0 0', fontSize: 11, color: '#666' }}>
+                  申请：<a href="https://tavily.com" target="_blank" rel="noreferrer" style={{ color: 'var(--accent)' }}>tavily.com</a>
+                </p>
               </div>
-              <div className="provider-actions">
-                {getMasked('TAVILY_API_KEY' as SecretKey) && (
-                  <button className="btn-clear" onClick={() => onClear('tavilySearch', ['TAVILY_API_KEY' as SecretKey])}>清除</button>
-                )}
-                <button
-                  className="btn-save"
-                  disabled={!draft['TAVILY_API_KEY' as SecretKey]?.trim() || saving.tavilySearch === 'saving'}
-                  onClick={() => onSave('tavilySearch', ['TAVILY_API_KEY' as SecretKey])}
-                >
-                  {saveLabel(saving.tavilySearch ?? 'idle')}
-                </button>
-              </div>
+
+              {/* Radio: DuckDuckGo */}
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', margin: '8px 0' }}>
+                <input
+                  type="radio"
+                  name="web_search_provider"
+                  checked={(draft['WEB_SEARCH_PROVIDER' as SecretKey] ?? getMasked('WEB_SEARCH_PROVIDER' as SecretKey) ?? 'brave') === 'ddg'}
+                  onChange={() => { onDraftChange('WEB_SEARCH_PROVIDER' as SecretKey, 'ddg'); directSave?.('WEB_SEARCH_PROVIDER' as SecretKey, 'ddg') }}
+                />
+                <span style={{ fontWeight: 500 }}>🦆 DuckDuckGo</span>
+                <span style={{ fontSize: 11, color: '#888' }}>无需 API Key，无限制</span>
+              </label>
             </div>
           )}
 
@@ -880,24 +908,21 @@ function ToolDetailDrawer({ tool, onClose, draft, saving, getMasked, onDraftChan
                 默认关闭以防止 SSRF 攻击。开启后浏览器工具可访问 10.x / 172.16-31.x / 192.168.x 等内网地址。
               </p>
               <div className="key-row" style={{ alignItems: 'center' }}>
-                <label>允许内网</label>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
                   <input
                     type="checkbox"
-                    checked={(draft['ALLOW_PRIVATE_IPS' as SecretKey] ?? getMasked('ALLOW_PRIVATE_IPS' as SecretKey) ?? '') === '1'}
-                    onChange={e => onDraftChange('ALLOW_PRIVATE_IPS' as SecretKey, e.target.checked ? '1' : '0')}
+                    checked={(() => {
+                      const v = draft['ALLOW_PRIVATE_IPS' as SecretKey] ?? getMasked('ALLOW_PRIVATE_IPS' as SecretKey) ?? ''
+                      return v === '1' || v === 'true' || v === 'yes'
+                    })()}
+                    onChange={e => {
+                      const val = e.target.checked ? '1' : '0'
+                      onDraftChange('ALLOW_PRIVATE_IPS' as SecretKey, val)
+                      directSave?.('ALLOW_PRIVATE_IPS' as SecretKey, val)
+                    }}
                   />
                   <span style={{ fontSize: 13 }}>允许访问私有 / 内网 IP 地址</span>
                 </label>
-              </div>
-              <div className="provider-actions">
-                <button
-                  className="btn-save"
-                  disabled={saving.allowPrivateIPs === 'saving'}
-                  onClick={() => onSave('allowPrivateIPs', ['ALLOW_PRIVATE_IPS' as SecretKey])}
-                >
-                  {saveLabel(saving.allowPrivateIPs ?? 'idle')}
-                </button>
               </div>
             </div>
           )}
@@ -1445,7 +1470,7 @@ export default function Settings({
                 return (<>
                   {paged.map(tool => {
                     const hasToolConfig = tool.name === 'web_search' || tool.name === 'browser'
-                    const isConfigured = (tool.name === 'web_search' && (!!getMasked('BRAVE_SEARCH_API_KEY') || !!getMasked('TAVILY_API_KEY' as SecretKey)))
+                    const isConfigured = (tool.name === 'web_search' && (!!getMasked('BRAVE_SEARCH_API_KEY') || !!getMasked('TAVILY_API_KEY' as SecretKey) || !!getMasked('WEB_SEARCH_PROVIDER' as SecretKey)))
                       || (tool.name === 'browser' && !!getMasked('CHROME_PATH'))
                     return (
                     <div key={tool.name} className="tool-item" onClick={() => setToolDetail(tool)} style={{ cursor: 'pointer' }}>
@@ -1485,6 +1510,7 @@ export default function Settings({
               onDraftChange={(k, v) => setDraft(p => ({ ...p, [k]: v }))}
               onSave={handleSave}
               onClear={handleClear}
+              saveApiKey={saveApiKey}
             />
           )}
         </>

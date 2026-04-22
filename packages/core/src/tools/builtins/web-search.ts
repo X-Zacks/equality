@@ -31,6 +31,11 @@ const CACHE_TTL_MS = 5 * 60 * 1000 // 5 分钟
 let _registry: WebSearchRegistry | undefined
 export function setWebSearchRegistry(r: WebSearchRegistry): void { _registry = r }
 
+// 用户选择的搜索引擎偏好（brave / tavily / ddg）
+let _preferredProvider: string | undefined
+export function setPreferredProvider(id: string): void { _preferredProvider = id || undefined }
+export function getPreferredProvider(): string | undefined { return _preferredProvider }
+
 interface BraveWebResult {
   title?: string
   url?: string
@@ -89,7 +94,7 @@ export const webSearchTool: ToolDefinition = {
     // G5: 优先通过 registry 搜索（统一出口）
     if (_registry) {
       try {
-        const results = await _registry.search(query, { count, language })
+        const results = await _registry.search(query, { count, language, providerId: _preferredProvider })
         if (results.length > 0) {
           const rawResult = formatRegistryResults(query, results)
           const { content: result } = wrapExternalContent(rawResult, 'web_search')
