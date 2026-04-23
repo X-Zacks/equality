@@ -157,7 +157,9 @@ export function extractPathArgs(command: string): string[] {
       const tok = tokens[i]
       if (tok.startsWith('-')) continue // 跳过 flags
       if (tok.startsWith('>') || tok === '<') continue // 跳过重定向
-      args.push(tok)
+      // 剥离路径两端引号（LLM 生成的命令通常带引号）
+      const clean = tok.replace(/^["']|["']$/g, '')
+      if (clean) args.push(clean)
     }
 
     if (spec === 'rest') {
