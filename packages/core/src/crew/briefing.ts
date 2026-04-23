@@ -7,7 +7,7 @@
 
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions'
 import type { LLMProvider } from '../providers/types.js'
-import { routeModel } from '../providers/router.js'
+import { getUserSelectedProvider } from '../providers/router.js'
 
 export interface BriefingResult {
   summary: string
@@ -45,7 +45,7 @@ export async function generateBriefing(
   sourceSessionKey: string,
   provider?: LLMProvider,
 ): Promise<BriefingResult> {
-  const resolvedProvider = provider ?? routeModel('chat').provider
+  const resolvedProvider = provider ?? getUserSelectedProvider()
 
   // 只取最近的消息，控制输入量
   const recentMessages = messages.slice(-30)

@@ -7,7 +7,7 @@
 
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions'
 import type { LLMProvider } from '../providers/types.js'
-import { routeModel } from '../providers/router.js'
+import { getUserSelectedProvider } from '../providers/router.js'
 import { getGlobalRetriever } from '../skills/retriever.js'
 
 export interface CrewRecommendation {
@@ -46,7 +46,7 @@ export async function recommendCrew(
   messages: ChatCompletionMessageParam[],
   provider?: LLMProvider,
 ): Promise<CrewRecommendation> {
-  const resolvedProvider = provider ?? routeModel('chat').provider
+  const resolvedProvider = provider ?? getUserSelectedProvider()
 
   const recentMessages = messages.slice(-30)
   const chatText = recentMessages

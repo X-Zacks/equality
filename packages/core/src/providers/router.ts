@@ -16,9 +16,36 @@ import {
   getProviderWithFallback,
   getProviderById,
 } from './index.js'
-import { hasSecret } from '../config/secrets.js'
+import { hasSecret, getSecret } from '../config/secrets.js'
+import type { SecretKey } from '../config/secrets.js'
 import { isCopilotLoggedIn } from './copilot-auth.js'
 import { shouldDowngrade, routerTierToModelTier } from '../cost/request-quota.js'
+
+/**
+ * Get the user's manually selected provider, or fall back to standard-tier auto routing.
+ *
+ * Use this for internal LLM calls (crew recommend, briefing, etc.) that should
+ * respect the user's model preference rather than auto-routing by message complexity.
+ */
+export function getUserSelectedProvider(): LLMProvider {
+  // Respect manual model selection
+  if (hasSecret('MODEL_ROUTING' as SecretKey) && getSecret('MODEL_ROUTING' as SecretKey) === 'manual' && hasSecret('SELECTED_MODEL' as SecretKey)) {
+    const selected = getSecret('SELECTED_MODEL' as SecretKey)
+    if (selected && selected !== 'auto') {
+      const parts = selected.includes('/') ? selected.split('/') : ['copilot', selected]
+      try {
+        const p = getProviderById(parts[0], parts[1])
+        if (p) {
+          console.log(`[router] getUserSelectedProvider: using user-selected ${parts[0]}/${parts[1]}`)
+          return p
+        }
+      } catch { /* fall through */ }
+    }
+  }
+  // Fall back to getProviderWithFallback (uses best available provider, not complexity-based routing)
+  console.log('[router] getUserSelectedProvider: no manual selection, using best available provider')
+  return getProviderWithFallback()
+}
 
 // ─── 类型 ─────────────────────────────────────────────────────────────────────
 
