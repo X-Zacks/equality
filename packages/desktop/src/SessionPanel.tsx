@@ -3,7 +3,22 @@ import { useGateway } from './useGateway'
 import { useT } from './i18n'
 import './SessionPanel.css'
 
-const SUB_SEP = '::task::'
+/** 子 session 分隔符（兼容旧 ::sub:: 和新 ::task::） */
+const SUB_SEPS = ['::sub::', '::task::']
+
+/** 找到 key 中最后一个子分隔符的位置，返回 [index, sepLength]，未找到返回 [-1, 0] */
+function findLastSubSep(key: string): [number, number] {
+  for (const sep of SUB_SEPS) {
+    const idx = key.lastIndexOf(sep)
+    if (idx !== -1) return [idx, sep.length]
+  }
+  return [-1, 0]
+}
+
+/** 判断 key 是否包含子分隔符 */
+function hasSubSep(key: string): boolean {
+  return SUB_SEPS.some(sep => key.includes(sep))
+}
 
 interface SessionItem {
   key: string
@@ -61,7 +76,7 @@ function buildTree(sessions: SessionItem[]): TreeNode[] {
 
   const roots: TreeNode[] = []
   for (const node of map.values()) {
-    const idx = node.item.key.lastIndexOf(SUB_SEP)
+    const [idx] = findLastSubSep(node.item.key)
     if (idx !== -1) {
       const parentKey = node.item.key.substring(0, idx)
       const parentNode = map.get(parentKey)
@@ -237,16 +252,16 @@ export default function SessionPanel({ activeKey, onSelect, onNewChat, disabled,
   const handleDelete = async (key: string, e: React.MouseEvent) => {
     e.stopPropagation()
     await deleteSession(key)
-    // 同时删除子会话
-    const childSessions = sessions.filter(s => s.key.startsWith(key + SUB_SEP))
+    // 同时删除子会话（兼容两种分隔符）
+    const childSessions = sessions.filter(s => SUB_SEPS.some(sep => s.key.startsWith(key + sep)))
     for (const child of childSessions) {
       await deleteSession(child.key)
     }
     if (key === activeKey || childSessions.some(c => c.key === activeKey)) {
-      const remaining = sessions.filter(s => s.key !== key && !s.key.startsWith(key + SUB_SEP))
+      const remaining = sessions.filter(s => s.key !== key && !SUB_SEPS.some(sep => s.key.startsWith(key + sep)))
       if (remaining.length > 0) {
         // 选择第一个顶层 session
-        const topLevel = remaining.find(s => !s.key.includes(SUB_SEP))
+        const topLevel = remaining.find(s => !hasSubSep(s.key))
         onSelect(topLevel?.key ?? remaining[0].key)
       } else {
         onNewChat()

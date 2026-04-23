@@ -67,7 +67,7 @@ export const readPdfTool: ToolDefinition = {
     }
 
     // 解析绝对路径 + 边界校验
-    const guard = guardPath(filePath, ctx.workspaceDir)
+    const guard = guardPath(filePath, ctx.workspaceDir, { sandboxEnabled: ctx.sandboxEnabled })
     if ('error' in guard) return { content: guard.error, isError: true }
     const absPath = guard.absPath
 

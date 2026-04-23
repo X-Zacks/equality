@@ -864,11 +864,13 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings, on
     // 找到这个回合的起始位置（user 消息之后第一条 assistant）
     const turnStart = userIdx + 1
 
-    // 删掉整个回合的 assistant 消息（包括 tool_calls 中间消息）
+    // 删掉整个回合的 assistant 消息（包括 tool_calls 中间消息），前端保留 user 消息
     setMessages(prev => prev.slice(0, turnStart))
 
-    // 通知后端截断 session（删除这些消息以免重新生成时带旧内容）
-    await truncateSession(sessionKey, turnStart).catch(() => {})
+    // 通知后端截断 session：截断到 userIdx（删掉 user 消息），
+    // 因为 sendMessage → chat_stream → runAttempt 会重新 push user 消息，
+    // 如果保留则后端会出现重复的 user 消息。
+    await truncateSession(sessionKey, userIdx).catch(() => {})
     streamingTextRef.current = ''
     setStreamingText('')
     activeToolCallsRef.current = []
@@ -1076,8 +1078,13 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings, on
                 className="msg-action-link retry-btn"
                 onClick={async () => {
                   const retryMsg = (msg.action as { retryMessage: string }).retryMessage
-                  // 移除错误消息，重发请求（不重复追加用户消息）
-                  setMessages(prev => prev.filter((_, j) => j !== i))
+                  // 向前找到最近的 user 消息，删掉该 user 之后的所有消息（部分 assistant + 错误消息）
+                  let userIdx = i - 1
+                  while (userIdx >= 0 && messages[userIdx].role !== 'user') userIdx--
+                  const keepCount = userIdx >= 0 ? userIdx + 1 : i // 保留到 user 消息（含）
+                  setMessages(prev => prev.slice(0, keepCount))
+                  // 后端截断到 userIdx（不含 user 消息），sendMessage 会重新 push
+                  await truncateSession(sessionKey, userIdx >= 0 ? userIdx : i).catch(() => {})
                   streamingTextRef.current = ''
                   setStreamingText('')
                   activeToolCallsRef.current = []

@@ -105,6 +105,8 @@ export interface RunAttemptParams {
   language?: string
   /** 工作目录（工具执行的 cwd） */
   workspaceDir?: string
+  /** 沙箱模式是否启用（默认 true） */
+  sandboxEnabled?: boolean
   /** 已加载的 Skills（注入到 system prompt） */
   skills?: import('../skills/types.js').Skill[]
   /** 用户通过 @ 指定的 Skill 名称列表（高优先级注入到 system prompt） */
@@ -917,6 +919,7 @@ export async function runAttempt(params: RunAttemptParams): Promise<RunAttemptRe
         abortSignal: abort.signal,
         proxyUrl: getProxyUrl() ?? undefined,
         provider,
+        sandboxEnabled: params.sandboxEnabled ?? true,
       }
 
       // ── 阶段 A：并发执行所有工具调用 ──────────────────────────

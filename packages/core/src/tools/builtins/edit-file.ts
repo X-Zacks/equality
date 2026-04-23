@@ -157,7 +157,7 @@ export const editFileTool: ToolDefinition = {
       return { content: 'Error: path is required', isError: true }
     }
 
-    const guard = guardPath(filePath, ctx.workspaceDir)
+    const guard = guardPath(filePath, ctx.workspaceDir, { sandboxEnabled: ctx.sandboxEnabled })
     if ('error' in guard) return { content: guard.error, isError: true }
     const absPath = guard.absPath
 

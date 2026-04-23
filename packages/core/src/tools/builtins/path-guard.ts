@@ -22,11 +22,16 @@ function norm(p: string): string {
 export function guardPath(
   filePath: string,
   workspaceDir: string,
-  opts?: { allowTmp?: boolean },
+  opts?: { allowTmp?: boolean; sandboxEnabled?: boolean },
 ): { absPath: string } | { error: string } {
   const absPath = path.isAbsolute(filePath)
     ? filePath
     : path.resolve(workspaceDir, filePath)
+
+  // 沙箱关闭时跳过边界检查
+  if (opts?.sandboxEnabled === false) {
+    return { absPath }
+  }
 
   // 追踪符号链接
   let realPath: string

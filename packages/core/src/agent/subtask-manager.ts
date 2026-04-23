@@ -41,6 +41,7 @@ export interface SubtaskManagerDeps {
   /** 子任务 默认继承的参数 */
   defaults?: {
     workspaceDir?: string
+    sandboxEnabled?: boolean
     toolRegistry?: ToolRegistry
     skills?: RunAttemptParams['skills']
     beforeToolCall?: RunAttemptParams['beforeToolCall']
@@ -256,6 +257,7 @@ export class SubtaskManager {
         allowedTools: params.allowedTools,
         steeringQueue,
         workspaceDir: this.deps.defaults?.workspaceDir,
+        sandboxEnabled: this.deps.defaults?.sandboxEnabled,
         skills: this.deps.defaults?.skills,
         beforeToolCall: this.deps.defaults?.beforeToolCall,
         contextEngine: this.deps.defaults?.contextEngine,

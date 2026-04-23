@@ -38,6 +38,8 @@ export interface ToolContext {
   env?: Record<string, string>
   /** LLM Provider 实例（read_image 等需要调用视觉模型的工具使用） */
   provider?: import('../providers/types.js').LLMProvider
+  /** 沙箱模式是否启用（默认 true）。关闭时工具可访问任意路径 */
+  sandboxEnabled?: boolean
 }
 
 // ─── Tool Definition ──────────────────────────────────────────────────────────

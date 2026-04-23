@@ -966,23 +966,28 @@ function ToolDetailDrawer({ tool, onClose, draft, saving, getMasked, onDraftChan
 
 // ─── AdvancedDrawer: 高级设置右侧抽屉 ────────────────────────────────────────
 interface AdvancedDrawerProps {
-  panel: 'performance' | 'agentLoop'
+  panel: 'performance' | 'agentLoop' | 'workspace'
   draft: Partial<Record<SecretKey, string>>
   saving: Record<string, 'idle' | 'saving' | 'ok' | 'err'>
   getMasked: (key: SecretKey) => string
   onDraftChange: (key: SecretKey, value: string) => void
   onSave: (groupId: string, keys: SecretKey[]) => Promise<void>
   onClose: () => void
+  /** 直接保存单个 key（用于 toggle 开关等即时生效的场景） */
+  onSaveKey?: (key: string, value: string) => Promise<void>
 }
 
-function AdvancedDrawer({ panel, draft, saving, getMasked, onDraftChange, onSave, onClose }: AdvancedDrawerProps) {
+function AdvancedDrawer({ panel, draft, saving, getMasked, onDraftChange, onSave, onClose, onSaveKey }: AdvancedDrawerProps) {
   const { t } = useT()
   const isPerformance = panel === 'performance'
-  const title = isPerformance ? t('perf.title') : t('agentLoop.title')
-  const saveGroup = isPerformance ? 'advanced' : 'agentLoop'
-  const saveKeys: SecretKey[] = isPerformance
-    ? ['BASH_TIMEOUT_MS', 'BASH_IDLE_TIMEOUT_MS', 'BASH_MAX_TIMEOUT_MS']
-    : ['AGENT_MAX_TOOL_CALLS', 'AGENT_MAX_LLM_TURNS']
+  const isWorkspace = panel === 'workspace'
+  const title = isWorkspace ? t('workspace.title') : isPerformance ? t('perf.title') : t('agentLoop.title')
+  const saveGroup = isWorkspace ? 'workspaceDir' : isPerformance ? 'advanced' : 'agentLoop'
+  const saveKeys: SecretKey[] = isWorkspace
+    ? ['WORKSPACE_DIR']
+    : isPerformance
+      ? ['BASH_TIMEOUT_MS', 'BASH_IDLE_TIMEOUT_MS', 'BASH_MAX_TIMEOUT_MS']
+      : ['AGENT_MAX_TOOL_CALLS', 'AGENT_MAX_LLM_TURNS']
   const hasDraft = saveKeys.some(k => draft[k]?.trim())
 
   return (
@@ -993,7 +998,56 @@ function AdvancedDrawer({ panel, draft, saving, getMasked, onDraftChange, onSave
           <button className="drawer-close" onClick={onClose}>✕</button>
         </div>
         <div className="drawer-body">
-          {isPerformance ? (
+          {isWorkspace ? (
+            <>
+              <div className="key-row">
+                <label>{t('workspaceDir')}</label>
+                <input
+                  type="text"
+                  placeholder={getMasked('WORKSPACE_DIR') || t('workspaceDir.notSet')}
+                  value={draft['WORKSPACE_DIR'] ?? ''}
+                  onChange={e => onDraftChange('WORKSPACE_DIR', e.target.value)}
+                />
+              </div>
+              <p className="drawer-hint">{t('workspaceDir.desc')}</p>
+
+              <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', margin: '16px 0' }} />
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                <span style={{ fontSize: 13, fontWeight: 500 }}>{t('sandbox.label')}</span>
+                <label style={{ position: 'relative', display: 'inline-block', width: 40, height: 22 }}>
+                  <input
+                    type="checkbox"
+                    style={{ opacity: 0, width: 0, height: 0 }}
+                    checked={getMasked('SANDBOX_ENABLED') !== 'off'}
+                    onChange={async (e) => {
+                      const val = e.target.checked ? 'on' : 'off'
+                      await onSaveKey?.('SANDBOX_ENABLED', val)
+                    }}
+                  />
+                  <span style={{
+                    position: 'absolute', cursor: 'pointer', top: 0, left: 0, right: 0, bottom: 0,
+                    background: getMasked('SANDBOX_ENABLED') === 'off' ? '#555' : '#30d158',
+                    borderRadius: 11, transition: 'background 0.2s',
+                  }}>
+                    <span style={{
+                      position: 'absolute', height: 18, width: 18,
+                      left: getMasked('SANDBOX_ENABLED') === 'off' ? 2 : 20,
+                      bottom: 2, background: '#fff', borderRadius: '50%', transition: 'left 0.2s',
+                    }} />
+                  </span>
+                </label>
+              </div>
+              <p className="drawer-hint" style={{ color: getMasked('SANDBOX_ENABLED') === 'off' ? '#ff9f0a' : undefined }}>
+                {getMasked('SANDBOX_ENABLED') === 'off' ? t('sandbox.offDesc') : t('sandbox.onDesc')}
+              </p>
+              {getMasked('SANDBOX_ENABLED') === 'off' && (
+                <p style={{ fontSize: 12, color: '#ff9f0a', margin: '8px 0 0', padding: '6px 8px', background: 'rgba(255,159,10,0.08)', borderRadius: 6 }}>
+                  {t('sandbox.warning')}
+                </p>
+              )}
+            </>
+          ) : isPerformance ? (
             <>
               <div className="key-row">
                 <label>{t('perf.bashDefault')}</label>
@@ -1092,7 +1146,7 @@ export default function Settings({
   // 当前打开的 drawer（provider id，null 表示关闭）
   const [drawerProvider, setDrawerProvider] = useState<string | null>(null)
   // 高级设置 drawer
-  const [advancedDrawer, setAdvancedDrawer] = useState<'performance' | 'agentLoop' | null>(null)
+  const [advancedDrawer, setAdvancedDrawer] = useState<'performance' | 'agentLoop' | 'workspace' | null>(null)
   // proxy 展开（保留 tools tab 的 accordion）
   const [expanded, setExpanded] = useState<Record<string, boolean>>({ braveSearch: false, chromePath: false, proxy: false })
 
@@ -1700,30 +1754,17 @@ export default function Settings({
           <div className="advanced-section">
             <div className="advanced-section-title">⚙️ {t('advancedConfig')}</div>
 
-            {/* 工作目录 */}
-            <div className="advanced-item" style={{ marginBottom: 10 }}>
-              <div className="advanced-item-header">
-                <span className="advanced-item-label">📁 {t('workspaceDir')}</span>
-                <span className="advanced-item-unit">{getMasked('WORKSPACE_DIR') || t('workspaceDir.notSet')}</span>
+            {/* 工作空间与安全 */}
+            <div className="provider-card" style={{ marginBottom: 6 }}>
+              <div className="provider-header" onClick={() => setAdvancedDrawer('workspace')} style={{ cursor: 'pointer' }}>
+                <span className="provider-name">📁 {t('workspace.title')}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 11, color: getMasked('SANDBOX_ENABLED') === 'off' ? '#ff9f0a' : '#888' }}>
+                    {getMasked('SANDBOX_ENABLED') === 'off' ? t('sandbox.warning') : (getMasked('WORKSPACE_DIR') || t('workspaceDir.notSet'))}
+                  </span>
+                  <span className="chevron">›</span>
+                </div>
               </div>
-              <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
-                <input
-                  type="text"
-                  className="key-input"
-                  style={{ flex: 1 }}
-                  placeholder="例：C:\Users\你的用户名\Equality\workspace"
-                  value={draft['WORKSPACE_DIR'] ?? getMasked('WORKSPACE_DIR')}
-                  onChange={e => setDraft(p => ({ ...p, WORKSPACE_DIR: e.target.value }))}
-                />
-                <button
-                  className="btn-save"
-                  disabled={!draft['WORKSPACE_DIR']?.trim() || saving['workspaceDir'] === 'saving'}
-                  onClick={() => handleSave('workspaceDir', ['WORKSPACE_DIR'])}
-                >
-                  {saveLabel(saving['workspaceDir'] ?? 'idle')}
-                </button>
-              </div>
-              <p className="advanced-item-desc">{t('workspaceDir.desc')}</p>
             </div>
 
             <div className="provider-card" style={{ marginBottom: 6 }}>
@@ -1788,6 +1829,11 @@ export default function Settings({
               onDraftChange={(key, value) => setDraft(p => ({ ...p, [key]: value }))}
               onSave={handleSave}
               onClose={() => setAdvancedDrawer(null)}
+              onSaveKey={async (key, value) => {
+                await saveApiKey(key as SecretKey, value)
+                const s = await loadSettings()
+                if (s) setSettings(s)
+              }}
             />
           )}
         </>

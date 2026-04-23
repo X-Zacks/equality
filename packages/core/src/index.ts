@@ -35,6 +35,7 @@ import { fetchGallery, installSkill, uninstallSkill, scanSkillContent, TRUSTED_R
 import { buildSkillStatus } from './skills/status.js'
 import { scanSkillDirNoCache } from './skills/scanner.js'
 import { listProviders, getDefaultProvider, getProviderById } from './providers/index.js'
+import { getUserSelectedProvider } from './providers/router.js'
 import { getStorageMode } from './config/secrets.js'
 import { generateTitle } from './session/title-gen.js'
 import { CronScheduler } from './cron/index.js'
@@ -96,6 +97,14 @@ function getWorkspaceDir(): string {
   const defaultDir = path.join(os.homedir(), 'Equality', 'workspace')
   try { fs.mkdirSync(defaultDir, { recursive: true }) } catch { /* ignore */ }
   return defaultDir
+}
+
+// 沙箱模式开关：优先读 SANDBOX_ENABLED，未设置时默认启用
+function isSandboxEnabled(): boolean {
+  if (hasSecret('SANDBOX_ENABLED' as SecretKey)) {
+    return getSecret('SANDBOX_ENABLED' as SecretKey) !== 'off'
+  }
+  return true
 }
 
 // ─── D1: 安全管道集成（Phase D.1）────────────────────────────────────────────
@@ -242,6 +251,7 @@ const subagentManager = new SubtaskManager({
   runAttempt,
   defaults: {
     workspaceDir: getWorkspaceDir(),
+    sandboxEnabled: isSandboxEnabled(),
     toolRegistry,
     skills: skillsWatcher.getSkills().map(e => e.skill),
     beforeToolCall: securityBeforeToolCall,
@@ -352,6 +362,7 @@ const cronScheduler = new CronScheduler({
         userMessage,
         toolRegistry,
         workspaceDir: getWorkspaceDir(),
+        sandboxEnabled: isSandboxEnabled(),
         skills: skillsWatcher.getSkills().map(e => e.skill),
         beforeToolCall: securityBeforeToolCall,
         contextEngine: new DefaultContextEngine(),
@@ -616,6 +627,7 @@ app.post<{ Body: ChatBody }>('/chat/stream', async (req, reply) => {
         language: requestLanguage,
         toolRegistry,
         workspaceDir: getWorkspaceDir(),
+        sandboxEnabled: isSandboxEnabled(),
         skills: skillsWatcher.getSkills().map(e => e.skill),
         activeSkillNames,
         allowedTools,
@@ -686,7 +698,7 @@ app.post<{ Body: ChatBody }>('/chat/stream', async (req, reply) => {
       try {
         const session = await getOrCreate(sessionKey)
         if (!session.title) {
-          const provider = getDefaultProvider()
+          const provider = getUserSelectedProvider()
           await generateTitle(session, provider)
         }
       } catch { /* 标题生成失败不影响流程 */ }
@@ -1262,7 +1274,7 @@ import { runSecurityAudit } from './security/audit.js'
 app.get('/security-audit', async (_req, reply) => {
   const storageMode = getStorageMode()
   const report = runSecurityAudit({
-    sandboxEnabled: !!process.env.EQUALITY_SANDBOX,
+    sandboxEnabled: isSandboxEnabled(),
     workspaceDir: getWorkspaceDir(),
     registeredTools: toolRegistry.list(),
     secretStorageMode: storageMode === 'dpapi' ? 'encrypted' : 'env',

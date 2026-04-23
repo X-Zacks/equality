@@ -146,7 +146,7 @@ export const grepTool: ToolDefinition = {
 
     const rawPath = input.path ? String(input.path) : ''
     if (rawPath) {
-      const guard = guardPath(rawPath, ctx.workspaceDir)
+      const guard = guardPath(rawPath, ctx.workspaceDir, { sandboxEnabled: ctx.sandboxEnabled })
       if ('error' in guard) return { content: guard.error, isError: true }
     }
     const searchPath = rawPath

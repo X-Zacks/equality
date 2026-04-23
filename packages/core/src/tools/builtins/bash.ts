@@ -101,9 +101,11 @@ export const bashTool: ToolDefinition = {
     const env = sanitizeEnvForBash(rawEnv)
 
     // ── 沙箱路径隔离（Phase C.2）────────────
-    const sandbox = validateBashCommand(command, { workspaceDir: ctx.workspaceDir })
-    if (!sandbox.allowed) {
-      return { content: `❌ 沙箱拦截: ${sandbox.reason}`, isError: true }
+    if (ctx.sandboxEnabled !== false) {
+      const sandbox = validateBashCommand(command, { workspaceDir: ctx.workspaceDir })
+      if (!sandbox.allowed) {
+        return { content: `❌ 沙箱拦截: ${sandbox.reason}`, isError: true }
+      }
     }
 
     // ── 後台模式 ─────────────────────────────────

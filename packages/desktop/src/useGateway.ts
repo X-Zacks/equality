@@ -50,6 +50,7 @@ export type SecretKey =
   | 'AGENT_MAX_TOOL_CALLS' | 'AGENT_MAX_LLM_TURNS'
   | 'WORKSPACE_DIR'
   | 'MEMORY_AUTO_CAPTURE'
+  | 'SANDBOX_ENABLED'
 
 export interface ConfiguredSecret {
   key: SecretKey
@@ -304,7 +305,8 @@ export function useGateway() {
 
   const loadSession = useCallback(async (key: string): Promise<SessionHistory | null> => {
     try {
-      const url = key.includes('::sub::')
+      const needsQueryParam = key.includes('::sub::') || key.includes('::task::')
+      const url = needsQueryParam
         ? `${CORE_URL}/sessions/_?key=${encodeURIComponent(key)}`
         : `${CORE_URL}/sessions/${encodeURIComponent(key)}`
       const resp = await fetch(url)
@@ -314,7 +316,8 @@ export function useGateway() {
 
   const deleteSession = useCallback(async (key: string): Promise<boolean> => {
     try {
-      const url = key.includes('::sub::')
+      const needsQueryParam = key.includes('::sub::') || key.includes('::task::')
+      const url = needsQueryParam
         ? `${CORE_URL}/sessions/_?key=${encodeURIComponent(key)}`
         : `${CORE_URL}/sessions/${encodeURIComponent(key)}`
       const resp = await fetch(url, { method: 'DELETE' })

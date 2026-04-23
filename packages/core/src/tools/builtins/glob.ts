@@ -32,7 +32,7 @@ export const globTool: ToolDefinition = {
 
     const rawCwd = input.cwd ? String(input.cwd) : ''
     if (rawCwd) {
-      const guard = guardPath(rawCwd, ctx.workspaceDir)
+      const guard = guardPath(rawCwd, ctx.workspaceDir, { sandboxEnabled: ctx.sandboxEnabled })
       if ('error' in guard) return { content: guard.error, isError: true }
     }
     const cwd = rawCwd
