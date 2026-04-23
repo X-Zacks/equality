@@ -19,13 +19,13 @@ export function setWorkspaceDirForSkillView(dir: string): void {
 export const skillViewTool: ToolDefinition = {
   name: 'skill_view',
   description:
-    '查看指定 Skill 的完整内容。当 system prompt 中的 skill 摘要不够详细时，用此工具读取 SKILL.md 全文。',
+    'View the full content of a specified Skill. Use this tool to read the complete SKILL.md when the skill summary in system prompt is insufficient.',
   inputSchema: {
     type: 'object',
     properties: {
       name: {
         type: 'string',
-        description: 'Skill 名称（与 <available_skills> 中的 <name> 对应）',
+        description: 'Skill name (matches <name> in <available_skills>)',
       },
     },
     required: ['name'],

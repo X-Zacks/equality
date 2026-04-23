@@ -125,24 +125,24 @@ function generateDiff(
 export const editFileTool: ToolDefinition = {
   name: 'edit_file',
   description:
-    '精确替换文件中的一段文本。提供 old_string（要替换的原文）和 new_string（替换后的文本）。' +
-    '要求 old_string 在文件中唯一出现。支持 Unicode 智能匹配。' +
-    '如果要创建新文件，使用 write_file 工具。' +
-    '如果要在文件末尾追加内容，old_string 设为空字符串。',
+    'Replace a text segment in a file precisely. Provide old_string (exact text to replace) and new_string (replacement). ' +
+    'old_string must appear exactly once in the file. Supports Unicode fuzzy matching. ' +
+    'To create a new file, use the write_file tool. ' +
+    'To append to end of file, set old_string to empty string.',
   inputSchema: {
     type: 'object',
     properties: {
       path: {
         type: 'string',
-        description: '文件路径（相对于工作目录，或绝对路径）',
+        description: 'File path (relative to workspace dir, or absolute)',
       },
       old_string: {
         type: 'string',
-        description: '要替换的精确原文。必须在文件中唯一出现。设为空字符串表示在文件末尾追加。',
+        description: 'Exact text to replace. Must appear exactly once in the file. Set to empty string to append at end.',
       },
       new_string: {
         type: 'string',
-        description: '替换后的新文本',
+        description: 'Replacement text',
       },
     },
     required: ['path', 'old_string', 'new_string'],

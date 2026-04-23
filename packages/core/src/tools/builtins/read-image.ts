@@ -28,17 +28,17 @@ const MIME_MAP: Record<string, string> = {
 
 export const readImageTool: ToolDefinition = {
   name: 'read_image',
-  description: '读取图片并用视觉模型分析。支持本地文件路径和 URL。可用于 OCR 识别文字、理解截图、解读图表等。支持 png/jpg/gif/webp/bmp 格式，最大 10MB。',
+  description: 'Read and analyze an image using a vision model. Supports local file paths and URLs. Use for OCR, screenshot understanding, chart interpretation, etc. Supports png/jpg/gif/webp/bmp, max 10MB.',
   inputSchema: {
     type: 'object',
     properties: {
       path: {
         type: 'string',
-        description: '图片文件路径（绝对或相对于工作目录）或图片 URL（http/https）',
+        description: 'Image file path (absolute or relative to workspace) or image URL (http/https)',
       },
       prompt: {
         type: 'string',
-        description: '分析提示词，如"描述这张图片"、"提取图中的文字"、"这个图表说了什么"。默认：描述这张图片的内容',
+        description: 'Analysis prompt, e.g. "describe this image", "extract text from the image", "what does this chart show". Default: describe the image content',
       },
     },
     required: ['path'],

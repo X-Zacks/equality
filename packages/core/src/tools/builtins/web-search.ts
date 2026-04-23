@@ -51,23 +51,23 @@ interface BraveResponse {
 export const webSearchTool: ToolDefinition = {
   name: 'web_search',
   description:
-    '搜索网页，返回相关结果列表（标题 + URL + 摘要）。' +
-    '需要 BRAVE_SEARCH_API_KEY 环境变量（Brave Search API）。' +
-    '如果没有 API key，会回退到 DuckDuckGo 抓取。',
+    'Search the web and return a list of results (title + URL + snippet). ' +
+    'Supports multiple search providers: Brave Search API, Tavily Search API, and DuckDuckGo (fallback). ' +
+    'The preferred provider can be configured in Settings. Falls back to DuckDuckGo if no API key is set.',
   inputSchema: {
     type: 'object',
     properties: {
       query: {
         type: 'string',
-        description: '搜索关键词',
+        description: 'Search keywords',
       },
       count: {
         type: 'number',
-        description: '返回结果数量（默认 10，最多 20）',
+        description: 'Number of results to return (default 10, max 20)',
       },
       language: {
         type: 'string',
-        description: '搜索语言/地区（如 "zh-CN"、"en-US"），默认 zh-CN',
+        description: 'Search language/region (e.g. "zh-CN", "en-US"), default zh-CN',
       },
     },
     required: ['query'],

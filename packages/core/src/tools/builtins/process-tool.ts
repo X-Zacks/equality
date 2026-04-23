@@ -21,36 +21,36 @@ function formatDuration(ms: number): string {
 export const processTool: ToolDefinition = {
   name: 'process',
   description:
-    '管理 bash 工具启动的后台进程。支持操作：' +
-    'list（列出所有进程）、poll（等待新输出）、log（完整日志）、' +
-    'write（向 stdin 写入）、kill（终止进程）。',
+    'Manage background processes started by the bash tool. Supported actions: ' +
+    'list (list all processes), poll (wait for new output), log (full log), ' +
+    'write (write to stdin), kill (terminate process).',
   inputSchema: {
     type: 'object',
     properties: {
       action: {
         type: 'string',
-        description: '操作类型：list / poll / log / write / kill',
+        description: 'Action type: list / poll / log / write / kill',
         enum: ['list', 'poll', 'log', 'write', 'kill'],
       },
       id: {
         type: 'string',
-        description: '进程 ID（list 操作不需要）',
+        description: 'Process ID (not needed for list action)',
       },
       all: {
         type: 'boolean',
-        description: 'list 操作时：true = 显示所有会话的进程；默认只显示当前会话',
+        description: 'For list action: true = show processes from all sessions; default shows current session only',
       },
       force: {
         type: 'boolean',
-        description: 'kill 操作时：true = 允许终止其他会话的进程（默认拒绝）',
+        description: 'For kill action: true = allow killing processes from other sessions (default: denied)',
       },
       input: {
         type: 'string',
-        description: 'write 操作时向 stdin 写入的内容',
+        description: 'Content to write to stdin (for write action)',
       },
       timeout_ms: {
         type: 'number',
-        description: 'poll 操作的等待超时（默认 5000ms）',
+        description: 'Wait timeout for poll action (default 5000ms)',
       },
     },
     required: ['action'],

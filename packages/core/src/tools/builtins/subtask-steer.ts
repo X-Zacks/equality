@@ -18,17 +18,17 @@ export function setSubtaskManagerForSteer(manager: SubtaskManager): void {
 export const subtaskSteerTool: ToolDefinition = {
   name: 'subtask_steer',
   description:
-    '向运行中的子任务 发送方向调整消息。子任务 会在下一轮适当时机消费该消息。',
+    'Send a steering message to a running subtask. The subtask will consume the message at the next appropriate turn.',
   inputSchema: {
     type: 'object',
     properties: {
       task_id: {
         type: 'string',
-        description: '目标子任务的 taskId',
+        description: 'Target subtask\'s taskId',
       },
       message: {
         type: 'string',
-        description: '方向调整消息内容',
+        description: 'Steering message content',
       },
     },
     required: ['task_id', 'message'],

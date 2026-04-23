@@ -42,17 +42,17 @@ function parsePageRange(rangeStr: string, totalPages: number): number[] {
 
 export const readPdfTool: ToolDefinition = {
   name: 'read_pdf',
-  description: '读取本地 PDF 文件，提取文本内容。支持指定页码范围。最大 20MB，最多 20 页。',
+  description: 'Read a local PDF file and extract text content. Supports page range selection. Max 20MB, up to 20 pages.',
   inputSchema: {
     type: 'object',
     properties: {
       path: {
         type: 'string',
-        description: 'PDF 文件的路径（绝对路径或相对于工作目录的相对路径）',
+        description: 'PDF file path (absolute or relative to workspace)',
       },
       pages: {
         type: 'string',
-        description: '页码范围，如 "1-5" 或 "1,3,5" 或 "1-3,5,7-9"。默认读取全部页面',
+        description: 'Page range, e.g. "1-5" or "1,3,5" or "1-3,5,7-9". Defaults to all pages',
       },
     },
     required: ['path'],

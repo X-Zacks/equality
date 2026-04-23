@@ -75,24 +75,24 @@ export function resetCodebaseIndex(): void {
 export const codebaseSearchTool: ToolDefinition = {
   name: 'codebase_search',
   description:
-    '在项目代码库中搜索代码。这是搜索代码的首选工具，支持符号名、关键词和自然语言查询。' +
-    '直接返回匹配的代码片段和上下文，无需再用 read_file 读取。' +
-    'Use when: 搜索函数、变量、类的使用位置，查找某功能的实现，以及任何代码搜索任务。' +
-    'NOT for: 正则表达式搜索用 grep，查类型签名用 lsp_hover，查定义用 lsp_definition。',
+    'Search code in the project codebase. This is the preferred tool for code search — supports symbol names, keywords, and natural language queries. ' +
+    'Returns matching code snippets with context directly, no need to use read_file afterwards. ' +
+    'Use when: searching for function/variable/class usage, finding feature implementations, any code search task. ' +
+    'NOT for: regex search (use grep), type signatures (use lsp_hover), definition lookup (use lsp_definition).',
   inputSchema: {
     type: 'object',
     properties: {
       query: {
         type: 'string',
-        description: '搜索查询（自然语言或代码片段）',
+        description: 'Search query (natural language or code snippet)',
       },
       file_pattern: {
         type: 'string',
-        description: '文件 glob 过滤（如 "src/**/*.ts"）',
+        description: 'File glob filter (e.g. "src/**/*.ts")',
       },
       max_results: {
         type: 'number',
-        description: '最大返回数量（默认 10）',
+        description: 'Maximum number of results (default 10)',
       },
     },
     required: ['query'],

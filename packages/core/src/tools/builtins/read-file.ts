@@ -12,13 +12,13 @@ import { guardPath } from './path-guard.js'
 
 export const readFileTool: ToolDefinition = {
   name: 'read_file',
-  description: '读取文件内容。支持指定行范围（1-based）。返回带行号前缀的文件内容。',
+  description: 'Read file contents. Supports specifying line range (1-based). Returns content with line number prefixes.',
   inputSchema: {
     type: 'object',
     properties: {
-      path: { type: 'string', description: '文件路径（相对于工作目录，或绝对路径）' },
-      start_line: { type: 'number', description: '起始行号（1-based，可选，默认第 1 行）' },
-      end_line: { type: 'number', description: '结束行号（1-based，可选，默认最后一行）' },
+      path: { type: 'string', description: 'File path (relative to workspace dir, or absolute)' },
+      start_line: { type: 'number', description: 'Start line number (1-based, optional, defaults to line 1)' },
+      end_line: { type: 'number', description: 'End line number (1-based, optional, defaults to last line)' },
     },
     required: ['path'],
   },

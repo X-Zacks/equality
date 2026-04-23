@@ -13,19 +13,19 @@ import { resolveFilePath, toLspPosition, getClientOrError, resolveSymbolPosition
 export const lspHoverTool: ToolDefinition = {
   name: 'lsp_hover',
   description:
-    '获取代码中指定符号的类型信息和文档注释（TypeScript/JavaScript/Python/Go）。' +
-    '返回类型签名、函数参数、JSDoc 注释等。' +
-    'Use when: 需要确认某个符号的精确类型、理解函数签名、查看类型定义。' +
-    'NOT for: 查找定义位置（用 lsp_definition）、查找所有使用处（用 lsp_references）。' +
-    '可以用 symbol 参数直接传符号名（如 "handleNewChat"），工具会自动在文件中定位；也可以用 line+column 精确指定。',
+    'Get type information and documentation for a symbol in code (TypeScript/JavaScript/Python/Go). ' +
+    'Returns type signatures, function parameters, JSDoc comments, etc. ' +
+    'Use when: need to confirm a symbol\'s exact type, understand function signatures, view type definitions. ' +
+    'NOT for: finding definition location (use lsp_definition), finding all usages (use lsp_references). ' +
+    'You can pass a symbol name (e.g. "handleNewChat") via the symbol param — auto-locates in file; or use line+column for precise positioning.',
 
   inputSchema: {
     type: 'object',
     properties: {
-      file: { type: 'string', description: '文件路径（相对于工作目录或绝对路径）' },
-      symbol: { type: 'string', description: '符号名称（如函数名、变量名）。提供此参数时可省略 line 和 column，工具会自动定位' },
-      line: { type: 'number', description: '行号（1-based）。与 column 一起使用可精确指定位置' },
-      column: { type: 'number', description: '列号（1-based）。与 line 一起使用可精确指定位置' },
+      file: { type: 'string', description: 'File path (relative to workspace dir or absolute)' },
+      symbol: { type: 'string', description: 'Symbol name (e.g. function name, variable name). When provided, line and column can be omitted — tool auto-locates' },
+      line: { type: 'number', description: 'Line number (1-based). Use with column for precise positioning' },
+      column: { type: 'number', description: 'Column number (1-based). Use with line for precise positioning' },
     },
     required: ['file'],
   },

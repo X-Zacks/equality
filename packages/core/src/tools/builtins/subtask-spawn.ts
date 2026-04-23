@@ -18,26 +18,26 @@ export function setSubtaskManagerForSpawn(manager: SubtaskManager): void {
 export const subtaskSpawnTool: ToolDefinition = {
   name: 'subtask_spawn',
   description:
-    '创建一个子任务 来执行特定任务。子任务 在独立上下文中运行，完成后返回摘要结果。' +
-    '适用于需要独立调查、执行或分析的工作。',
+    'Create a subtask to execute a specific task. Subtasks run in an independent context and return a summary result upon completion. ' +
+    'Suitable for work requiring independent investigation, execution, or analysis.',
   inputSchema: {
     type: 'object',
     properties: {
       prompt: {
         type: 'string',
-        description: '子任务 的初始任务指令',
+        description: 'Initial task instructions for the subtask',
       },
       goal: {
         type: 'string',
-        description: '子任务的目标描述（用于任务列表展示）',
+        description: 'Goal description for the subtask (shown in task list)',
       },
       allowed_tools: {
         type: 'string',
-        description: '子任务 可用的工具名列表（逗号分隔）。不指定则继承父 Agent 的工具白名单',
+        description: 'Comma-separated list of tool names available to the subtask. If not specified, inherits parent Agent\'s tool whitelist',
       },
       timeout_seconds: {
         type: 'string',
-        description: '子任务超时时间（秒），默认 300',
+        description: 'Subtask timeout in seconds, default 300',
       },
     },
     required: ['prompt'],

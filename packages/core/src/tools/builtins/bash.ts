@@ -57,16 +57,16 @@ function killTree(pid: number) {
 export const bashTool: ToolDefinition = {
   name: 'bash',
   description:
-    '在本地执行 shell 命令。Windows 下使用 PowerShell 5.1。返回 stdout + stderr 合并输出。' +
-    '⚠️ 重要：当前系统是 Windows PowerShell，不支持 && 连接符，请使用分号 ; 连接多条命令。' +
-    '示例：cd mydir; git log --oneline -5; echo "---"。' +
-    '设置 background=true 可后台执行长时间命令，返回进程 ID，之后用 process 工具查看状态。',
+    'Execute shell commands locally. Uses PowerShell 5.1 on Windows. Returns merged stdout + stderr output. ' +
+    '⚠️ Important: Current system is Windows PowerShell — do NOT use && to chain commands, use semicolons ; instead. ' +
+    'Example: cd mydir; git log --oneline -5; echo "---". ' +
+    'Set background=true for long-running commands — returns a process ID, then use the process tool to check status.',
   inputSchema: {
     type: 'object',
     properties: {
-      command: { type: 'string', description: '要执行的 shell 命令' },
-      timeout_ms: { type: 'number', description: '超时毫秒数（默认 300000，可在设置中调整）' },
-      background: { type: 'boolean', description: '是否后台执行（立即返回进程 ID，用 process 工具跟进）' },
+      command: { type: 'string', description: 'Shell command to execute' },
+      timeout_ms: { type: 'number', description: 'Timeout in milliseconds (default 300000, configurable in settings)' },
+      background: { type: 'boolean', description: 'Run in background (returns process ID immediately, use process tool to follow up)' },
     },
     required: ['command'],
   },

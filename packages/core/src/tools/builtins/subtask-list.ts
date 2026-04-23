@@ -18,7 +18,7 @@ export function setSubtaskManagerForList(manager: SubtaskManager): void {
 export const subtaskListTool: ToolDefinition = {
   name: 'subtask_list',
   description:
-    '列出当前会话下已创建的子任务 任务，包括 taskId、标题、状态和创建时间。',
+    'List all subtasks created in the current session, including taskId, title, status, and creation time.',
   inputSchema: {
     type: 'object',
     properties: {},

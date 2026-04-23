@@ -79,17 +79,17 @@ function parsePageRange(rangeStr: string, totalPages: number): number[] {
 
 export const readPdfVisionTool: ToolDefinition = {
   name: 'read_pdf_vision',
-  description: '将 PDF 逐页渲染为图片并用视觉模型识别文字和表格。适用于扫描件或纯图片 PDF。支持断点续传（缓存已识别页面）。最大 20MB，最多 10 页。',
+  description: 'Render PDF pages as images and use a vision model to recognize text and tables. Suitable for scanned or image-only PDFs. Supports resume (caches recognized pages). Max 20MB, up to 10 pages.',
   inputSchema: {
     type: 'object',
     properties: {
       path: {
         type: 'string',
-        description: 'PDF 文件路径（绝对路径或相对于工作目录）',
+        description: 'PDF file path (absolute or relative to workspace)',
       },
       pages: {
         type: 'string',
-        description: '页码范围，如 "1-5" 或 "1,3,5"。默认读取全部页面（最多 10 页）',
+        description: 'Page range, e.g. "1-5" or "1,3,5". Defaults to all pages (max 10)',
       },
     },
     required: ['path'],

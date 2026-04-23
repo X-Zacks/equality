@@ -136,7 +136,7 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings, on
     try {
       // 1. AI 推荐 Crew 配置
       const rec = await recommendCrew(sessionKey)
-      if (!rec) { alert('Crew 推荐失败，请稍后重试'); return }
+      if (!rec) { alert('Crew recommendation failed, please try again later'); return }
       // 2. 创建 Crew
       const crew = await createCrew({
         name: rec.name,
@@ -145,10 +145,10 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings, on
         systemPromptExtra: rec.systemPromptExtra ?? '',
         skillNames: rec.recommendedSkillNames ?? [],
       })
-      if (!crew) { alert('Crew 创建失败'); return }
+      if (!crew) { alert('Crew creation failed'); return }
       // 3. 生成 Briefing 并创建 Crew session
       const briefResult = await generateBriefing(sessionKey, crew.id)
-      if (!briefResult) { alert('Briefing 生成失败'); return }
+      if (!briefResult) { alert('Briefing generation failed'); return }
       // briefResult includes sessionKey for the new crew session
       if (briefResult.sessionKey && onStartCrewSession) {
         onStartCrewSession(briefResult.sessionKey)

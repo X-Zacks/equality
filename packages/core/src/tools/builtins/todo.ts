@@ -47,23 +47,23 @@ function formatTodos(todos: TodoItem[]): string {
 export const todoTool: ToolDefinition = {
   name: 'todo',
   description:
-    '管理待办事项列表。支持 add（添加）、list（列出）、done（标记完成）、remove（删除）操作。' +
-    '用于追踪多步骤任务的进度，适合复杂任务的规划和执行。',
+    'Manage a todo list. Supports add, list, done, and remove actions. ' +
+    'Use to track progress on multi-step tasks, suitable for planning and executing complex tasks.',
   inputSchema: {
     type: 'object',
     properties: {
       action: {
         type: 'string',
         enum: ['add', 'list', 'done', 'remove'],
-        description: '操作类型: add=添加, list=列出, done=标记完成, remove=删除',
+        description: 'Action type: add, list, done, remove',
       },
       text: {
         type: 'string',
-        description: '待办内容（add 时必填）',
+        description: 'Todo content (required for add)',
       },
       id: {
         type: 'string',
-        description: '待办 ID（done/remove 时必填）',
+        description: 'Todo ID (required for done/remove)',
       },
     },
     required: ['action'],

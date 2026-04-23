@@ -14,21 +14,21 @@ import { resolveFilePath, getClientOrError } from '../lsp/helpers.js'
 export const lspDiagnosticsTool: ToolDefinition = {
   name: 'lsp_diagnostics',
   description:
-    '获取文件或工作区的诊断信息（类型错误、语法错误、未使用变量等），无需运行 tsc/pyright/go build。' +
-    'Use when: 修改代码后验证是否有类型错误；代码审查时检查是否有潜在问题；编写新代码后确认无错误再提交。' +
-    'NOT for: 运行时错误（用 bash 执行）；测试失败（用 bash 运行测试）；查找某个符号（用 lsp_hover/lsp_references）。' +
-    '可指定 file 获取单文件诊断，省略则返回所有已打开文件的诊断；支持 severity 过滤（error/warning/all）。',
+    'Get diagnostic info for a file or workspace (type errors, syntax errors, unused variables, etc.) without running tsc/pyright/go build. ' +
+    'Use when: verifying no type errors after code changes; checking for potential issues during code review; confirming no errors before commit. ' +
+    'NOT for: runtime errors (use bash); test failures (use bash to run tests); finding symbols (use lsp_hover/lsp_references). ' +
+    'Specify file for single-file diagnostics, or omit for all open files; supports severity filter (error/warning/all).',
 
   inputSchema: {
     type: 'object',
     properties: {
       file: {
         type: 'string',
-        description: '文件路径（可选，省略则返回所有已打开文件的诊断）',
+        description: 'File path (optional, omit to return diagnostics for all open files)',
       },
       severity: {
         type: 'string',
-        description: '过滤级别: error（默认，只返回错误）、warning、all',
+        description: 'Filter level: error (default, errors only), warning, all',
         enum: ['error', 'warning', 'all'],
         default: 'error',
       },

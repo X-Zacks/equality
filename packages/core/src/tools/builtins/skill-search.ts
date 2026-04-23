@@ -11,17 +11,17 @@ import { getGlobalRetriever } from '../../skills/retriever.js'
 export const skillSearchTool: ToolDefinition = {
   name: 'skill_search',
   description:
-    '搜索可用的技能（Skill）。当你觉得当前任务可能有现成的 Skill 可以参考时使用。返回匹配的 Skill 名称和描述。',
+    'Search available Skills. Use when you think there might be an existing Skill relevant to the current task. Returns matching Skill names and descriptions.',
   inputSchema: {
     type: 'object',
     properties: {
       query: {
         type: 'string',
-        description: '搜索关键词或意图描述，如 "git commit" 或 "创建 PowerPoint"',
+        description: 'Search keywords or intent description, e.g. "git commit" or "create PowerPoint"',
       },
       topK: {
         type: 'number',
-        description: '返回数量，默认 5',
+        description: 'Number of results to return, default 5',
       },
     },
     required: ['query'],

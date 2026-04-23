@@ -783,7 +783,7 @@ function ToolDetailDrawer({ tool, onClose, draft, saving, getMasked, onDraftChan
         <div className="drawer-body">
           <div className="tool-detail-section">
             <div className="tool-detail-label">描述</div>
-            <p className="tool-detail-desc">{tool.description || '暂无描述'}</p>
+            <p className="tool-detail-desc">{tool.description || 'No description'}</p>
           </div>
 
           {/* ─── web_search 配置 ─── */}

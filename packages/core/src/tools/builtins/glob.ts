@@ -14,12 +14,12 @@ const DEFAULT_IGNORE = ['**/node_modules/**', '**/.git/**', '**/dist/**', '**/bu
 
 export const globTool: ToolDefinition = {
   name: 'glob',
-  description: '搜索匹配 glob 模式的文件路径。返回相对路径列表。默认忽略 node_modules、.git、dist、build。',
+  description: 'Search for file paths matching a glob pattern. Returns relative path list. Ignores node_modules, .git, dist, build by default.',
   inputSchema: {
     type: 'object',
     properties: {
-      pattern: { type: 'string', description: 'glob 模式（如 **/*.ts、src/**/*.py）' },
-      cwd: { type: 'string', description: '搜索起始目录（可选，默认工作区根目录）' },
+      pattern: { type: 'string', description: 'Glob pattern (e.g. **/*.ts, src/**/*.py)' },
+      cwd: { type: 'string', description: 'Search root directory (optional, defaults to workspace root)' },
     },
     required: ['pattern'],
   },

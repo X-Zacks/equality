@@ -26,18 +26,18 @@ function formatSize(bytes: number): string {
 export const listDirTool: ToolDefinition = {
   name: 'list_dir',
   description:
-    '列出目录内容。显示文件名、类型（目录加 / 后缀）和大小。' +
-    '按字母排序，最多返回 500 条目。',
+    'List directory contents. Shows filename, type (directories have / suffix), and size. ' +
+    'Sorted alphabetically, returns up to 500 entries.',
   inputSchema: {
     type: 'object',
     properties: {
       path: {
         type: 'string',
-        description: '目录路径（可选，默认工作区根目录）',
+        description: 'Directory path (optional, defaults to workspace root)',
       },
       max_entries: {
         type: 'number',
-        description: '最大条目数（默认 500）',
+        description: 'Maximum number of entries (default 500)',
       },
     },
     required: [],

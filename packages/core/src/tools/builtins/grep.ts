@@ -98,41 +98,41 @@ function searchFile(
 export const grepTool: ToolDefinition = {
   name: 'grep',
   description:
-    '用正则表达式或字面量在文件中搜索文本。' +
-    '返回匹配行及其行号和文件路径。' +
-    '默认搜索工作区内所有文本文件，可通过 include 参数过滤。' +
-    'Use when: 需要正则表达式匹配、或搜索非代码内容（日志、配置值、URL 等）。' +
-    '代码搜索优先用 codebase_search。',
+    'Search text in files using regex or literal patterns. ' +
+    'Returns matching lines with line numbers and file paths. ' +
+    'Searches all text files in workspace by default; use include to filter. ' +
+    'Use when: regex matching needed, or searching non-code content (logs, config values, URLs, etc.). ' +
+    'Prefer codebase_search for code search.',
   inputSchema: {
     type: 'object',
     properties: {
       pattern: {
         type: 'string',
-        description: '搜索模式（正则表达式或字面量字符串）',
+        description: 'Search pattern (regex or literal string)',
       },
       path: {
         type: 'string',
-        description: '搜索目录或文件路径（可选，默认工作区根目录）',
+        description: 'Search directory or file path (optional, defaults to workspace root)',
       },
       include: {
         type: 'string',
-        description: '文件名 glob 过滤（如 "*.ts" 或 "src/**/*.py"）',
+        description: 'Filename glob filter (e.g. "*.ts" or "src/**/*.py")',
       },
       ignore_case: {
         type: 'boolean',
-        description: '是否忽略大小写（默认 false）',
+        description: 'Whether to ignore case (default false)',
       },
       literal: {
         type: 'boolean',
-        description: '是否将 pattern 视为字面量字符串而非正则（默认 false）',
+        description: 'Treat pattern as literal string instead of regex (default false)',
       },
       context_lines: {
         type: 'number',
-        description: '每个匹配前后显示的上下文行数（默认 0）',
+        description: 'Context lines to show before/after each match (default 0)',
       },
       max_results: {
         type: 'number',
-        description: '最大匹配数（默认 100）',
+        description: 'Maximum number of matches (default 100)',
       },
     },
     required: ['pattern'],

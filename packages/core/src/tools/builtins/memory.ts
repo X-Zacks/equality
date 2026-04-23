@@ -27,16 +27,16 @@ export const memorySaveTool: ToolDefinition = {
     properties: {
       text: {
         type: 'string',
-        description: '要记住的内容（必填）。应该是简洁、有意义的陈述句。',
+        description: 'Content to remember (required). Should be a concise, meaningful statement.',
       },
       category: {
         type: 'string',
-        description: '分类（可选）：preference（偏好）、decision（决策）、fact（事实）、project（项目）、general（通用，默认）',
+        description: 'Category (optional): preference, decision, fact, project, general (default)',
         enum: ['preference', 'decision', 'fact', 'project', 'general'],
       },
       importance: {
         type: 'number',
-        description: '重要性 1-10（可选，默认 5）。10 = 最重要。',
+        description: 'Importance 1-10 (optional, default 5). 10 = most important.',
       },
     },
     required: ['text'],
@@ -102,11 +102,11 @@ export const memorySearchTool: ToolDefinition = {
     properties: {
       query: {
         type: 'string',
-        description: '搜索关键词（必填）',
+        description: 'Search keywords (required)',
       },
       limit: {
         type: 'number',
-        description: '最大返回条数（默认 5，最大 20）',
+        description: 'Maximum number of results (default 5, max 20)',
       },
     },
     required: ['query'],
@@ -207,12 +207,12 @@ export const memoryListTool: ToolDefinition = {
     properties: {
       category: {
         type: 'string',
-        description: '按分类筛选（可选）: preference, decision, fact, project, general',
+        description: 'Filter by category (optional): preference, decision, fact, project, general',
         enum: ['preference', 'decision', 'fact', 'project', 'general'],
       },
       limit: {
         type: 'number',
-        description: '最大返回条数（默认 20，最大 50）',
+        description: 'Maximum number of results (default 20, max 50)',
       },
     },
     required: [],
@@ -255,7 +255,7 @@ export const memoryDeleteTool: ToolDefinition = {
     properties: {
       id: {
         type: 'string',
-        description: '要删除的记忆 ID（memory_list/memory_search 返回的 ID，至少 8 位前缀即可匹配）',
+        description: 'Memory ID to delete (from memory_list/memory_search, at least 8-char prefix to match)',
       },
     },
     required: ['id'],

@@ -11,12 +11,12 @@ import { guardPath } from './path-guard.js'
 
 export const writeFileTool: ToolDefinition = {
   name: 'write_file',
-  description: '创建或覆盖文件。自动创建中间目录。写入前会创建 .equality-bak 备份。',
+  description: 'Create or overwrite a file. Automatically creates intermediate directories. Creates a .equality-bak backup before writing.',
   inputSchema: {
     type: 'object',
     properties: {
-      path: { type: 'string', description: '文件路径（相对于工作目录，或绝对路径）' },
-      content: { type: 'string', description: '要写入的文件内容' },
+      path: { type: 'string', description: 'File path (relative to workspace dir, or absolute)' },
+      content: { type: 'string', description: 'File content to write' },
     },
     required: ['path', 'content'],
   },

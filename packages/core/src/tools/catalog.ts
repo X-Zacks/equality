@@ -71,7 +71,7 @@ const CORE_TOOL_DEFINITIONS: CoreToolDefinition[] = [
   { id: 'lsp_diagnostics', label: 'lsp_diagnostics', description: 'Show diagnostics', sectionId: 'lsp', profiles: ['coding'] },
 
   // Web
-  { id: 'web_search', label: 'web_search', description: 'Search the web', sectionId: 'web', profiles: ['coding'] },
+  { id: 'web_search', label: 'web_search', description: 'Search the web (Brave / Tavily / DuckDuckGo)', sectionId: 'web', profiles: ['coding'] },
   { id: 'web_fetch', label: 'web_fetch', description: 'Fetch web page content', sectionId: 'web', profiles: ['coding'] },
 
   // Memory

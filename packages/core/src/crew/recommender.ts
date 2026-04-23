@@ -18,28 +18,29 @@ export interface CrewRecommendation {
   recommendedSkillNames: string[]
 }
 
-const RECOMMEND_SYSTEM_PROMPT = `你是一个 Crew 配置推荐器。根据用户的完整对话历史，深度分析用户的工作领域和任务需求，推荐一个 Crew（任务执行体）配置。
+const RECOMMEND_SYSTEM_PROMPT = `You are a Crew configuration recommender. Based on the user's full conversation history, deeply analyze the user's work domain and task requirements, then recommend a Crew (task execution entity) configuration.
 
-仔细阅读对话中的所有细节：用户讨论了什么主题、用了哪些工具、涉及什么技术栈、提到了什么文件类型或工作流程。
+Carefully read all details in the conversation: topics discussed, tools used, tech stacks involved, file types or workflows mentioned.
 
-输出严格的 JSON（不要 markdown 代码块包裹）：
+Output strict JSON (no markdown code block wrapping):
 {
-  "name": "简短但精确的名称（中文，≤20字，体现具体领域）",
-  "description": "一句话描述这个 Crew 能做什么（具体到技术栈/工具/场景）",
-  "emoji": "一个最贴合任务领域的 emoji",
-  "systemPromptExtra": "详细的角色定义和行为指令（至少3-5条具体规则，基于对话中体现的用户偏好和工作习惯）",
-  "keywords": ["关键词1", "关键词2", ..., "关键词N"]
+  "name": "Short but precise name (≤20 chars, reflect specific domain, match conversation language)",
+  "description": "One-sentence description of what this Crew can do (specific to tech stack/tools/scenarios, match conversation language)",
+  "emoji": "One emoji best matching the task domain",
+  "systemPromptExtra": "Detailed role definition and behavioral instructions (at least 3-5 specific rules, based on user preferences and work habits from conversation)",
+  "keywords": ["keyword1", "keyword2", ..., "keywordN"]
 }
 
-systemPromptExtra 要求：
-- 基于对话中用户的实际需求和偏好来写
-- 包含具体的技术约定（如语言偏好、代码风格、输出格式等）
-- 至少100字，要有实质内容
+systemPromptExtra requirements:
+- Write based on actual user needs and preferences from conversation
+- Include specific technical conventions (language preferences, code style, output format, etc.)
+- At least 100 characters with substantial content
+- Use the same language as the conversation
 
-keywords 用于搜索匹配的 Skills（技能包），选择 5-10 个最相关的关键词，覆盖：
-- 工具类（如 git, bash, docx, excel 等）
-- 领域类（如 frontend, coding, data-analysis 等）
-- 场景类（如 report, design, automation 等）`
+keywords are used to search for matching Skills, choose 5-10 most relevant keywords covering:
+- Tool types (e.g. git, bash, docx, excel)
+- Domain types (e.g. frontend, coding, data-analysis)
+- Scenario types (e.g. report, design, automation)`
 
 export async function recommendCrew(
   messages: ChatCompletionMessageParam[],
@@ -77,8 +78,8 @@ export async function recommendCrew(
   } catch {
     // 回退到默认值
     parsed = {
-      name: '新 Crew',
-      description: '从聊天推荐的 Crew',
+      name: 'New Crew',
+      description: 'Crew recommended from chat',
       emoji: '🤖',
       systemPromptExtra: '',
       keywords: [],

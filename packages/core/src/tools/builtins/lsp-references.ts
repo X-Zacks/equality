@@ -15,21 +15,21 @@ const MAX_REFERENCES = 50
 export const lspReferencesTool: ToolDefinition = {
   name: 'lsp_references',
   description:
-    '查找符号（函数、类、变量）在整个项目中的所有引用位置（TypeScript/JavaScript/Python/Go）。' +
-    'Use when: 重构函数/变量前评估影响范围；需要了解一个函数被哪些地方调用；多文件修改前确认所有调用点。' +
-    'NOT for: 找定义位置（用 lsp_definition）；文本字符串搜索（用 grep）。' +
-    '可以用 symbol 参数直接传符号名，工具会自动在文件中定位；也可以用 line+column 精确指定。',
+    'Find all references of a symbol (function, class, variable) across the entire project (TypeScript/JavaScript/Python/Go). ' +
+    'Use when: evaluating impact before refactoring; finding where a function is called; confirming all call sites before multi-file changes. ' +
+    'NOT for: finding definition (use lsp_definition); text string search (use grep). ' +
+    'You can pass a symbol name via the symbol param — auto-locates in file; or use line+column for precise positioning.',
 
   inputSchema: {
     type: 'object',
     properties: {
-      file: { type: 'string', description: '文件路径（相对于工作目录或绝对路径）' },
-      symbol: { type: 'string', description: '符号名称（如函数名、变量名）。提供此参数时可省略 line 和 column，工具会自动定位' },
-      line: { type: 'number', description: '行号（1-based）' },
-      column: { type: 'number', description: '列号（1-based）' },
+      file: { type: 'string', description: 'File path (relative to workspace dir or absolute)' },
+      symbol: { type: 'string', description: 'Symbol name (e.g. function name, variable name). When provided, line and column can be omitted — tool auto-locates' },
+      line: { type: 'number', description: 'Line number (1-based)' },
+      column: { type: 'number', description: 'Column number (1-based)' },
       include_declaration: {
         type: 'string',
-        description: '是否包含声明本身（true/false，默认 false）',
+        description: 'Whether to include the declaration itself (true/false, default false)',
         default: 'false',
       },
     },

@@ -18,13 +18,13 @@ export function setSubtaskManagerForKill(manager: SubtaskManager): void {
 export const subtaskKillTool: ToolDefinition = {
   name: 'subtask_kill',
   description:
-    '取消一个运行中的子任务 任务。被取消的任务会立即中止执行。',
+    'Cancel a running subtask. The cancelled task will be immediately terminated.',
   inputSchema: {
     type: 'object',
     properties: {
       task_id: {
         type: 'string',
-        description: '要取消的子任务的 taskId',
+        description: 'taskId of the subtask to cancel',
       },
     },
     required: ['task_id'],

@@ -13,19 +13,19 @@ import { resolveFilePath, toLspPosition, getClientOrError, readLineFromFile, res
 export const lspDefinitionTool: ToolDefinition = {
   name: 'lsp_definition',
   description:
-    '跳转到符号的定义位置（TypeScript/JavaScript/Python/Go）。' +
-    '返回定义所在文件路径和行号，支持跨文件。' +
-    'Use when: 在阅读代码时遇到函数调用、类名、变量引用，需要找到其实现或声明位置。' +
-    'NOT for: 获取类型签名（用 lsp_hover）、查所有使用处（用 lsp_references）。' +
-    '可以用 symbol 参数直接传符号名，工具会自动在文件中定位；也可以用 line+column 精确指定。',
+    'Jump to the definition of a symbol (TypeScript/JavaScript/Python/Go). ' +
+    'Returns the file path and line number of the definition, supports cross-file navigation. ' +
+    'Use when: reading code and encountering function calls, class names, variable references — need to find implementation or declaration. ' +
+    'NOT for: getting type signatures (use lsp_hover), finding all usages (use lsp_references). ' +
+    'You can pass a symbol name via the symbol param (auto-locates in file), or use line+column for precise positioning.',
 
   inputSchema: {
     type: 'object',
     properties: {
-      file: { type: 'string', description: '文件路径（相对于工作目录或绝对路径）' },
-      symbol: { type: 'string', description: '符号名称（如函数名、变量名）。提供此参数时可省略 line 和 column，工具会自动定位' },
-      line: { type: 'number', description: '行号（1-based）' },
-      column: { type: 'number', description: '列号（1-based）' },
+      file: { type: 'string', description: 'File path (relative to workspace dir or absolute)' },
+      symbol: { type: 'string', description: 'Symbol name (e.g. function name, variable name). When provided, line and column can be omitted — tool auto-locates' },
+      line: { type: 'number', description: 'Line number (1-based)' },
+      column: { type: 'number', description: 'Column number (1-based)' },
     },
     required: ['file'],
   },

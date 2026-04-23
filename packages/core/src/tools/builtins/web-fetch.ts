@@ -16,12 +16,12 @@ const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
 
 export const webFetchTool: ToolDefinition = {
   name: 'web_fetch',
-  description: '抓取网页内容（HTTP GET），返回纯文本。HTML 自动提取正文，JSON/纯文本直接返回。支持企业代理。',
+  description: 'Fetch web page content (HTTP GET) and return plain text. Automatically extracts body from HTML; returns JSON/text as-is. Supports enterprise proxy.',
   inputSchema: {
     type: 'object',
     properties: {
-      url: { type: 'string', description: '目标 URL（http:// 或 https://）' },
-      max_chars: { type: 'number', description: '最大返回字符数（默认 50000）', default: DEFAULT_MAX_CHARS },
+      url: { type: 'string', description: 'Target URL (http:// or https://)' },
+      max_chars: { type: 'number', description: 'Max characters to return (default 50000)', default: DEFAULT_MAX_CHARS },
     },
     required: ['url'],
   },

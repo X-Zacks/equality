@@ -17,25 +17,25 @@ const VALID_RATIOS = ['1:1', '16:9', '9:16', '4:3', '3:4'] as const
 export const imageGenerateTool: ToolDefinition = {
   name: 'image_generate',
   description:
-    '根据文字描述生成图片（AI 文生图）。使用 MiniMax image-01 模型。' +
-    '需要在设置中配置 MINIMAX_API_KEY。' +
-    '支持的宽高比: 1:1（默认）, 16:9, 9:16, 4:3, 3:4。' +
-    '生成的图片保存到工作目录下的 generated-images/ 文件夹。',
+    'Generate images from text descriptions (AI text-to-image). Uses MiniMax image-01 model. ' +
+    'Requires MINIMAX_API_KEY in settings. ' +
+    'Supported aspect ratios: 1:1 (default), 16:9, 9:16, 4:3, 3:4. ' +
+    'Generated images are saved to the generated-images/ folder in workspace.',
   inputSchema: {
     type: 'object',
     properties: {
       prompt: {
         type: 'string',
-        description: '图片描述（英文效果更佳）。例如: "A serene mountain landscape with cherry blossoms at sunset"',
+        description: 'Image description (English works best). Example: "A serene mountain landscape with cherry blossoms at sunset"',
       },
       aspect_ratio: {
         type: 'string',
         enum: VALID_RATIOS as unknown as string[],
-        description: '宽高比，默认 1:1。可选: 1:1, 16:9, 9:16, 4:3, 3:4',
+        description: 'Aspect ratio, default 1:1. Options: 1:1, 16:9, 9:16, 4:3, 3:4',
       },
       save_to: {
         type: 'string',
-        description: '可选：自定义保存路径（相对于工作目录）。默认自动生成文件名。',
+        description: 'Optional: custom save path (relative to workspace). Auto-generates filename by default.',
       },
     },
     required: ['prompt'],
