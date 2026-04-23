@@ -70,6 +70,17 @@ export interface ToolResult {
   isError?: boolean
   /** 元信息（不传给 LLM，用于内部统计） */
   metadata?: ToolResultMetadata
+  /** 交互式载荷（Phase K2: 需要用户确认的操作，如 Skill 注入） */
+  interactive?: ToolInteractivePayload
+}
+
+/** 交互式载荷：前端渲染确认 UI，用户操作后回传 action */
+export interface ToolInteractivePayload {
+  type: string
+  skillName?: string
+  score?: number
+  preview?: string
+  actions: Array<{ id: string; label: string; primary?: boolean }>
 }
 
 export interface ToolResultMetadata {

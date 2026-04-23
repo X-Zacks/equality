@@ -221,6 +221,11 @@ const skillsWatcher = new SkillsWatcher({
     log.info(`Skills 已重载: ${skills.length} 个 (v=${event.version}, reason=${event.reason})`)
     // 重建 Skill Retriever 索引
     getGlobalRetriever().rebuild(skills.map(e => e.skill))
+    // 更新 RAG 索引（异步，不阻塞）
+    import('./skills/rag-retriever.js').then(({ getGlobalRAGRetriever }) => {
+      const rag = getGlobalRAGRetriever()
+      if (rag) rag.buildIndex(skills.map(e => e.skill)).catch(() => {})
+    }).catch(() => {})
   },
 })
 const initialSkills = await skillsWatcher.start()
@@ -228,6 +233,31 @@ log.info(`已加载 ${initialSkills.length} 个 Skills: ${initialSkills.map(e =>
 
 // 初始化 Skill Retriever 索引（Phase 3: skill_search）
 getGlobalRetriever().rebuild(initialSkills.map(e => e.skill))
+
+// 初始化 Skill RAG Retriever（Phase K2 升级: embedding + 混合检索）
+;(async () => {
+  try {
+    const { createEmbeddingProvider } = await import('./memory/embeddings.js')
+    const { SkillRAGRetriever, setGlobalRAGRetriever } = await import('./skills/rag-retriever.js')
+    const BetterSqlite3 = (await import('better-sqlite3')).default
+    const { join } = await import('node:path')
+    const { mkdirSync } = await import('node:fs')
+
+    const appData = process.env.APPDATA ?? join(process.env.HOME ?? '.', '.config')
+    const dir = join(appData, 'Equality')
+    mkdirSync(dir, { recursive: true })
+    const skillDb = new BetterSqlite3(join(dir, 'skill-embeddings.db'))
+    skillDb.pragma('journal_mode = WAL')
+
+    const provider = await createEmbeddingProvider()
+    const ragRetriever = new SkillRAGRetriever(provider, skillDb)
+    await ragRetriever.buildIndex(initialSkills.map(e => e.skill))
+    setGlobalRAGRetriever(ragRetriever)
+    log.info(`SkillRAG 索引已构建: ${initialSkills.length} skills, provider=${provider.modelId}`)
+  } catch (err) {
+    log.warn(`SkillRAG 初始化失败（回退到 BM25）: ${(err as Error).message}`)
+  }
+})()
 
 // ─── 初始化 TaskRegistry（Phase E4.1 → I.5-3: SQLite 优先，fallback JSON）──
 let taskStore: import('./tasks/index.js').TaskStore

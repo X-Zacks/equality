@@ -99,8 +99,76 @@ export class SimpleEmbeddingProvider implements EmbeddingProvider {
   }
 }
 
+// ─── Transformers.js Embedding (all-MiniLM-L6-v2, 384 维) ──────────────────
+
+/**
+ * 基于 @huggingface/transformers 的高质量 embedding provider。
+ * 使用 all-MiniLM-L6-v2 ONNX 量化模型（~22MB），384 维输出。
+ * 支持中英文语义搜索。
+ */
+export class TransformersEmbeddingProvider implements EmbeddingProvider {
+  readonly dimensions = 384
+  readonly modelId = 'all-MiniLM-L6-v2'
+  private pipe: any = null
+  private initPromise: Promise<void> | null = null
+  private failed = false
+
+  constructor(private modelPath?: string) {}
+
+  async initialize(): Promise<void> {
+    if (this.pipe) return
+    if (this.failed) throw new Error('TransformersProvider previously failed to initialize')
+    if (this.initPromise) return this.initPromise
+    this.initPromise = (async () => {
+      try {
+        // Dynamic import to avoid bundling issues when transformers.js is not available
+        const { pipeline } = await import('@huggingface/transformers')
+        this.pipe = await pipeline(
+          'feature-extraction',
+          this.modelPath || 'Xenova/all-MiniLM-L6-v2',
+          { dtype: 'q8' }  // int8 量化
+        )
+      } catch (err) {
+        this.failed = true
+        throw err
+      }
+    })()
+    return this.initPromise
+  }
+
+  async embed(texts: string[]): Promise<Float32Array[]> {
+    await this.initialize()
+    const results: Float32Array[] = []
+    for (const text of texts) {
+      const output = await this.pipe!(text, { pooling: 'mean', normalize: true })
+      results.push(new Float32Array(output.data as ArrayLike<number>))
+    }
+    return results
+  }
+}
+
+// ─── Factory ────────────────────────────────────────────────────────────────
+
+/**
+ * 创建 embedding provider，优先使用 transformers.js，失败则降级到 n-gram。
+ */
+export async function createEmbeddingProvider(
+  modelPath?: string
+): Promise<EmbeddingProvider> {
+  try {
+    const provider = new TransformersEmbeddingProvider(modelPath)
+    await provider.initialize()
+    console.log('[Embedding] TransformersProvider initialized (384d, all-MiniLM-L6-v2)')
+    return provider
+  } catch (err) {
+    console.warn('[Embedding] TransformersProvider failed, falling back to SimpleProvider:', err)
+    return new SimpleEmbeddingProvider()
+  }
+}
+
 /**
  * 默认 embedding provider（轻量 n-gram）。
+ * @deprecated 使用 createEmbeddingProvider() 获取最佳可用 provider
  */
 export function createDefaultEmbeddingProvider(dimensions?: number): EmbeddingProvider {
   return new SimpleEmbeddingProvider(dimensions)

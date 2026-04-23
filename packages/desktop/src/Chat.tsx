@@ -736,11 +736,23 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings, on
       () => {
         // onAbort — 区分暂停触发的 abort vs 用户点停止
         if (pauseAbortRef.current) {
-          // 暂停触发：保留已完成的工具调用卡片，不追加「已中止」
+          // 暂停触发：把已产出的内容保存到消息列表，不追加「已中止」
           pauseAbortRef.current = false
+          const partial = streamingTextRef.current
+          const tools = [...activeToolCallsRef.current].map(t =>
+            t.status === 'running' ? { ...t, status: 'done' as const, result: '⏸ 暂停时中断' } : t,
+          )
+          if (partial || tools.length > 0) {
+            setMessages(msgs => [...msgs, {
+              role: 'assistant' as const,
+              content: partial || '',
+              toolCalls: tools.length > 0 ? tools : undefined,
+            }])
+          }
           streamingTextRef.current = ''
           setStreamingText('')
-          // activeToolCalls 保留（暂停横幅中显示已完成的工具调用数）
+          activeToolCallsRef.current = []
+          setActiveToolCalls([])
         } else {
           // 普通停止：保存已有部分到消息列表，清理工具卡片
           const partial = streamingTextRef.current
@@ -946,8 +958,21 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings, on
         // onAbort — 重新生成时中止
         if (pauseAbortRef.current) {
           pauseAbortRef.current = false
+          const partial = streamingTextRef.current
+          const tools = [...activeToolCallsRef.current].map(t =>
+            t.status === 'running' ? { ...t, status: 'done' as const, result: '⏸ 暂停时中断' } : t,
+          )
+          if (partial || tools.length > 0) {
+            setMessages(msgs => [...msgs, {
+              role: 'assistant' as const,
+              content: partial || '',
+              toolCalls: tools.length > 0 ? tools : undefined,
+            }])
+          }
           streamingTextRef.current = ''
           setStreamingText('')
+          activeToolCallsRef.current = []
+          setActiveToolCalls([])
         } else {
           const partial = streamingTextRef.current
           const tools = activeToolCallsRef.current.map(t =>
@@ -1302,8 +1327,8 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings, on
         {/* 暂停横幅 */}
         {paused && (
           <div className="pause-banner">
-            <span>⏸ 已暂停 · 已完成 {activeToolCalls.filter(t => t.status === 'done').length} 个工具调用 · 输入指令继续，或</span>
-            <button className="pause-banner-cancel" onClick={() => { setPaused(false); activeToolCallsRef.current = []; setActiveToolCalls([]) }}>取消</button>
+            <span>⏸ 已暂停 · 输入指令继续任务，或</span>
+            <button className="pause-banner-cancel" onClick={() => { setPaused(false) }}>取消</button>
           </div>
         )}
         {/* 附件标签栏（附件 + mention chips 合并在此行） */}

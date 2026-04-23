@@ -14,5 +14,5 @@ export type {
 } from './db.js'
 export { hybridSearch, fuseScores } from './hybrid-search.js'
 export type { HybridSearchOptions, HybridSearchResult, MemoryRecord } from './hybrid-search.js'
-export { createDefaultEmbeddingProvider, cosineSimilarity } from './embeddings.js'
+export { createDefaultEmbeddingProvider, createEmbeddingProvider, cosineSimilarity } from './embeddings.js'
 export type { EmbeddingProvider } from './embeddings.js'

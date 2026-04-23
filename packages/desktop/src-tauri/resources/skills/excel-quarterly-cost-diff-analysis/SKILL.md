@@ -1,6 +1,6 @@
 ---
 name: excel-quarterly-cost-diff-analysis
-description: 对同一目录下两个不同季度的费用分摊 Excel 表进行多维度汇总对比，分析 cost 差异、结构变化与可能的组织归属迁移
+description: 对同一目录下两个不同季度的费用分摊 Excel 表进行多维度汇总对比，分析 cost 差异、结构变化与组织归属迁移，输出 MD 和 HTML 报告
 tools:
   - list_dir
   - glob
@@ -12,8 +12,8 @@ tools:
   - grep
 equality:
   auto-generated: true
-  source-model: gpt-5.4
-  created: 2026-03-15
+  source-model: MiniMax-M2.7
+  created: 2026-03-20
 ---
 
 # 两个季度费用分摊 Excel 差异分析 Skill
@@ -23,12 +23,13 @@ equality:
 当用户提供一个目录，目录下包含两个不同季度（例如 Q3、Q4）的费用分摊 Excel 文件时，本 Skill 用于：
 
 - 自动识别两个季度文件
-- 读取主数据 sheet
+- 读取主数据 sheet，智能选择包含 cost 和关键维度的 sheet
 - 识别 `cost` 作为费用字段
-- 按多个维度汇总两个季度费用
+- 按多个维度（BG、Function、Geo、Allocation Key、Application、Cost Center 等）汇总两个季度费用
 - 计算绝对差异与变化率
 - 识别结构变化、组织归属迁移与分摊规则变化
-- 输出适合业务/财务汇报的结论
+- 生成 Markdown + HTML 双格式报告
+- **所有输出文件（Python 脚本、MD、HTML）统一存放到 Excel 同目录下的一个文件夹中**
 
 适用于费用分摊、IT cost allocation、shared service allocation 等 Excel 数据对比场景。
 
@@ -40,9 +41,23 @@ equality:
 |---|---|---:|---|
 | data_dir | 存放两个季度 Excel 文件的目录 | 是 | `C:/software/excel-data-sample` |
 | cost_field | 费用字段名，默认 `cost` | 否 | `cost` |
-| candidate_dims | 需要优先分析的维度列表 | 否 | `bg,function,geo,allocation_key,application_name,cost_center` |
-| output_report | 是否输出 Markdown 报告文件 | 否 | `true` |
-| report_path | 报告输出路径 | 否 | `C:/software/excel-data-sample/cost_diff_report.md` |
+| output_folder | 输出文件夹名（不填则自动生成日期文件夹） | 否 | `cost_analysis` |
+
+---
+
+## 输出规范（重要）
+
+所有输出文件必须存放在 **Excel 文件所在目录** 下的一个**新建文件夹**中：
+
+```
+C:/software/excel-data-sample/
+├── allocation_raw_data_fy2526_q3.xlsx    ← 原始 Excel
+├── allocation_raw_data_fy2526_q4.xlsx    ← 原始 Excel
+└── cost_analysis_20260320/               ← 自动创建的输出文件夹
+    ├── analyze.py                        ← 分析用 Python 脚本
+    ├── full_report.md                    ← Markdown 报告（含 CC Top10）
+    └── full_report.html                  ← HTML 报告（可浏览器查看）
+```
 
 ---
 
@@ -60,11 +75,22 @@ equality:
 
 ---
 
-### 第 2 步：先用 write_file 保存 Python 脚本
+### 第 2 步：创建输出文件夹
 
-将下面脚本保存为独立 Python 文件，例如：
+在 Excel 所在目录下创建一个以日期命名的文件夹（如 `cost_analysis_20260320`），用于存放：
+- Python 分析脚本
+- Markdown 报告
+- HTML 报告
 
-`C:/software/equality/packages/core/tmp_excel_cost_diff.py`
+---
+
+### 第 3 步：用 write_file 保存 Python 脚本
+
+将下面脚本保存为独立 Python 文件，**存放到 Excel 同目录下的输出文件夹中**：
+
+```
+C:/software/excel-data-sample/cost_analysis_20260320/analyze.py
+```
 
 > 注意：必须先用 `write_file` 保存脚本，再用 `bash` 执行 `python xxx.py`。不要使用 heredoc。
 
@@ -76,6 +102,7 @@ import os
 import re
 import sys
 from pathlib import Path
+from datetime import datetime
 
 import pandas as pd
 
@@ -176,7 +203,7 @@ def detect_dims(df, requested=None):
 
 def main():
     if len(sys.argv) < 2:
-        raise SystemExit("Usage: python tmp_excel_cost_diff.py <data_dir> [cost_field]")
+        raise SystemExit("Usage: python analyze.py <data_dir> [cost_field]")
 
     data_dir = Path(sys.argv[1])
     cost_field = sys.argv[2] if len(sys.argv) > 2 else "cost"
@@ -236,23 +263,23 @@ if __name__ == "__main__":
 
 ---
 
-### 第 3 步：执行脚本
+### 第 4 步：执行脚本
 
-使用 `bash` 执行：
+使用 `bash` 执行，**输出路径指向新创建的文件夹**：
 
 ```powershell
-python C:/software/equality/packages/core/tmp_excel_cost_diff.py C:/software/excel-data-sample cost
+python C:/software/excel-data-sample/cost_analysis_20260320/analyze.py C:/software/excel-data-sample cost
 ```
 
 如果环境中 `python` 不可用，可尝试：
 
 ```powershell
-py C:/software/equality/packages/core/tmp_excel_cost_diff.py C:/software/excel-data-sample cost
+py C:/software/excel-data-sample/cost_analysis_20260320/analyze.py C:/software/excel-data-sample cost
 ```
 
 ---
 
-### 第 4 步：分析输出结果
+### 第 5 步：分析输出结果
 
 重点分析以下维度：
 
@@ -268,7 +295,7 @@ py C:/software/equality/packages/core/tmp_excel_cost_diff.py C:/software/excel-d
 3. **组织维度**
    - `bg`
    - `function`
-   - 重点识别“一个清零、另一个新增且金额接近”的迁移模式
+   - 重点识别"一个清零、另一个新增且金额接近"的迁移模式
 
 4. **地域维度**
    - `geo`
@@ -292,91 +319,28 @@ py C:/software/equality/packages/core/tmp_excel_cost_diff.py C:/software/excel-d
 
 ---
 
-## 结果解读模板
+### 第 6 步：生成完整报告（Markdown + HTML）
 
-可以按以下结构输出：
+**重要**：读懂 Python 脚本输出的 JSON 数据后，需要：
+1. 生成包含**所有维度分析**的完整 Markdown 报告（包括 Cost Center Top 10）
+2. 将 Markdown 内容转换为 HTML 格式
+3. **输出文件必须存放到 Excel 同目录下的输出文件夹中**
 
-### 1. 整体结论
-
-- Q1 总费用 / Q2 总费用
-- 差异与变化率
-- 一句话判断：平稳、增长、下降
-
-### 2. 主要增长来源
-
-列出增长较大的维度项，例如：
-
-- `Biz Apps Support`
-- `Shared Tech Platform/Tools`
-- `AD_account`
-- `O365 Collaboration`
-
-### 3. 主要下降来源
-
-列出下降较大的维度项，例如：
-
-- 某些应用
-- 某些 company code
-- 某些成本中心
-
-### 4. 结构性变化判断
-
-重点判断：
-
-- 是否存在 **组织归属迁移**
-- 是否存在 **口径变更**
-- 是否存在 **shared cost 向 HQ 集中**
-- 是否存在 **license / active user / data usage 驱动变化**
-
-### 5. 建议复核点
-
-至少包含：
-
-- BG / Function 映射是否调整
-- allocation key 规则是否变化
-- Null application 映射是否需要补齐
-- 某些 cost center 是否做了替换或搬迁
-
----
-
-## Markdown 报告模板
-
-可将最终结果整理为 `cost_diff_report.md`，结构如下：
-
-```markdown
-# 两个季度费用分摊差异分析
-
-## 1. 分析范围
-- 文件 1：...
-- 文件 2：...
-- 主数据 sheet：...
-- 费用字段：cost
-
-## 2. 总体结论
-- Qx 总费用：...
-- Qy 总费用：...
-- 差异：...
-- 变化率：...
-
-## 3. 分维度分析
-### 3.1 TCO 一级分类
-### 3.2 TCO 二级分类
-### 3.3 BG
-### 3.4 Function
-### 3.5 Geo / CC_Geo
-### 3.6 Allocation Key
-### 3.7 Company Code
-### 3.8 Application Name / Application ID
-### 3.9 Cost Center
-
-## 4. 综合判断
-- 总体规模变化
-- 结构性变化
-- 组织迁移迹象
-- 分摊规则变化
-
-## 5. 建议复核点
-- ...
+报告结构：
+```
+1. 分析范围
+2. 总体结论
+3. 分维度分析
+   ├── 3.1 TCO 一级分类
+   ├── 3.2 TCO 二级分类
+   ├── 3.3 BG（业务群组）
+   ├── 3.4 Function（职能部门）
+   ├── 3.5 Allocation Key
+   ├── 3.6 Application
+   ├── 3.7 Geo（地域）
+   └── 3.8 Cost Center（成本中心）⭐ 重点
+4. 综合判断
+5. 建议复核点
 ```
 
 ---
@@ -387,18 +351,7 @@ py C:/software/equality/packages/core/tmp_excel_cost_diff.py C:/software/excel-d
 2. 维度字段名可能大小写不一致，应做大小写兼容处理。
 3. `cost` 字段必须转成数值，异常值按 0 处理。
 4. 对于空值维度，应统一显示为 `<NULL>`，防止遗漏。
-5. 若出现 `DCG -> ISG`、`旧 function -> 新 function` 这类“一个下降、一个新增且金额接近”的情况，要明确提示可能是组织映射迁移。
+5. 若出现 `DCG -> ISG`、`旧 function -> 新 function` 这类"一个下降、一个新增且金额接近"的情况，要明确提示可能是组织映射迁移。
 6. 若 `application_name` 大量为空，应提示应用映射不完整，影响解释精度。
-7. Windows 环境下不要使用 heredoc，必须先保存 `.py` 文件再执行。
-
----
-
-## 可扩展增强
-
-后续可扩展为：
-
-- 输出 Top 20 差异明细表
-- 自动生成 Markdown 报告文件
-- 导出 CSV 对比结果
-- 做“迁移对”自动匹配（例如金额近似对冲）
-- 支持多季度连续趋势分析
+7. **Windows 环境下不要使用 heredoc，必须先保存 `.py` 文件再执行。**
+8. **所有输出文件必须存放到 Excel 同目录下的新建文件夹中，不要散落在其他位置。**

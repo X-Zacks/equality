@@ -70,6 +70,10 @@ const _require = createRequire(import.meta.url || __filename);
       'chromium-bidi/*',
       // playwright 本身不打包（体积太大且有循环依赖），但 playwright-core 打包进来
       'playwright',
+      // @huggingface/transformers + onnxruntime 含 .node 原生文件，不能打包进 SEA
+      '@huggingface/transformers',
+      'onnxruntime-node',
+      'onnxruntime-web',
     ],
     logLevel: 'warning',
   })
