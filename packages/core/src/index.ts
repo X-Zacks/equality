@@ -16,7 +16,7 @@ import { dailySummary, sessionCostSummary, allSessionsCostSummary, globalCostSum
 import { allQuotaStatuses, setQuotaConfig, deleteQuotaConfig, listQuotaConfigs, type QuotaConfig } from './cost/request-quota.js'
 import { startDeviceFlow, pollForToken, clearCopilotAuth, isCopilotLoggedIn, getPollingInterval } from './providers/copilot-auth.js'
 import { COPILOT_MODELS, fetchCopilotModels } from './providers/copilot.js'
-import { ToolRegistry, builtinTools, resolvePolicyForTool, classifyMutation, McpClientManager, parseMcpServersConfig, setSubtaskManagerForSpawn, setSubtaskManagerForList, setSubtaskManagerForSteer, setSubtaskManagerForKill } from './tools/index.js'
+import { ToolRegistry, builtinTools, resolvePolicyForTool, classifyMutation, McpClientManager, parseMcpServersConfig, setSubtaskManagerForSpawn, setSubtaskManagerForSpawnParallel, setSubtaskManagerForList, setSubtaskManagerForSteer, setSubtaskManagerForKill } from './tools/index.js'
 import { ensureWorkspaceBootstrap } from './agent/workspace-bootstrap.js'
 import type { PolicyContext } from './tools/index.js'
 import type { BeforeToolCallInfo } from './agent/runner.js'
@@ -283,6 +283,9 @@ log.info(`TaskRegistry 已恢复 ${restoredTaskCount} 个任务`)
 const subagentManager = new SubtaskManager({
   taskRegistry,
   runAttempt,
+  createProvider: (providerId, modelId) => {
+    try { return getProviderById(providerId, modelId) } catch { return null }
+  },
   defaults: {
     workspaceDir: getWorkspaceDir(),
     sandboxEnabled: isSandboxEnabled(),
@@ -293,6 +296,7 @@ const subagentManager = new SubtaskManager({
   },
 })
 setSubtaskManagerForSpawn(subagentManager)
+setSubtaskManagerForSpawnParallel(subagentManager)
 setSubtaskManagerForList(subagentManager)
 setSubtaskManagerForSteer(subagentManager)
 setSubtaskManagerForKill(subagentManager)
@@ -513,8 +517,10 @@ app.post<{ Params: { taskId: string }; Body: { message?: string } }>('/tasks/:ta
 
 app.delete<{ Params: { taskId: string } }>('/tasks/:taskId', async (req, reply) => {
   try {
-    const task = taskRegistry.cancel(req.params.taskId)
-    return reply.send({ ok: true, state: task.state })
+    // 先通过 SubtaskManager 终止（会 abort AbortController + cancel）
+    subagentManager.kill(req.params.taskId, { cascade: true })
+    const task = taskRegistry.get(req.params.taskId)
+    return reply.send({ ok: true, state: task?.state ?? 'cancelled' })
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     return reply.status(400).send({ ok: false, reason: msg })

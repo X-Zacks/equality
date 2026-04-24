@@ -19,7 +19,9 @@ export const subtaskSpawnTool: ToolDefinition = {
   name: 'subtask_spawn',
   description:
     'Create a subtask to execute a specific task. Subtasks run in an independent context and return a summary result upon completion. ' +
-    'Suitable for work requiring independent investigation, execution, or analysis.',
+    'The subtask inherits the user\'s selected model. ' +
+    'Suitable for work requiring independent investigation, execution, or analysis. ' +
+    'To run multiple subtasks in parallel, call multiple subtask_spawn in a SINGLE turn (they execute concurrently).',
   inputSchema: {
     type: 'object',
     properties: {
@@ -37,7 +39,7 @@ export const subtaskSpawnTool: ToolDefinition = {
       },
       timeout_seconds: {
         type: 'string',
-        description: 'Subtask timeout in seconds, default 300',
+        description: 'Subtask timeout in seconds. Default 0 (no limit, protected by 30-minute safety valve). Set a positive value to override.',
       },
     },
     required: ['prompt'],
@@ -56,10 +58,13 @@ export const subtaskSpawnTool: ToolDefinition = {
     const allowedTools = input.allowed_tools
       ? String(input.allowed_tools).split(',').map(s => s.trim()).filter(Boolean)
       : undefined
-    const DEFAULT_TIMEOUT_SECONDS = 300 // 5 minutes
-    const timeoutMs = (input.timeout_seconds
-      ? Number(input.timeout_seconds)
-      : DEFAULT_TIMEOUT_SECONDS) * 1000
+    const timeoutSeconds = input.timeout_seconds ? Number(input.timeout_seconds) : 0
+    const timeoutMs = timeoutSeconds > 0 ? timeoutSeconds * 1000 : 0
+
+    // 从 ToolContext 中提取父会话的 Provider 信息
+    const parentProviderInfo = ctx.provider
+      ? { providerId: ctx.provider.providerId, modelId: ctx.provider.modelId }
+      : undefined
 
     try {
       const result = await _manager.spawn(parentSessionKey, {
@@ -67,6 +72,7 @@ export const subtaskSpawnTool: ToolDefinition = {
         goal,
         allowedTools,
         timeoutMs,
+        parentProviderInfo,
       })
       if (!result.success) {
         return { content: result.summary, isError: true }

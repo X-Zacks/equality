@@ -25,6 +25,7 @@ import { lspDefinitionTool } from './lsp-definition.js'
 import { lspReferencesTool } from './lsp-references.js'
 import { lspDiagnosticsTool } from './lsp-diagnostics.js'
 import { subtaskSpawnTool, setSubtaskManagerForSpawn } from './subtask-spawn.js'
+import { subtaskSpawnParallelTool, setSubtaskManagerForSpawnParallel } from './subtask-spawn-parallel.js'
 import { subtaskListTool, setSubtaskManagerForList } from './subtask-list.js'
 import { subtaskSteerTool, setSubtaskManagerForSteer } from './subtask-steer.js'
 import { subtaskKillTool, setSubtaskManagerForKill } from './subtask-kill.js'
@@ -111,10 +112,12 @@ export {
   lspReferencesTool,
   lspDiagnosticsTool,
   subtaskSpawnTool,
+  subtaskSpawnParallelTool,
   subtaskListTool,
   subtaskSteerTool,
   subtaskKillTool,
   setSubtaskManagerForSpawn,
+  setSubtaskManagerForSpawnParallel,
   setSubtaskManagerForList,
   setSubtaskManagerForSteer,
   setSubtaskManagerForKill,

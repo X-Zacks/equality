@@ -11,9 +11,9 @@ export interface SpawnSubtaskParams {
   goal?: string
   /** 子任务可用的工具白名单 */
   allowedTools?: string[]
-  /** 子任务使用的模型 */
-  model?: string
-  /** 子任务超时时间（ms） */
+  /** 父会话的 Provider 信息（子任务继承用户选择的模型） */
+  parentProviderInfo?: { providerId: string; modelId: string }
+  /** 子任务超时时间（ms）。0 或 undefined 表示不限制（受全局安全阀保护） */
   timeoutMs?: number
 }
 
@@ -48,6 +48,9 @@ export interface ParallelSpawnItem {
   params: SpawnSubtaskParams
   onComplete?: (result: SubtaskResult) => void
 }
+
+/** 全局安全阀：子任务最大存活时间 30 分钟 */
+export const MAX_SUBTASK_LIFETIME_MS = 30 * 60 * 1000
 
 /** SubtaskManagerConfig 的默认值 */
 export const DEFAULT_SUBTASK_CONFIG: SubtaskManagerConfig = {

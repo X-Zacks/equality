@@ -82,6 +82,7 @@ const CORE_TOOL_DEFINITIONS: CoreToolDefinition[] = [
 
   // Sessions
   { id: 'subtask_spawn', label: 'subtask_spawn', description: 'Spawn subtask', sectionId: 'sessions', profiles: ['coding'] },
+  { id: 'subtask_spawn_parallel', label: 'subtask_spawn_parallel', description: 'Spawn multiple subtasks in parallel', sectionId: 'sessions', profiles: ['coding'] },
   { id: 'subtask_list', label: 'subtask_list', description: 'List subtasks', sectionId: 'sessions', profiles: ['coding', 'messaging'] },
   { id: 'subtask_steer', label: 'subtask_steer', description: 'Steer subtask', sectionId: 'sessions', profiles: ['coding'] },
   { id: 'subtask_kill', label: 'subtask_kill', description: 'Kill subtask', sectionId: 'sessions', profiles: ['coding'] },

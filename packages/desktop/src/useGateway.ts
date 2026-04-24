@@ -541,8 +541,19 @@ export function useGateway() {
     }
   }, [])
 
+  /** 终止子任务（通过 DELETE /tasks/:taskId） */
+  const killSubtask = useCallback(async (taskId: string): Promise<boolean> => {
+    try {
+      const resp = await fetch(`${CORE_URL}/tasks/${encodeURIComponent(taskId)}`, { method: 'DELETE' })
+      return resp.ok
+    } catch {
+      console.warn('[killSubtask] failed')
+      return false
+    }
+  }, [])
+
   return {
-    coreOnline, sendMessage, abort, confirmToolCall,
+    coreOnline, sendMessage, abort, confirmToolCall, killSubtask,
     saveApiKey, loadSettings, deleteKey,
     copilotLogin, copilotLoginStatus, copilotLogout, copilotModels,
     listSessions, loadSession, deleteSession, truncateSession,

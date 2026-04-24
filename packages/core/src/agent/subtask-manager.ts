@@ -17,9 +17,10 @@ import type {
   SubtaskManagerConfig,
   SubtaskResult,
 } from './subtask-types.js'
-import { DEFAULT_SUBTASK_CONFIG } from './subtask-types.js'
+import { DEFAULT_SUBTASK_CONFIG, MAX_SUBTASK_LIFETIME_MS } from './subtask-types.js'
 import type { RunAttemptParams, RunAttemptResult } from './runner.js'
 import type { ToolRegistry } from '../tools/index.js'
+import type { LLMProvider } from '../providers/types.js'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -38,6 +39,8 @@ export interface SubtaskManagerDeps {
   taskRegistry: TaskRegistry
   /** runAttempt 函数引用（避免循环 import） */
   runAttempt: RunAttemptFn
+  /** 根据 providerId + modelId 创建 LLMProvider 实例 */
+  createProvider?: (providerId: string, modelId: string) => LLMProvider | null
   /** 子任务 默认继承的参数 */
   defaults?: {
     workspaceDir?: string
@@ -58,9 +61,28 @@ export class SubtaskManager {
   private liveAgents = new Map<string, LiveSubtask>()
   private readonly config: SubtaskManagerConfig
 
+  private housekeepingTimer?: ReturnType<typeof setInterval>
+
   constructor(deps: SubtaskManagerDeps) {
     this.deps = deps
     this.config = { ...DEFAULT_SUBTASK_CONFIG, ...deps.config }
+
+    // 安全阀：每 5 分钟清理超过 MAX_SUBTASK_LIFETIME 的僵尸任务
+    this.housekeepingTimer = setInterval(() => this.housekeeping(), 5 * 60 * 1000)
+  }
+
+  private housekeeping(): void {
+    const now = Date.now()
+    for (const [taskId, live] of this.liveAgents) {
+      const task = this.deps.taskRegistry.get(taskId)
+      if (task && (now - task.createdAt) > MAX_SUBTASK_LIFETIME_MS) {
+        console.warn(`[SubtaskManager] 安全阀：子任务 ${taskId} 超过 ${MAX_SUBTASK_LIFETIME_MS / 60000} 分钟，强制终止`)
+        live.abortController.abort()
+        try {
+          this.deps.taskRegistry.transition(taskId, 'timed_out', `安全阀: 超过最大存活时间 ${MAX_SUBTASK_LIFETIME_MS / 60000}min`)
+        } catch { /* 可能已处于终止态 */ }
+      }
+    }
   }
 
   // ─── spawn ──────────────────────────────────────────────────────────────
@@ -223,15 +245,22 @@ export class SubtaskManager {
     const registry = this.deps.taskRegistry
 
     try {
-      // 设置超时
+      // 设置超时（0 或 undefined 表示不限制，受全局安全阀保护）
       let timer: ReturnType<typeof setTimeout> | undefined
-      if (params.timeoutMs) {
+      if (params.timeoutMs && params.timeoutMs > 0) {
         timer = setTimeout(() => {
           abortController.abort()
           try {
             registry.transition(taskId, 'timed_out', `超时 ${params.timeoutMs}ms`)
           } catch { /* 可能已处于终止态 */ }
         }, params.timeoutMs)
+      }
+
+      // 解析父会话的 Provider（继承用户模型选择）
+      let parentProvider: LLMProvider | undefined
+      if (params.parentProviderInfo && this.deps.createProvider) {
+        const p = this.deps.createProvider(params.parentProviderInfo.providerId, params.parentProviderInfo.modelId)
+        if (p) parentProvider = p
       }
 
       // 通过 TaskEventBus 广播子任务 进度事件，让前端实时感知
@@ -253,6 +282,7 @@ export class SubtaskManager {
         sessionKey: childSessionKey,
         userMessage: params.prompt,
         abortSignal: abortController.signal,
+        ...(parentProvider ? { provider: parentProvider } : {}),
         toolRegistry: this.deps.defaults?.toolRegistry,
         allowedTools: params.allowedTools,
         steeringQueue,
