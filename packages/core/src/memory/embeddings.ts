@@ -115,18 +115,54 @@ export class TransformersEmbeddingProvider implements EmbeddingProvider {
 
   constructor(private modelPath?: string) {}
 
+  /**
+   * 查找本地缓存的模型目录。
+   * 优先级：1. 构造函数传入的 modelPath
+   *         2. %APPDATA%/Equality/models/all-MiniLM-L6-v2/
+   */
+  private async resolveModelPath(): Promise<string> {
+    if (this.modelPath) return this.modelPath
+
+    const { join } = await import('node:path')
+    const { existsSync } = await import('node:fs')
+    const appData = process.env.APPDATA ?? join(process.env.HOME ?? '.', '.config')
+    const localDir = join(appData, 'Equality', 'models', 'all-MiniLM-L6-v2')
+    const configFile = join(localDir, 'config.json')
+
+    if (existsSync(configFile)) {
+      console.log(`[Embedding] Found local model cache: ${localDir}`)
+      return localDir
+    }
+
+    console.warn(`[Embedding] No local model cache found at ${localDir}`)
+    console.warn(`[Embedding] Run "node scripts/download-model.mjs" to download from hf-mirror.com`)
+    return 'Xenova/all-MiniLM-L6-v2'
+  }
+
   async initialize(): Promise<void> {
     if (this.pipe) return
     if (this.failed) throw new Error('TransformersProvider previously failed to initialize')
     if (this.initPromise) return this.initPromise
     this.initPromise = (async () => {
       try {
+        const modelSource = await this.resolveModelPath()
+        const isLocal = modelSource.includes('\\') || modelSource.includes(':') || modelSource.startsWith('/')
         // Dynamic import to avoid bundling issues when transformers.js is not available
-        const { pipeline } = await import('@huggingface/transformers')
+        const { pipeline, env } = await import('@huggingface/transformers')
+
+        // 如果是本地路径，禁用远程下载
+        if (isLocal) {
+          env.allowRemoteModels = false
+          env.localModelPath = ''  // 使用绝对路径时不需要 prefix
+        }
+
         this.pipe = await pipeline(
           'feature-extraction',
-          this.modelPath || 'Xenova/all-MiniLM-L6-v2',
-          { dtype: 'q8' }  // int8 量化
+          modelSource,
+          {
+            dtype: 'q8',
+            local_files_only: isLocal,
+          }
         )
       } catch (err) {
         this.failed = true
