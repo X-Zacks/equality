@@ -169,6 +169,10 @@ for (const tool of builtinTools) {
 }
 log.info(`已注册 ${toolRegistry.size} 个工具: ${toolRegistry.list().join(', ')}`)
 
+// 注入工作目录到工具（确保 skill_view 等工具能访问用户 workspace）
+import { setWorkspaceDirForSkillView } from './tools/builtins/skill-view.js'
+setWorkspaceDirForSkillView(getWorkspaceDir())
+
 // ── MCP 客户端初始化（Phase D.2）───────────────────────────────────────────
 const mcpManager = new McpClientManager(toolRegistry)
 ;(async () => {
@@ -590,6 +594,60 @@ const activeAborts = new Map<string, AbortController>()
  *  写入不走 SessionQueue（中途注入语义），直接由 runner 内部消费。 */
 const steeringQueues = new Map<string, string[]>()
 
+// ─── Tool Confirm 通道（Phase N6.5: 写入前确认）────────────────────────────────
+/** toolCallId → { resolve } — 挂起中的写操作，等待前端 Accept/Reject */
+const pendingToolConfirms = new Map<string, {
+  resolve: (accepted: boolean) => void
+}>()
+
+/** sessionKey → SSE send 函数 — 供 beforeToolCall 发送 tool_confirm 事件 */
+const activeSendFns = new Map<string, (obj: unknown) => void>()
+
+/** 需要用户确认的写操作工具 */
+const CONFIRM_TOOLS = new Set(['write_file', 'edit_file', 'replace_in_file', 'apply_patch'])
+
+/** 增强版 beforeToolCall：安全检查 + 写操作确认 */
+async function enhancedBeforeToolCall(
+  info: BeforeToolCallInfo,
+  sessionKey: string,
+): Promise<{ block: true; reason: string } | undefined> {
+  // 1. 原有安全检查
+  const secResult = await securityBeforeToolCall(info)
+  if (secResult) return secResult
+
+  // 2. 写操作确认（仅对有 content 参数的写工具）
+  if (CONFIRM_TOOLS.has(info.name) && info.args.content) {
+    const send = activeSendFns.get(sessionKey)
+    if (send) {
+      // 发送 tool_confirm SSE 事件，前端展示 DiffPreview
+      send({
+        type: 'tool_confirm',
+        toolCallId: info.toolCallId,
+        name: info.name,
+        filePath: info.args.path || info.args.file_path || '',
+        content: info.args.content,
+      })
+
+      // 等待前端通过 /chat/tool-confirm 回复（超时 5 分钟自动放行）
+      const accepted = await new Promise<boolean>((resolve) => {
+        pendingToolConfirms.set(info.toolCallId, { resolve })
+        setTimeout(() => {
+          if (pendingToolConfirms.has(info.toolCallId)) {
+            pendingToolConfirms.delete(info.toolCallId)
+            resolve(true) // 超时默认放行
+          }
+        }, 5 * 60 * 1000)
+      })
+
+      if (!accepted) {
+        return { block: true, reason: '用户拒绝了此文件写入操作' }
+      }
+    }
+  }
+
+  return undefined
+}
+
 // ─── Chat Stream ──────────────────────────────────────────────────────────────
 interface ChatBody {
   message: string
@@ -650,6 +708,9 @@ app.post<{ Body: ChatBody }>('/chat/stream', async (req, reply) => {
       if (!steeringQueues.has(sessionKey)) steeringQueues.set(sessionKey, [])
       const steeringQueue = steeringQueues.get(sessionKey)!
 
+      // 存储 SSE send 函数供 enhancedBeforeToolCall 使用
+      activeSendFns.set(sessionKey, send)
+
       return runAttempt({
         sessionKey,
         userMessage: message,
@@ -662,7 +723,7 @@ app.post<{ Body: ChatBody }>('/chat/stream', async (req, reply) => {
         activeSkillNames,
         allowedTools,
         steeringQueue,
-        beforeToolCall: securityBeforeToolCall,
+        beforeToolCall: (info) => enhancedBeforeToolCall(info, sessionKey),
         contextEngine: new DefaultContextEngine(),
         onModelSwitch: (info) => send({ type: 'model_switch', from: info.fromProvider, to: info.toProvider, reason: info.reason }),
         onInteractive: (payload) => send({ type: 'interactive', payload }),
@@ -721,6 +782,7 @@ app.post<{ Body: ChatBody }>('/chat/stream', async (req, reply) => {
   } finally {
     activeAborts.delete(sessionKey)
     steeringQueues.delete(sessionKey)
+    activeSendFns.delete(sessionKey)
     reply.raw.end()
 
     // 后台异步生成会话标题（不阻塞响应）
@@ -749,6 +811,17 @@ app.post<{ Body: { sessionKey?: string } }>('/chat/abort', async (req, reply) =>
 })
 
 // ─── Chat Steer（阶段 D：运行中注入用户指令）──────────────────────────────────
+// ─── Tool Confirm（Phase N6.5：写入前确认回复）──────────────────────────────
+app.post<{ Body: { toolCallId: string; accepted: boolean } }>('/chat/tool-confirm', async (req, reply) => {
+  const { toolCallId, accepted } = req.body
+  if (!toolCallId) return reply.code(400).send({ error: 'toolCallId required' })
+  const pending = pendingToolConfirms.get(toolCallId)
+  if (!pending) return reply.code(404).send({ error: 'No pending confirm for this toolCallId' })
+  pendingToolConfirms.delete(toolCallId)
+  pending.resolve(accepted)
+  return { ok: true }
+})
+
 app.post<{ Body: { sessionKey?: string; message: string } }>('/chat/steer', async (req, reply) => {
   const { sessionKey: rawKey, message } = req.body ?? {}
   const sessionKey = rawKey || DESKTOP_SESSION_KEY

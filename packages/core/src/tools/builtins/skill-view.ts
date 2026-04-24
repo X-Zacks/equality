@@ -6,6 +6,7 @@
  */
 
 import { readFileSync } from 'node:fs'
+import path from 'node:path'
 import type { ToolDefinition } from '../types.js'
 import { loadAllSkills } from '../../skills/loader.js'
 
@@ -38,9 +39,20 @@ export const skillViewTool: ToolDefinition = {
 
     try {
       const skills = loadAllSkills(_workspaceDir || '.')
-      const match = skills.find(s => s.skill.name.toLowerCase() === name.toLowerCase())
+      const query = name.toLowerCase()
+      const match = skills.find((s) => {
+        const skillName = s.skill.name.toLowerCase()
+        const skillDirName = path.basename(path.dirname(s.skill.filePath)).toLowerCase()
+        const fileBaseName = path.basename(s.skill.filePath, path.extname(s.skill.filePath)).toLowerCase()
+        return skillName === query || skillDirName === query || fileBaseName === query
+      })
       if (!match) {
-        const available = skills.map(s => s.skill.name).join(', ')
+        const available = skills
+          .map((s) => {
+            const dirName = path.basename(path.dirname(s.skill.filePath))
+            return s.skill.name === dirName ? s.skill.name : `${s.skill.name} (${dirName})`
+          })
+          .join(', ')
         return {
           content: `Skill "${name}" not found. Available: ${available}`,
           isError: true,

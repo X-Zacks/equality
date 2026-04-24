@@ -43,6 +43,12 @@ export interface AssembleResult {
   wasCompacted: boolean
   /** 自动 Recall 的记忆条数 */
   recalledMemories: number
+  /**
+   * 压缩后的 session 消息（不含 system prompt）。
+   * 当 wasCompacted=true 时，调用方应用此数组替换 session.messages 以持久化压缩结果。
+   * 未压缩时为 undefined。
+   */
+  compactedSessionMessages?: ChatCompletionMessageParam[]
 }
 
 // ─── afterTurn() ──────────────────────────────────────────────────────────────

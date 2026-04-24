@@ -319,6 +319,22 @@ if not exist "%RES_DIR%\equality-core.exe" (
 )
 
 :: -----------------------------------------------
+:: Phase 2.6: Ensure embedding model downloaded
+:: -----------------------------------------------
+set "MODEL_DIR=%APPDATA%\Equality\models\all-MiniLM-L6-v2"
+if not exist "%MODEL_DIR%\config.json" (
+    echo [INFO] Embedding model not found, downloading...
+    node "%~dp0scripts\download-model.mjs"
+    if errorlevel 1 (
+        echo [WARN] Model download failed, RAG search will be unavailable.
+    ) else (
+        echo [INFO] Embedding model ready.
+    )
+) else (
+    echo [INFO] Embedding model already exists, skipping download.
+)
+
+:: -----------------------------------------------
 :: Phase 3: Start services
 :: -----------------------------------------------
 

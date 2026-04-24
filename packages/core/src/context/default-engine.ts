@@ -295,7 +295,17 @@ export class DefaultContextEngine implements ContextEngine {
     )
     trimMessages(messages, contextBudgetChars)
 
-    return { messages, wasCompacted, recalledMemories: recalledCount }
+    // 8. 最终清理：确保 tool_call / tool_result 配对完整
+    //    Compaction/Trim 可能破坏配对，导致 API 400 (tool id not found)
+    sanitizeToolPairing(messages)
+
+    // 9. 如果执行了 Compaction，提取压缩后的 session 消息（去掉 system prompt）
+    //    供 runner 回写到 session.messages，避免下次 assemble 重复压缩 + 磁盘无限膨胀
+    const compactedSessionMessages = wasCompacted
+      ? messages.slice(1)  // messages[0] 是 system prompt，其余是压缩后的会话消息
+      : undefined
+
+    return { messages, wasCompacted, recalledMemories: recalledCount, compactedSessionMessages }
   }
 
   async afterTurn(params: AfterTurnParams): Promise<void> {
@@ -384,7 +394,70 @@ export function trimMessages(messages: ChatCompletionMessageParam[], maxChars: n
     console.warn(`[context-engine] trimMessages 兜底裁剪: role=${('role' in removed) ? removed.role : 'unknown'}`)
   }
 
+  // 修复配对：裁剪可能破坏 tool_call / tool_result 配对
+  sanitizeToolPairing(messages)
+
   if (totalChars() > maxChars) {
     console.warn(`[context-engine] 裁剪后仍超限: ${totalChars()} chars > ${maxChars}`)
+  }
+}
+
+/**
+ * 清理孤立的 tool_call / tool_result 消息。
+ * - 如果 role=tool 的 tool_call_id 找不到对应的 assistant(tool_calls)，移除该 tool 消息
+ * - 如果 assistant(tool_calls) 找不到对应的 role=tool 结果，将 tool_calls 剥离为纯 assistant
+ * 防止 API 报 "tool result's tool id not found" 400 错误。
+ */
+function sanitizeToolPairing(messages: ChatCompletionMessageParam[]): void {
+  // 收集所有 assistant tool_call ids
+  const assistantToolCallIds = new Set<string>()
+  for (const msg of messages) {
+    if (msg.role === 'assistant' && 'tool_calls' in msg && Array.isArray((msg as any).tool_calls)) {
+      for (const tc of (msg as any).tool_calls) {
+        if (tc.id) assistantToolCallIds.add(tc.id)
+      }
+    }
+  }
+
+  // 收集所有 tool result ids
+  const toolResultIds = new Set<string>()
+  for (const msg of messages) {
+    if (msg.role === 'tool' && 'tool_call_id' in msg) {
+      toolResultIds.add((msg as any).tool_call_id)
+    }
+  }
+
+  // 1. 移除孤立的 tool result（tool_call_id 无对应 assistant）
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i]
+    if (msg.role === 'tool' && 'tool_call_id' in msg) {
+      if (!assistantToolCallIds.has((msg as any).tool_call_id)) {
+        console.warn(`[context-engine] 移除孤立 tool result: tool_call_id=${(msg as any).tool_call_id}`)
+        messages.splice(i, 1)
+      }
+    }
+  }
+
+  // 2. 剥离孤立的 assistant tool_calls（无对应 tool result）
+  for (const msg of messages) {
+    if (msg.role === 'assistant' && 'tool_calls' in msg && Array.isArray((msg as any).tool_calls)) {
+      const tcs = (msg as any).tool_calls as Array<{ id: string }>
+      const hasOrphan = tcs.some(tc => !toolResultIds.has(tc.id))
+      if (hasOrphan) {
+        // 所有 tool_calls 都没有结果 → 转为纯 assistant 消息
+        const allOrphan = tcs.every(tc => !toolResultIds.has(tc.id))
+        if (allOrphan) {
+          console.warn(`[context-engine] 剥离 assistant tool_calls (全部孤立, ${tcs.length} 个)`)
+          delete (msg as any).tool_calls
+          if (!msg.content) (msg as any).content = '[工具调用记录已随历史压缩移除]'
+        }
+        // 部分孤立：只保留有结果的 tool_calls
+        else {
+          const kept = tcs.filter(tc => toolResultIds.has(tc.id))
+          console.warn(`[context-engine] 剥离部分孤立 tool_calls: ${tcs.length} → ${kept.length}`)
+          ;(msg as any).tool_calls = kept
+        }
+      }
+    }
   }
 }

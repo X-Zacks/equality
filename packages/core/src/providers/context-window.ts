@@ -86,6 +86,11 @@ export const MODEL_CONTEXT_WINDOWS: Record<string, number> = {
   // GitHub Copilot
   'copilot-gpt-4o': 128_000,
   'copilot-claude-3.5-sonnet': 200_000,
+
+  // MiniMax
+  'MiniMax-M2.7': 1_000_000,
+  'MiniMax-M1': 1_000_000,
+  'minimax': 1_000_000,
 }
 
 // ─── Resolution ─────────────────────────────────────────────────────────────

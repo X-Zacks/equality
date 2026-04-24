@@ -67,11 +67,13 @@ export interface SettingsState {
 }
 
 interface DeltaEvent {
-  type: 'delta' | 'done' | 'error' | 'tool_start' | 'tool_result' | 'tool_update' | 'interactive' | 'model_switch' | 'memory_captured'
+  type: 'delta' | 'done' | 'error' | 'tool_start' | 'tool_result' | 'tool_update' | 'tool_confirm' | 'interactive' | 'model_switch' | 'memory_captured'
   sessionKey?: string
   content?: string
   message?: string
   usage?: { inputTokens: number; outputTokens: number; totalCny: number; toolCallCount?: number; quotaWarning?: string }
+  // tool_confirm fields (write before confirm)
+  filePath?: string
   // tool_start fields
   name?: string
   args?: Record<string, unknown>
@@ -85,6 +87,13 @@ interface DeltaEvent {
   category?: string
 }
 
+export interface ToolConfirmEvent {
+  toolCallId: string
+  name: string
+  filePath: string
+  content: string
+}
+
 export interface ToolCallEvent {
   toolCallId: string
   name: string
@@ -92,7 +101,7 @@ export interface ToolCallEvent {
   result?: string
   partial?: string
   isError?: boolean
-  status: 'running' | 'done' | 'error'
+  status: 'running' | 'done' | 'error' | 'pending_confirm'
 }
 
 export function useGateway() {
@@ -190,6 +199,13 @@ export function useGateway() {
                   name: '__update__',
                   partial: evt.content,
                   status: 'running',
+                })
+              } else if (evt.type === 'tool_confirm') {
+                onToolCall?.({
+                  toolCallId: evt.toolCallId ?? '',
+                  name: evt.name ?? 'unknown',
+                  args: { path: evt.filePath, content: evt.content },
+                  status: 'pending_confirm' as ToolCallEvent['status'],
                 })
               } else if (evt.type === 'tool_result') {
                 onToolCall?.({
@@ -513,8 +529,20 @@ export function useGateway() {
     } catch { return null }
   }, [])
 
+  const confirmToolCall = useCallback(async (toolCallId: string, accepted: boolean) => {
+    try {
+      await fetch(`${CORE_URL}/chat/tool-confirm`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ toolCallId, accepted }),
+      })
+    } catch (err) {
+      console.warn('[confirmToolCall] failed:', err)
+    }
+  }, [])
+
   return {
-    coreOnline, sendMessage, abort,
+    coreOnline, sendMessage, abort, confirmToolCall,
     saveApiKey, loadSettings, deleteKey,
     copilotLogin, copilotLoginStatus, copilotLogout, copilotModels,
     listSessions, loadSession, deleteSession, truncateSession,

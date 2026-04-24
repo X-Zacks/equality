@@ -125,7 +125,7 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings, on
   // Z3.2: TTS 自动播报开关
   const [ttsAutoPlay, setTtsAutoPlay] = useState(true)
   const ttsAutoPlayRef = useRef(true)
-  const { sendMessage, abort, loadSession, truncateSession, generateBriefing, recommendCrew, createCrew, createCrewSession: _createCrewSession } = useGateway()
+  const { sendMessage, abort, loadSession, truncateSession, generateBriefing, recommendCrew, createCrew, createCrewSession: _createCrewSession, confirmToolCall } = useGateway()
 
   // ─── Chat→Crew 浮动操作栏状态 ──────────────────────────────────────────
   const [crewCreating, setCrewCreating] = useState(false)
@@ -1066,15 +1066,15 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings, on
                               <pre className="tool-call-pre">{tc.result}</pre>
                             </div>
                           )}
-                          {(tc.name === 'write_file' || tc.name === 'edit_file' || tc.name === 'replace_in_file') && Boolean(tc.args?.content) && tc.status === 'done' && (
+                          {(tc.name === 'write_file' || tc.name === 'edit_file' || tc.name === 'replace_in_file') && Boolean(tc.args?.content) && (tc.status === 'done' || tc.status === 'pending_confirm') && (
                             <div className="tool-call-section">
-                              <div className="tool-call-section-label">DIFF PREVIEW</div>
+                              <div className="tool-call-section-label">{tc.status === 'pending_confirm' ? '⏳ CONFIRM CHANGES' : 'DIFF PREVIEW'}</div>
                               <DiffPreview
                                 filePath={String(tc.args?.path || tc.args?.file_path || '')}
                                 originalContent={null}
                                 newContent={String(tc.args?.content)}
-                                onAccept={() => {}}
-                                onReject={() => {}}
+                                onAccept={() => tc.status === 'pending_confirm' && confirmToolCall(tc.toolCallId, true)}
+                                onReject={() => tc.status === 'pending_confirm' && confirmToolCall(tc.toolCallId, false)}
                               />
                             </div>
                           )}
@@ -1243,15 +1243,15 @@ export default function Chat({ sessionKey, onStreamingChange, onOpenSettings, on
                               <pre className="tool-call-pre">{tc.result}</pre>
                             </div>
                           )}
-                          {(tc.name === 'write_file' || tc.name === 'edit_file' || tc.name === 'replace_in_file') && Boolean(tc.args?.content) && tc.status === 'done' && (
+                          {(tc.name === 'write_file' || tc.name === 'edit_file' || tc.name === 'replace_in_file') && Boolean(tc.args?.content) && (tc.status === 'done' || tc.status === 'pending_confirm') && (
                             <div className="tool-call-section">
-                              <div className="tool-call-section-label">DIFF PREVIEW</div>
+                              <div className="tool-call-section-label">{tc.status === 'pending_confirm' ? '⏳ CONFIRM CHANGES' : 'DIFF PREVIEW'}</div>
                               <DiffPreview
                                 filePath={String(tc.args?.path || tc.args?.file_path || '')}
                                 originalContent={null}
                                 newContent={String(tc.args?.content)}
-                                onAccept={() => {}}
-                                onReject={() => {}}
+                                onAccept={() => tc.status === 'pending_confirm' && confirmToolCall(tc.toolCallId, true)}
+                                onReject={() => tc.status === 'pending_confirm' && confirmToolCall(tc.toolCallId, false)}
                               />
                             </div>
                           )}

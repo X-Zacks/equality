@@ -271,8 +271,10 @@ ${sk.body}
 
 约束：
 - 一次只读取一个 SKILL.md，选定后才读。
-- Skill 是 Markdown 文档，不是可执行程序。不存在任何 CLI 命令来"运行" Skill。
+- Skill 是 Markdown 文档，不是可执行程序。不存在任何 CLI 命令来“运行” Skill。
 - 执行 Skill 的方式是：读取 SKILL.md → 按其中的步骤用已有工具（bash、write_file、read_file 等）逐步操作。
+- 当用户提到 Skill 名称时，用 skill_search 或 skill_view 定位，**不要用 list_dir/glob/grep 盲搜文件系统**。
+- 用户要求修改 Skill 时，用 <location> 中的路径直接 read_file + edit_file。
 - 如果任务需要未绑定的 Skill，可用 skill_search 工具搜索。
 `
       }
@@ -292,6 +294,8 @@ ${sk.body}
 - 一次只读取一个 SKILL.md，选定后才读。
 - 执行 Skill 的方式是：读取 SKILL.md → 按其中的步骤用已有工具逐步操作。
 - 如果需要其他技能，可用 skill_search 工具搜索。
+- 当用户提到 Skill 名称时，用 skill_search 或 skill_view 定位，**不要用 list_dir/glob/grep 盲搜文件系统**。
+- 用户要求修改 Skill 时，用 <location> 中的路径直接 read_file + edit_file。
 `
       }
     }
@@ -322,6 +326,14 @@ ${sk.body}
 - 如果恰好有一个 Skill 明确匹配用户请求：用 skill_view 工具查看其完整指令，严格按步骤执行。
 - 如果多个 Skill 可能匹配：选最具体的那个。
 - 如果没有 Skill 匹配：不查看任何 Skill，直接用工具完成。
+- **如果用户提到的名称不完全匹配**：用 skill_search 工具模糊搜索，不要手动 grep/list_dir 搜索文件系统。
+
+### 1.5 技能定位与编辑
+当用户要求 **查看或修改** 已有 Skill 时：
+1. 先查 <available_skills> 中的 <location> 字段获取路径（模糊匹配时用 skill_search）
+2. 用 read_file 读取该路径的 SKILL.md
+3. 用 edit_file 或 write_file 修改
+**绝对不要**用 list_dir、glob、grep、codebase_search 在文件系统中盲搜 Skill 文件。
 
 ### 2. 技能引用
 使用 Skill 时：
@@ -384,6 +396,8 @@ equality:
 ## Skill 搜索
 
 如果当前任务可能有现成的 Skill 可参考，可用 skill_search 工具搜索可用技能。
+当用户提到某个 Skill 名称时（即使不完全匹配），先用 skill_search 定位，再用 skill_view 查看。
+**不要**用 list_dir、glob、grep 在文件系统中盲搜 Skill 文件。
 成功完成复杂多步骤任务后，可提议将其保存为 Skill。`
   }
 

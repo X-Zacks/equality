@@ -683,6 +683,16 @@ export async function runAttempt(params: RunAttemptParams): Promise<RunAttemptRe
     crew,
   })
   const messages = assembled.messages
+
+  // 5.1 Compaction 持久化：将压缩结果回写到 session.messages
+  //     修复 BUG：之前 compaction 只修改 assemble 临时数组，session.messages 只增不减
+  if (assembled.wasCompacted && assembled.compactedSessionMessages) {
+    const before = session.messages.length
+    session.messages.length = 0
+    session.messages.push(...assembled.compactedSessionMessages)
+    console.log(`[runner] ✂️ Compaction 回写 session.messages: ${before} → ${session.messages.length} 条`)
+  }
+
   const messagesBaseline = messages.length  // 记录初始长度，用于后续提取 tool loop 新增的消息
 
   // 6. 准备工具 schema（支持 # 工具白名单过滤）

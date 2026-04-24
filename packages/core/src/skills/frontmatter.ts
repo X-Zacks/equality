@@ -34,13 +34,42 @@ export function parseSkillFile(filePath: string): Skill | null {
       return null
     }
 
-    // 解析 YAML
+    // 解析 YAML（容错：如果直接解析失败，尝试修复常见问题后重试）
     let meta: Record<string, unknown>
     try {
       meta = YAML.parse(frontmatter)
-    } catch (e) {
-      console.warn(`[skills] YAML 解析失败: ${filePath}`, e)
-      return null
+    } catch (_firstErr) {
+      // 尝试修复：将容易触发 YAML 解析错误的值归一化到单引号字符串
+      // 兼容场景：description: "...提到"风格规范"..."（外层双引号内含未转义双引号）
+      try {
+        const fixed = frontmatter.replace(/^(\w+):\s+(.+)$/gm, (_match, key: string, val: string) => {
+          const trimmed = val.trim()
+
+          // already single-quoted -> keep
+          if (/^'.*'$/.test(trimmed)) {
+            return `${key}: ${trimmed}`
+          }
+
+          // malformed double-quoted scalar: convert outer quotes to single quote style
+          // e.g. "abc "inner" text" -> 'abc "inner" text'
+          if (/^".*"$/.test(trimmed)) {
+            const inner = trimmed.slice(1, -1)
+            return `${key}: '${inner.replace(/'/g, "''")}'`
+          }
+
+          // unquoted value with YAML-sensitive chars -> wrap as single-quoted
+          if (/[:"'`{}\[\],#|>&*!?\u201c\u201d\u2018\u2019]/.test(trimmed)) {
+            return `${key}: '${trimmed.replace(/'/g, "''")}'`
+          }
+
+          return `${key}: ${trimmed}`
+        })
+        meta = YAML.parse(fixed)
+        console.info(`[skills] YAML 自动修复成功: ${filePath}`)
+      } catch (e) {
+        console.warn(`[skills] YAML 解析失败: ${filePath}`, e)
+        return null
+      }
     }
 
     if (!meta || typeof meta !== 'object') return null
