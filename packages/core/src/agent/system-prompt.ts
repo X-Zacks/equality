@@ -83,7 +83,12 @@ export function buildSystemPrompt(options?: SystemPromptOptions): string {
 身份与配置规则：
 - **不要**主动读取 SOUL.md、USER.md、IDENTITY.md 等身份文件——这些已被内置的 Purpose 系统替代
 - **不要**读取工作区配置目录以外的路径，严格限制在用户设置的工作目录内
-- 你的身份、行为准则已内置于本 system prompt 中，无需从文件读取`
+- 你的身份、行为准则已内置于本 system prompt 中，无需从文件读取
+
+文件与目录规则：
+- **附件目录就是工作目录**：当用户提供了附件（[附件: C:\\path\\to\\file.ext]），默认在附件所在目录下生成所有输出文件、临时文件、脚本等。不要在工作区其他位置乱找或乱生成文件。
+- **不要在 Skill 目录下写文件**——Skill 目录是只读的参考资料，不是工作空间。解压、生成、渲染等操作的输出一律放在附件目录或用户指定的输出路径。
+- 如果用户没有提供附件，则在当前工作目录下操作。`
 
   // ─── Agent 自定义身份说明（Phase I2）─────────────────────────────────────
   if (options?.agentIdentity) {
@@ -99,8 +104,9 @@ export function buildSystemPrompt(options?: SystemPromptOptions): string {
       prompt += `\n
 ## 🎯 用户指定 Skill：${sk.name}
 
-Skill 目录：${skillDir}
+Skill 目录（只读）：${skillDir}
 （Skill 中引用的相对路径如 \`scripts/xxx\`、\`editing.md\` 等，都相对于此目录。读取或执行时请使用绝对路径，例如 \`${skillDir}/scripts/xxx\`）
+⚠️ **严禁往 Skill 目录写入任何文件**（不要在此目录下解压、生成、输出）。所有工作文件（解压模板、生成脚本、输出文件等）必须放在用户附件所在目录或用户指定的输出路径。
 
 用户通过 @ 明确指定了本次使用此 Skill，请**严格按照以下 Skill 的步骤执行**，不要跳过：
 
@@ -122,7 +128,7 @@ ${sk.body}
 `
       activeList.forEach((sk, i) => {
         const skillDir = path.dirname(sk.filePath)
-        prompt += `### Skill ${i + 1}：${sk.name}\n\nSkill 目录：${skillDir}\n（引用的相对路径如 \`scripts/xxx\`、其他 .md 文件等，都相对于此目录）\n\n${sk.body}\n\n---\n\n`
+        prompt += `### Skill ${i + 1}：${sk.name}\n\nSkill 目录（只读）：${skillDir}\n（引用的相对路径如 \`scripts/xxx\`、其他 .md 文件等，都相对于此目录。⚠️ 严禁往 Skill 目录写入文件，所有输出放在附件目录。）\n\n${sk.body}\n\n---\n\n`
       })
     }
   }
