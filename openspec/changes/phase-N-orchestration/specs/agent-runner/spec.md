@@ -50,15 +50,15 @@ SubagentManagerConfig MUST 包含：
 
 ```typescript
 interface ParallelSpawnItem {
-  params: SpawnSubagentParams
-  onComplete?: (result: SubagentResult) => void
+  params: SpawnSubtaskParams
+  onComplete?: (result: SubtaskResult) => void
 }
 
 async spawnParallel(
   parentSessionKey: string,
   items: ParallelSpawnItem[],
   opts?: { depth?: number; maxConcurrent?: number }
-): Promise<SubagentResult[]>
+): Promise<SubtaskResult[]>
 ```
 
 行为要求：
@@ -97,6 +97,100 @@ async spawnParallel(
 - GIVEN items 为空数组
 - WHEN `spawnParallel()` 被调用
 - THEN 立即返回空数组
+
+---
+
+### Requirement: 子任务模型继承
+
+子任务 SHALL 继承父会话用户选择的模型，而非走自动路由。
+
+`SpawnSubtaskParams` MUST 包含：
+```typescript
+interface SpawnSubtaskParams {
+  prompt: string
+  goal?: string
+  allowedTools?: string[]
+  /** 父会话 Provider 信息，子任务继承使用 */
+  parentProviderInfo?: { providerId: string; modelId: string }
+  /** 0 或 undefined 表示不限制，受全局安全阀保护 */
+  timeoutMs?: number
+}
+```
+
+`SubtaskManagerDeps` MUST 包含 `createProvider?(providerId, modelId): LLMProvider | null` 回调。
+
+`executeChild` 内部 MUST：
+1. 若 `params.parentProviderInfo` 存在，调用 `createProvider()` 获取 Provider 实例
+2. 将该 Provider 通过 `runAttempt({ provider })` 传入，覆盖自动路由
+
+#### Scenario: 子任务继承父模型
+- GIVEN 父会话使用 `claude/claude-opus-4`
+- WHEN `spawn({ parentProviderInfo: { providerId: 'claude', modelId: 'claude-opus-4' } })` 被调用
+- THEN 子任务的 `runAttempt` 调用包含 `{ provider: ClaudeProvider(claude-opus-4) }`
+- AND `routeModel` 的自动路由**不**被激活
+
+#### Scenario: 无 parentProviderInfo 时回退到自动路由
+- GIVEN `parentProviderInfo` 为 undefined
+- WHEN `spawn()` 被调用
+- THEN 子任务的 `runAttempt` 不传 `provider`，走 `routeModel` 自动路由
+
+---
+
+### Requirement: 子任务超时全局安全阀
+
+`SubtaskManager` SHALL 提供两层超时保护：
+
+1. **任务级超时**：`timeoutMs > 0` 时对单个子任务生效
+   - `timeoutMs = 0` 或 `undefined` 表示对该任务不设超时
+2. **全局安全阀**：`MAX_SUBTASK_LIFETIME_MS = 30 * 60 * 1000`（固定常量）
+   - `SubtaskManager` 创建时 MUST 启动 housekeeping 定时器（每 5 分钟执行一次）
+   - 超过 `MAX_SUBTASK_LIFETIME_MS` 的活跽子任务 MUST 被强制 abort 并转移到 `timed_out` 状态
+   - housekeeping 必须记录 warning 日志
+
+#### Scenario: 任务级超时
+- GIVEN 子任务 timeoutMs=5000
+- WHEN 任务运行超过 5 秒
+- THEN 任务被 abort，状态变为 `timed_out`
+
+#### Scenario: 不限制超时（默认）
+- GIVEN 子任务创建时未传 timeout_seconds（或传 0）
+- WHEN 子任务运行 20 分钟
+- THEN 任务**不**被任务级超时终止
+- AND 任务继续运行（尚未触发 30 分钟安全阀）
+
+#### Scenario: 全局安全阀清理
+- GIVEN 子任务创建后已运行超过 30 分钟
+- WHEN housekeeping 定时器执行
+- THEN 该子任务被强制 abort
+- AND 状态变为 `timed_out`
+- AND 记录 warning 日志
+
+---
+
+### Requirement: `subtask_spawn_parallel` 工具
+
+系统 SHALL 提供 `subtask_spawn_parallel` LLM 工具，允许 LLM 以单个工具调用启动多个并行子任务。
+
+输入参数：
+- `tasks`（必需）：JSON 数组字符串，每项包含 `{ prompt, goal?, allowed_tools? }`
+- `timeout_seconds`（可选）：单个子任务超时，默认 0（不限制）
+
+约束：
+- 最大支持 10 个并行任务
+- MUST 调用 `SubtaskManager.spawnParallel()`
+- MUST 继承父会话模型（`ctx.provider`）
+- 返回所有子任务的汇总结果：`{ totalTasks, succeeded, failed, results[] }`
+
+#### Scenario: 并行启动 3 个任务
+- GIVEN tasks = [{...}, {...}, {...}]
+- WHEN `subtask_spawn_parallel` 被调用
+- THEN 3 个子任务同时启动
+- AND 返回 `{ totalTasks: 3, succeeded: N, failed: M, results: [...] }`
+
+#### Scenario: 超出数量限制
+- GIVEN tasks.length = 11
+- WHEN `subtask_spawn_parallel` 被调用
+- THEN 返回 `isError: true`，说明最大 10 个
 
 ---
 
@@ -141,12 +235,12 @@ kill(taskId: string, opts?: { cascade?: boolean }): void
 ```typescript
 async spawn(
   parentSessionKey: string,
-  params: SpawnSubagentParams,
+  params: SpawnSubtaskParams,
   opts?: {
     depth?: number
-    onComplete?: (result: SubagentResult) => void
+    onComplete?: (result: SubtaskResult) => void
   }
-): Promise<SubagentResult>
+): Promise<SubtaskResult>
 ```
 
 #### Scenario: 正常完成回调
