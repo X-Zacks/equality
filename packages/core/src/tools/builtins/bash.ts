@@ -102,7 +102,10 @@ export const bashTool: ToolDefinition = {
 
     // ── 沙箱路径隔离（Phase C.2）────────────
     if (ctx.sandboxEnabled !== false) {
-      const sandbox = validateBashCommand(command, { workspaceDir: ctx.workspaceDir })
+      const sandbox = validateBashCommand(command, {
+        workspaceDir: ctx.workspaceDir,
+        allowedExternalPaths: ctx.allowedExternalPaths,
+      })
       if (!sandbox.allowed) {
         return { content: `❌ 沙箱拦截: ${sandbox.reason}`, isError: true }
       }

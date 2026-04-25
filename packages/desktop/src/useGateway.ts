@@ -51,6 +51,8 @@ export type SecretKey =
   | 'WORKSPACE_DIR'
   | 'MEMORY_AUTO_CAPTURE'
   | 'SANDBOX_ENABLED'
+  | 'ALLOWED_EXTERNAL_PATHS'
+  | 'WRITE_CONFIRM_ENABLED'
 
 export interface ConfiguredSecret {
   key: SecretKey

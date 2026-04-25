@@ -48,6 +48,74 @@ Use when no template or reference presentation is available.
 
 ---
 
+## Template + Source Document → PPT (Common Scenario)
+
+When user provides a **template PPT** and a **source document** (Word, PDF, etc.):
+
+### Step 1: Analyze Both Inputs
+
+```bash
+# Extract source document content
+python -m markitdown source.docx
+
+# Analyze template: visual layouts + placeholder text
+python scripts/thumbnail.py template.pptx
+python -m markitdown template.pptx
+```
+
+Review thumbnails to understand available layouts. Identify:
+- Which template slides are **title/section dividers** vs **content slides**
+- Color palette, fonts, and visual style
+- Placeholder positions and sizes (these define your coordinate constraints)
+
+### Step 2: Content Planning (Before Any Code)
+
+Structure the source document content into a **slide outline**. Follow these rules:
+
+1. **Page budget**: Respect user's page limit. If "不超过10页", plan exactly 8-10 slides.
+2. **Executive summary structure** (for leadership audiences):
+   - Slide 1: Title + one-line thesis
+   - Slide 2: Executive Summary / Key Takeaways (3-4 bullets max)
+   - Slides 3-7: One theme per slide, headline = the insight, body = supporting evidence
+   - Slide 8-9: Recommendations / Next Steps
+   - Slide 10: Appendix or Thank You
+3. **Content density**: Max 5-6 text blocks per slide. If more, split into two slides.
+4. **Headline-driven**: Every slide title should state the **conclusion**, not the topic.
+   - ❌ "Q3 Financial Results"
+   - ✅ "Q3 Revenue Grew 23% Driven by Enterprise Segment"
+
+### Step 3: Choose Rendering Path
+
+| Scenario | Path | Guide |
+|----------|------|-------|
+| Template has good layouts, just need to fill content | **Template editing** | [editing.md](editing.md) |
+| Template is style reference only, need custom layouts | **Create from scratch** matching template style | [pptxgenjs.md](pptxgenjs.md) |
+| Mix: some slides from template, some custom | **Both** — use template slides where they fit, create new ones for the rest | Both guides |
+
+### Step 4: Template Style Extraction (for "Create from Scratch" path)
+
+When creating from scratch but matching a template's style:
+
+```bash
+# Unpack template to inspect exact colors, fonts, sizes
+python scripts/office/unpack.py template.pptx unpacked-tpl/
+```
+
+From the XML, extract:
+- **Background colors** (solid or gradient)
+- **Title font**, size, color, position
+- **Body font**, size, color
+- **Accent colors** (shapes, lines, highlights)
+- **Margin/padding** patterns
+
+Use these exact values in your PptxGenJS render script.
+
+### Step 5: Render + Validate + QA
+
+See sections below for layout validation and visual QA.
+
+---
+
 ## Design Ideas
 
 **Don't create boring slides.** Plain bullets on a white background won't impress anyone. Consider ideas from this list for each slide.
@@ -123,6 +191,71 @@ Choose colors that match your topic — don't default to generic blue. Use these
 - 0.3-0.5" between content blocks
 - Leave breathing room—don't fill every inch
 
+### Layout Coordinate Rules (CRITICAL — Prevents Overlapping Elements)
+
+**Slide dimensions** (LAYOUT_16x9): 10" × 5.625"
+
+**Safe content area**: x ∈ [0.5, 9.5], y ∈ [0.5, 5.125]
+
+**Standard zones** (use as starting point, adjust per layout):
+
+| Zone | x | y | w | h |
+|------|---|---|---|---|
+| Title | 0.5 | 0.25 | 9.0 | 0.7 |
+| Content start | 0.5 | 1.2 | — | — |
+| Footer/source | 0.5 | 5.2 | 9.0 | 0.3 |
+
+**Spacing rules**:
+- Vertical gap between adjacent elements: **≥ 0.3"**
+- Horizontal gap between side-by-side elements: **≥ 0.3"**
+- Page edge margin: **≥ 0.5"**
+
+**Coordinate calculation** — calculate sequentially, don't guess:
+```
+element_N.y = element_(N-1).y + element_(N-1).h + 0.3
+element_N.x + element_N.w ≤ 9.5
+element_N.y + element_N.h ≤ 5.125
+```
+
+If the last element overflows (y + h > 5.125), **split into two slides** — do NOT shrink fonts or remove gaps.
+
+**Two-column layout**:
+```
+Left column:  x=0.5,  w=4.35
+Right column: x=5.15, w=4.35
+(gap = 0.3")
+```
+
+**Three-column layout**:
+```
+Col 1: x=0.5,  w=2.8
+Col 2: x=3.6,  w=2.8
+Col 3: x=6.7,  w=2.8
+(gap = 0.3")
+```
+
+### Font Size Rules (CRITICAL — Prevents Tiny Text in Shapes)
+
+| Element Type | Min | Recommended | Max |
+|-------------|-----|-------------|-----|
+| Slide title | 32pt | 36-40pt | 48pt |
+| Subtitle | 16pt | 20-24pt | 28pt |
+| Body text | **14pt** | 16-18pt | 22pt |
+| Bullet list | **14pt** | 15-16pt | 20pt |
+| KPI / big number | 36pt | 48-60pt | 72pt |
+| Callout text | 14pt | 16-20pt | 24pt |
+| Chart/table label | 10pt | 12pt | 14pt |
+| Footnote/source | 9pt | 10pt | 12pt |
+
+**⚠️ NEVER use less than 14pt for body text or bullets.** If text doesn't fit, reduce the text or split slides — do not shrink the font.
+
+**Shape fill ratio** — when text occupies less than 30% of a shape's area, the shape looks empty. Solutions:
+1. **Increase font size** until fill ratio reaches 50-70%
+2. **Reduce shape size** to better fit the content
+3. **Add more content** (subtitle, description, icon)
+
+**Chinese text**: Use 1-2pt larger than English recommendations (Chinese characters need more space to be legible).
+
 ### Avoid (Common Mistakes)
 
 - **Don't repeat the same layout** — vary columns, cards, and callouts across slides
@@ -159,6 +292,45 @@ python -m markitdown output.pptx | grep -iE "xxxx|lorem|ipsum|this.*(page|slide)
 ```
 
 If grep returns results, fix them before declaring success.
+
+### Layout Validation (Run Before Visual QA)
+
+Before converting to images, validate layout programmatically. Extract element coordinates from your render script into a DeckSpec JSON, then run:
+
+```bash
+node scripts/ppt-validate-layout.js deckspec.json
+```
+
+The script checks for:
+- **OVERLAP**: Elements colliding or gap < 0.3"
+- **OUT_OF_BOUNDS**: Elements exceeding slide boundaries or margins
+- **FONT_TOO_SMALL**: Font sizes below minimum for element type
+- **LOW_FILL_RATIO**: Text occupying < 20% of shape area (shape looks empty)
+- **TOO_MANY_OBJECTS**: More than 8 elements on one slide
+
+To auto-fix detected issues:
+
+```bash
+node scripts/ppt-validate-layout.js deckspec.json --fix --output fixed.json
+```
+
+Fix any reported issues in your render script before proceeding to visual QA.
+
+**DeckSpec JSON format** (extract from your render script):
+```json
+{
+  "layout": "LAYOUT_16x9",
+  "slides": [
+    {
+      "slideNumber": 1,
+      "objects": [
+        { "id": "title", "type": "title", "x": 0.5, "y": 0.25, "w": 9.0, "h": 0.7, "fontSize": 36, "content": "标题文字" },
+        { "id": "body",  "type": "text",  "x": 0.5, "y": 1.2,  "w": 9.0, "h": 3.5, "fontSize": 16, "content": "正文内容..." }
+      ]
+    }
+  ]
+}
+```
 
 ### Visual QA
 

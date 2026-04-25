@@ -40,6 +40,8 @@ export interface ToolContext {
   provider?: import('../providers/types.js').LLMProvider
   /** 沙箱模式是否启用（默认 true）。关闭时工具可访问任意路径 */
   sandboxEnabled?: boolean
+  /** 沙箱白名单：允许访问的外部路径列表（绝对路径）。用于 LibreOffice 等外部程序 */
+  allowedExternalPaths?: string[]
 }
 
 // ─── Tool Definition ──────────────────────────────────────────────────────────

@@ -155,8 +155,10 @@ export function extractPathArgs(command: string): string[] {
     const args: string[] = []
     for (let i = cmdIndex + 1; i < tokens.length; i++) {
       const tok = tokens[i]
-      if (tok.startsWith('-')) continue // 跳过 flags
+      if (tok.startsWith('-')) continue // 跳过 Unix flags: -r, --force
+      if (/^\/[a-zA-Z]$/.test(tok)) continue // 跳过 Windows flags: /b, /s, /w, /q
       if (tok.startsWith('>') || tok === '<') continue // 跳过重定向
+      if (/^\d+>/.test(tok)) continue // 跳过重定向: 2>&1, 2>nul
       // 剥离路径两端引号（LLM 生成的命令通常带引号）
       const clean = tok.replace(/^["']|["']$/g, '')
       if (clean) args.push(clean)

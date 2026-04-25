@@ -766,12 +766,14 @@ interface ToolDetailDrawerProps {
 }
 
 function ToolDetailDrawer({ tool, onClose, draft, saving, getMasked, onDraftChange, onSave, onClear, saveApiKey: directSave }: ToolDetailDrawerProps) {
+  const { t } = useT()
   const props = tool.parameters?.properties ?? {}
   const required = new Set(tool.parameters?.required ?? [])
   const paramEntries = Object.entries(props)
   const isWebSearch = tool.name === 'web_search'
   const isBrowser = tool.name === 'browser'
-  const hasConfig = isWebSearch || isBrowser
+  const isWriteTool = ['write_file', 'edit_file', 'replace_in_file', 'apply_patch'].includes(tool.name)
+  const hasConfig = isWebSearch || isBrowser || isWriteTool
 
   return (
     <div className="drawer-mask" onClick={onClose}>
@@ -927,6 +929,35 @@ function ToolDetailDrawer({ tool, onClose, draft, saving, getMasked, onDraftChan
             </div>
           )}
 
+          {/* ─── write tool 确认开关 ─── */}
+          {isWriteTool && getMasked && directSave && (
+            <div className="tool-detail-section">
+              <div className="tool-detail-label">⚙️ {t('writeConfirm.label')}</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '8px 0' }}>
+                <span style={{ fontSize: 13, fontWeight: 500 }}>{t('writeConfirm.label')}</span>
+                <div
+                  style={{
+                    width: 40, height: 22, borderRadius: 11, cursor: 'pointer', position: 'relative', transition: 'background 0.2s',
+                    background: getMasked('WRITE_CONFIRM_ENABLED') === 'off' ? '#555' : '#30d158',
+                  }}
+                  onClick={() => {
+                    const current = getMasked('WRITE_CONFIRM_ENABLED')
+                    const newVal = current === 'off' ? 'on' : 'off'
+                    directSave('WRITE_CONFIRM_ENABLED', newVal)
+                  }}
+                >
+                  <div style={{
+                    width: 18, height: 18, borderRadius: 9, background: '#fff', position: 'absolute', top: 2, transition: 'left 0.2s',
+                    left: getMasked('WRITE_CONFIRM_ENABLED') === 'off' ? 2 : 20,
+                  }} />
+                </div>
+              </div>
+              <p className="drawer-hint" style={{ color: getMasked('WRITE_CONFIRM_ENABLED') === 'off' ? '#ff9f0a' : undefined }}>
+                {getMasked('WRITE_CONFIRM_ENABLED') === 'off' ? t('writeConfirm.offDesc') : t('writeConfirm.onDesc')}
+              </p>
+            </div>
+          )}
+
           {paramEntries.length > 0 && (
             <div className="tool-detail-section">
               <div className="tool-detail-label">参数</div>
@@ -984,7 +1015,7 @@ function AdvancedDrawer({ panel, draft, saving, getMasked, onDraftChange, onSave
   const title = isWorkspace ? t('workspace.title') : isPerformance ? t('perf.title') : t('agentLoop.title')
   const saveGroup = isWorkspace ? 'workspaceDir' : isPerformance ? 'advanced' : 'agentLoop'
   const saveKeys: SecretKey[] = isWorkspace
-    ? ['WORKSPACE_DIR']
+    ? ['WORKSPACE_DIR', 'ALLOWED_EXTERNAL_PATHS']
     : isPerformance
       ? ['BASH_TIMEOUT_MS', 'BASH_IDLE_TIMEOUT_MS', 'BASH_MAX_TIMEOUT_MS']
       : ['AGENT_MAX_TOOL_CALLS', 'AGENT_MAX_LLM_TURNS']
@@ -1045,6 +1076,17 @@ function AdvancedDrawer({ panel, draft, saving, getMasked, onDraftChange, onSave
                 <p style={{ fontSize: 12, color: '#ff9f0a', margin: '8px 0 0', padding: '6px 8px', background: 'rgba(255,159,10,0.08)', borderRadius: 6 }}>
                   {t('sandbox.warning')}
                 </p>
+              )}
+              {getMasked('SANDBOX_ENABLED') !== 'off' && (
+                <div className="key-row" style={{ marginTop: 12 }}>
+                  <label>{t('sandbox.allowedPaths')}</label>
+                  <input
+                    placeholder={getMasked('ALLOWED_EXTERNAL_PATHS') || t('sandbox.allowedPathsPlaceholder')}
+                    value={draft['ALLOWED_EXTERNAL_PATHS'] ?? ''}
+                    onChange={e => onDraftChange('ALLOWED_EXTERNAL_PATHS', e.target.value)}
+                  />
+                  <p className="drawer-hint">{t('sandbox.allowedPathsDesc')}</p>
+                </div>
               )}
             </>
           ) : isPerformance ? (

@@ -45,6 +45,7 @@ export interface SubtaskManagerDeps {
   defaults?: {
     workspaceDir?: string
     sandboxEnabled?: boolean
+    allowedExternalPaths?: string[]
     toolRegistry?: ToolRegistry
     skills?: RunAttemptParams['skills']
     beforeToolCall?: RunAttemptParams['beforeToolCall']
@@ -288,6 +289,7 @@ export class SubtaskManager {
         steeringQueue,
         workspaceDir: this.deps.defaults?.workspaceDir,
         sandboxEnabled: this.deps.defaults?.sandboxEnabled,
+        allowedExternalPaths: this.deps.defaults?.allowedExternalPaths,
         skills: this.deps.defaults?.skills,
         beforeToolCall: this.deps.defaults?.beforeToolCall,
         contextEngine: this.deps.defaults?.contextEngine,

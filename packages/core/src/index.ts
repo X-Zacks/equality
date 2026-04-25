@@ -107,6 +107,18 @@ function isSandboxEnabled(): boolean {
   return true
 }
 
+// 沙箱白名单：从 ALLOWED_EXTERNAL_PATHS 读取额外允许的路径（分号分隔）
+// 例: "C:\Program Files\LibreOffice;C:\tools\poppler\bin"
+function getAllowedExternalPaths(): string[] {
+  if (hasSecret('ALLOWED_EXTERNAL_PATHS' as SecretKey)) {
+    return getSecret('ALLOWED_EXTERNAL_PATHS' as SecretKey)
+      .split(/[;\n]/)
+      .map(p => p.trim())
+      .filter(Boolean)
+  }
+  return []
+}
+
 // ─── D1: 安全管道集成（Phase D.1）────────────────────────────────────────────
 
 /**
@@ -289,6 +301,7 @@ const subagentManager = new SubtaskManager({
   defaults: {
     workspaceDir: getWorkspaceDir(),
     sandboxEnabled: isSandboxEnabled(),
+    allowedExternalPaths: getAllowedExternalPaths(),
     toolRegistry,
     skills: skillsWatcher.getSkills().map(e => e.skill),
     beforeToolCall: securityBeforeToolCall,
@@ -401,6 +414,7 @@ const cronScheduler = new CronScheduler({
         toolRegistry,
         workspaceDir: getWorkspaceDir(),
         sandboxEnabled: isSandboxEnabled(),
+        allowedExternalPaths: getAllowedExternalPaths(),
         skills: skillsWatcher.getSkills().map(e => e.skill),
         beforeToolCall: securityBeforeToolCall,
         contextEngine: new DefaultContextEngine(),
@@ -621,10 +635,12 @@ async function enhancedBeforeToolCall(
   const secResult = await securityBeforeToolCall(info)
   if (secResult) return secResult
 
-  // 2. 写操作确认（仅对有 content 参数的写工具）
+  // 2. 写操作确认（仅对有 content 参数的写工具，且确认开关开启时）
   if (CONFIRM_TOOLS.has(info.name) && info.args.content) {
+    const confirmEnabled = !hasSecret('WRITE_CONFIRM_ENABLED' as SecretKey)
+      || getSecret('WRITE_CONFIRM_ENABLED' as SecretKey) !== 'off'
     const send = activeSendFns.get(sessionKey)
-    if (send) {
+    if (confirmEnabled && send) {
       // 发送 tool_confirm SSE 事件，前端展示 DiffPreview
       send({
         type: 'tool_confirm',
@@ -725,6 +741,7 @@ app.post<{ Body: ChatBody }>('/chat/stream', async (req, reply) => {
         toolRegistry,
         workspaceDir: getWorkspaceDir(),
         sandboxEnabled: isSandboxEnabled(),
+        allowedExternalPaths: getAllowedExternalPaths(),
         skills: skillsWatcher.getSkills().map(e => e.skill),
         activeSkillNames,
         allowedTools,
