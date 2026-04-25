@@ -775,6 +775,9 @@ function ToolDetailDrawer({ tool, onClose, draft, saving, getMasked, onDraftChan
   const isWriteTool = ['write_file', 'edit_file', 'replace_in_file', 'apply_patch'].includes(tool.name)
   const hasConfig = isWebSearch || isBrowser || isWriteTool
 
+  // Write confirm toggle: local state for immediate UI, save to backend
+  const [writeConfirmOff, setWriteConfirmOff] = useState(() => getMasked?.('WRITE_CONFIRM_ENABLED') === 'off')
+
   return (
     <div className="drawer-mask" onClick={onClose}>
       <div className="drawer-panel" onClick={e => e.stopPropagation()}>
@@ -930,30 +933,37 @@ function ToolDetailDrawer({ tool, onClose, draft, saving, getMasked, onDraftChan
           )}
 
           {/* ─── write tool 确认开关 ─── */}
-          {isWriteTool && getMasked && directSave && (
+          {isWriteTool && directSave && (
             <div className="tool-detail-section">
               <div className="tool-detail-label">⚙️ {t('writeConfirm.label')}</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '8px 0' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
                 <span style={{ fontSize: 13, fontWeight: 500 }}>{t('writeConfirm.label')}</span>
-                <div
-                  style={{
-                    width: 40, height: 22, borderRadius: 11, cursor: 'pointer', position: 'relative', transition: 'background 0.2s',
-                    background: getMasked('WRITE_CONFIRM_ENABLED') === 'off' ? '#555' : '#30d158',
-                  }}
-                  onClick={() => {
-                    const current = getMasked('WRITE_CONFIRM_ENABLED')
-                    const newVal = current === 'off' ? 'on' : 'off'
-                    directSave('WRITE_CONFIRM_ENABLED', newVal)
-                  }}
-                >
-                  <div style={{
-                    width: 18, height: 18, borderRadius: 9, background: '#fff', position: 'absolute', top: 2, transition: 'left 0.2s',
-                    left: getMasked('WRITE_CONFIRM_ENABLED') === 'off' ? 2 : 20,
-                  }} />
-                </div>
+                <label style={{ position: 'relative', display: 'inline-block', width: 40, height: 22 }}>
+                  <input
+                    type="checkbox"
+                    style={{ opacity: 0, width: 0, height: 0 }}
+                    checked={!writeConfirmOff}
+                    onChange={async (e) => {
+                      const newOff = !e.target.checked
+                      setWriteConfirmOff(newOff)
+                      await directSave('WRITE_CONFIRM_ENABLED', newOff ? 'off' : 'on')
+                    }}
+                  />
+                  <span style={{
+                    position: 'absolute', cursor: 'pointer', top: 0, left: 0, right: 0, bottom: 0,
+                    background: writeConfirmOff ? '#555' : '#30d158',
+                    borderRadius: 11, transition: 'background 0.2s',
+                  }}>
+                    <span style={{
+                      position: 'absolute', height: 18, width: 18,
+                      left: writeConfirmOff ? 2 : 20,
+                      bottom: 2, background: '#fff', borderRadius: 9, transition: 'left 0.2s',
+                    }} />
+                  </span>
+                </label>
               </div>
-              <p className="drawer-hint" style={{ color: getMasked('WRITE_CONFIRM_ENABLED') === 'off' ? '#ff9f0a' : undefined }}>
-                {getMasked('WRITE_CONFIRM_ENABLED') === 'off' ? t('writeConfirm.offDesc') : t('writeConfirm.onDesc')}
+              <p className="drawer-hint" style={{ color: writeConfirmOff ? '#ff9f0a' : undefined }}>
+                {writeConfirmOff ? t('writeConfirm.offDesc') : t('writeConfirm.onDesc')}
               </p>
             </div>
           )}
