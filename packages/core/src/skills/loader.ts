@@ -75,6 +75,16 @@ export function loadAllSkills(workspaceDir: string): SkillEntry[] {
     }
   }
 
+  // 平台过滤：只加载兼容当前平台的 Skill
+  const currentPlatform = process.platform === 'win32' ? 'windows'
+    : process.platform === 'darwin' ? 'macos' : 'linux'
+  for (const entry of result) {
+    const platforms = entry.skill.metadata.platforms
+    if (platforms && platforms.length > 0 && !platforms.includes(currentPlatform as 'windows' | 'macos' | 'linux')) {
+      entry.blocked = true
+    }
+  }
+
   const eligible = result.filter(e => !e.blocked)
   const blocked = result.filter(e => e.blocked)
   console.log(`[skills] 加载完成: ${result.length} 个 Skills (${eligible.length} eligible, ${blocked.length} blocked)`)

@@ -28,6 +28,14 @@ export interface SkillMetadata {
   userInvocable?: boolean
   always?: boolean
   emoji?: string
+  /** Skill 版本号（semver 格式，如 '1.0.0'） */
+  version?: string
+  /** 分类标签（自由格式，用于搜索和过滤） */
+  tags?: string[]
+  /** 作者信息 */
+  author?: string
+  /** 支持的平台列表（空或省略 = 全平台） */
+  platforms?: Array<'windows' | 'macos' | 'linux'>
   requires?: {
     bins?: string[]
     env?: string[]

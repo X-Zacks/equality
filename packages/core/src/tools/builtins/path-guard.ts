@@ -59,5 +59,12 @@ export function guardPath(
     }
   }
 
+  // 3) AppData/Equality 目录 → 允许（managed skills、Gallery 安装等）
+  const appDataBase = process.env.APPDATA ?? path.join(os.homedir(), 'AppData', 'Roaming')
+  const equalityDataDir = norm(path.join(appDataBase, 'Equality'))
+  if (normalizedReal === equalityDataDir || normalizedReal.startsWith(equalityDataDir + '/')) {
+    return { absPath }
+  }
+
   return { error: `Security: path "${absPath}" is outside workspace "${workspaceDir}". Only files within the workspace directory are accessible.` }
 }

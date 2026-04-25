@@ -41,6 +41,10 @@ name: skill-name                   # 小写+数字+连字符，≤64 字符
 description: '[功能摘要]。Use when: [触发场景1]、[触发场景2]。NOT for: [排除场景1]、[排除场景2]。'
                                    # ≤200 字符，Use when + NOT for 均必填
                                    # ⚠️ 含冒号时必须用单引号包裹
+version: '1.0.0'                   # 可选：语义版本号
+tags: []                           # 可选：分类标签，如 [workflow, data, automation]
+author: ''                         # 可选：作者
+platforms: [windows, macos, linux] # 可选：限定平台（省略=全平台）
 ---
 ```
 

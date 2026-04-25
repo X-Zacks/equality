@@ -1,7 +1,7 @@
 import os from 'node:os'
 import type { Skill } from '../skills/types.js'
 import { buildSkillsPromptBlock } from '../skills/prompt.js'
-import { getManagedSkillsDir, getBundledSkillsDir } from '../skills/loader.js'
+import { getManagedSkillsDir } from '../skills/loader.js'
 
 export interface SystemPromptOptions {
   /** 当前工作目录 */
@@ -36,7 +36,7 @@ export function buildSystemPrompt(options?: SystemPromptOptions): string {
   const now = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })
   const platform = `${os.platform()} ${os.arch()} (${os.release()})`
   const cwd = options?.workspaceDir ? compactPath(options.workspaceDir) : undefined
-  const skillsDir = getBundledSkillsDir().replace(/\\/g, '/')
+  const managedSkillsDir = getManagedSkillsDir().replace(/\\/g, '/')
   const modelName = options?.modelName ?? 'unknown'
   const lang = options?.language ?? 'zh-CN'
   const isEn = lang.startsWith('en')
@@ -359,7 +359,8 @@ ${sk.body}
 - 用 read_file 读取现有 SKILL.md → 修改相关步骤 → write_file 覆盖
 - 更新后告知用户："已更新 Skill '<name>' 的相关步骤。"
 
-保存方法：用 write_file 在 ${skillsDir}/<skill-name>/SKILL.md 创建文件（与现有的 python、git 等 Skill 同级）。
+保存方法：用 write_file 在 ${managedSkillsDir}/<skill-name>/SKILL.md 创建文件（全局可用，跨工作区共享）。
+如果用户明确要求"只给当前项目用"，则保存到工作目录下的 .agents/skills/<skill-name>/SKILL.md。
 
 **frontmatter 格式**（仅以下字段）：
 \`\`\`yaml
@@ -367,6 +368,9 @@ name: skill-name                   # 小写+数字+连字符，≤64 字符
 description: '[功能摘要]。Use when: [触发场景1]、[触发场景2]。NOT for: [排除场景1]、[排除场景2]。'
                                    # 长度 ≤ 200 字符，Use when + NOT for 两个分区均必填
                                    # ⚠️ description 含冒号时必须用单引号包裹整个值
+version: '1.0.0'                   # 可选：语义版本号
+tags: []                           # 可选：分类标签，如 [workflow, automation]
+author: ''                         # 可选：作者
 tools:
   - bash
   - write_file

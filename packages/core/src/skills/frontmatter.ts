@@ -101,6 +101,12 @@ export function parseSkillFile(filePath: string): Skill | null {
       userInvocable: meta['user-invocable'] !== false,
       always: eq.always === true,
       emoji: typeof eq.emoji === 'string' ? eq.emoji : undefined,
+      version: typeof meta.version === 'string' ? meta.version : undefined,
+      tags: asStringArray(meta.tags),
+      author: typeof meta.author === 'string' ? meta.author : undefined,
+      platforms: asStringArray(meta.platforms)?.filter(
+        (p): p is 'windows' | 'macos' | 'linux' => ['windows', 'macos', 'linux'].includes(p),
+      ) as SkillMetadata['platforms'],
       requires: meta.requires ? {
         bins: asStringArray((meta.requires as Record<string, unknown>).bins),
         env: asStringArray((meta.requires as Record<string, unknown>).env),
