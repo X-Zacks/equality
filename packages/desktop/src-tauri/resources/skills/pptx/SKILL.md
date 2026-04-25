@@ -16,26 +16,6 @@ license: Proprietary. LICENSE.txt has complete terms
 
 ---
 
-## Working Directory Rules (CRITICAL)
-
-**All generated files go in the user's attachment directory, NOT the skill directory.**
-
-- When user provides attachments like `[附件: C:\xxx\project\file.pptx]`, work in `C:\xxx\project\`
-- Unpack templates, create scripts, generate output — all in the attachment directory
-- The skill directory (where this SKILL.md lives) is **read-only** — only read scripts and docs from it, never write to it
-- If user specifies an output path, use that; otherwise default to attachment directory
-
-Example:
-```
-# ✅ CORRECT — work in attachment directory
-python {SKILL_DIR}/scripts/office/unpack.py template.pptx C:\users\work\project\unpacked-template/
-
-# ❌ WRONG — never unpack into skill directory
-python {SKILL_DIR}/scripts/office/unpack.py template.pptx {SKILL_DIR}/unpacked-template/
-```
-
----
-
 ## Reading Content
 
 ```bash
