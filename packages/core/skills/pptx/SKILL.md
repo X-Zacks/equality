@@ -86,18 +86,67 @@ Structure the source document content into a **slide outline**. Follow these rul
 
 ### Step 3: Choose Rendering Path
 
+**⚠️ DEFAULT: Use the template editing path.** Only fall back to "create from scratch" when the template is truly unusable (corrupted, wrong aspect ratio, or user explicitly says "just match the colors").
+
+```
+Does the template have logos, footers, branded backgrounds, or slide layouts?
+  → YES (almost always) → Template Editing path [editing.md](editing.md)
+  → NO (blank/minimal template, or user says "just reference the style") → Create from scratch [pptxgenjs.md](pptxgenjs.md)
+```
+
 | Scenario | Path | Guide |
 |----------|------|-------|
-| Template has good layouts, just need to fill content | **Template editing** | [editing.md](editing.md) |
-| Template is style reference only, need custom layouts | **Create from scratch** matching template style | [pptxgenjs.md](pptxgenjs.md) |
-| Mix: some slides from template, some custom | **Both** — use template slides where they fit, create new ones for the rest | Both guides |
+| Template has logos/footers/branded elements | **Template editing** — MUST use this to preserve assets | [editing.md](editing.md) |
+| Template has good content layouts to fill | **Template editing** — duplicate + fill content | [editing.md](editing.md) |
+| Template is style reference only (no logos/footers worth keeping) | **Create from scratch** matching template style | [pptxgenjs.md](pptxgenjs.md) |
+| Need more slides than template provides | **Template editing + new slides from layouts** — see "Hybrid Workflow" in [editing.md](editing.md) | Both guides |
 
-### Step 4: Template Style Extraction (for "Create from Scratch" path)
+**Why template editing is the default:** When you create from scratch with PptxGenJS, you lose ALL template assets — logos, footer bars, background patterns, slide master decorations, page numbers, company branding. These are embedded in the template's slide masters and layouts, and there is NO way to replicate them programmatically without using the template file itself.
 
-When creating from scratch but matching a template's style:
+### Step 4: Template Asset Analysis (CRITICAL)
+
+Before writing any code, understand what the template provides:
 
 ```bash
-# Unpack template to inspect exact colors, fonts, sizes
+# Unpack template
+python scripts/office/unpack.py template.pptx unpacked-tpl/
+```
+
+**Inspect slide masters** (`ppt/slideMasters/slideMaster1.xml`):
+- Logos (usually `<p:pic>` elements with image references)
+- Footer bars, decorative shapes, background fills
+- Company name text, copyright notices
+
+**Inspect slide layouts** (`ppt/slideLayouts/`):
+- Each layout inherits from a slide master
+- Layouts define placeholder positions (title, body, content, picture)
+- List available layouts and their purpose:
+
+```bash
+# Quick way to see all layouts and their types
+python -m markitdown template.pptx
+python scripts/thumbnail.py template.pptx
+```
+
+**What to extract from the template:**
+
+| Asset | Where it lives | How to use |
+|-------|----------------|------------|
+| Logo | slideMaster or slideLayout (as `<p:pic>`) | Inherited automatically when using template layouts |
+| Footer text/bar | slideMaster (bottom shapes) | Inherited automatically |
+| Background | slideMaster `<p:bg>` or slideLayout `<p:bg>` | Inherited automatically |
+| Color scheme | `ppt/theme/theme1.xml` | Inherited automatically |
+| Fonts | theme1.xml `<a:majorFont>` / `<a:minorFont>` | Inherited automatically |
+| Page numbers | slideMaster footer placeholders | Inherited automatically |
+| Placeholder positions | slideLayout `<p:sp>` with `<p:ph>` | Use as coordinate guides |
+
+**Key insight:** Everything in the "Inherited automatically" column is FREE when you use the template editing path — and LOST when you create from scratch.
+
+### Step 4b: Template Style Extraction (ONLY for "Create from Scratch" path)
+
+Only use this when you've decided NOT to use the template directly:
+
+```bash
 python scripts/office/unpack.py template.pptx unpacked-tpl/
 ```
 
@@ -109,6 +158,8 @@ From the XML, extract:
 - **Margin/padding** patterns
 
 Use these exact values in your PptxGenJS render script.
+
+**⚠️ You will NOT get logos, footers, or branded backgrounds this way.** If those matter, go back to the template editing path.
 
 ### Step 5: Render + Validate + QA
 

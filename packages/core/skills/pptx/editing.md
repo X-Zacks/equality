@@ -98,6 +98,66 @@ Creates `thumbnails.jpg` with slide filenames as labels. Default 3 columns, max 
 
 ---
 
+## Hybrid Workflow: Template Layouts + Custom Content
+
+When the template has fewer slides than you need, or its content layouts don't match your content, use this approach:
+
+### Why This Works
+
+Every PPTX has a hierarchy: **Slide Masters → Slide Layouts → Slides**.
+- **Slide Master**: Contains logos, footer bars, background patterns, company branding
+- **Slide Layout**: Inherits from master, defines placeholder positions for a specific layout type
+- **Slide**: Inherits from a layout, contains actual content
+
+When you create a new slide from a template's slide layout, it **automatically inherits** logos, footers, backgrounds, and fonts from the master. This is why template editing beats create-from-scratch.
+
+### Steps
+
+1. **List available layouts**:
+   ```bash
+   python scripts/office/unpack.py template.pptx unpacked/
+   # Check ppt/slideLayouts/ — each slideLayoutN.xml is a usable layout
+   ```
+   
+   Look at `ppt/slideLayouts/_rels/` to see which master each layout uses. View thumbnails to visually identify layout types.
+
+2. **Create new slides from layouts**:
+   ```bash
+   # Create a new slide based on slideLayout2.xml (e.g., a content layout)
+   python scripts/add_slide.py unpacked/ slideLayout2.xml
+   ```
+   This creates a new slide that inherits the layout's placeholders, master's logos/footers/backgrounds.
+
+3. **Fill content**: Edit the new slide's XML to replace placeholder text with your content.
+
+4. **Delete unwanted template slides**: Remove sample/demo slides from `<p:sldIdLst>`, keep only your new ones.
+
+5. **Mix template + new slides**: Keep some original template slides (e.g., title page, section dividers) and add new content slides from layouts.
+
+### Choosing Layouts for Your Content
+
+| Content Type | Best Layout Type | What to Look For |
+|-------------|-----------------|-------------------|
+| Title/cover page | Title Slide | Large centered title + subtitle |
+| Section divider | Section Header | Bold title, minimal body |
+| Key points / bullets | Title and Content | Title + body placeholder |
+| Two-column comparison | Two Content | Side-by-side placeholders |
+| Image + text | Content with Caption | Picture placeholder + text |
+| Data / charts | Title and Content | Large content area |
+| Thank you / closing | Title Slide or Blank | Minimal, branded |
+
+### Preserving Template Elements
+
+**Logo**: Located in slide master. As long as you create slides from the template's layouts, logos appear automatically. Do NOT try to manually add logos.
+
+**Footer bar / bottom decoration**: Same as logo — lives in slide master, inherited automatically.
+
+**Page numbers**: If the template has page number placeholders in the master, they work automatically on new slides. To enable them, check `ppt/presentation.xml` for `<p:hf>` (header/footer settings).
+
+**Background**: Inherited from master → layout → slide. If a specific slide needs a different background, set `<p:bg>` on that slide's XML only.
+
+---
+
 ## Slide Operations
 
 Slide order is in `ppt/presentation.xml` → `<p:sldIdLst>`.
