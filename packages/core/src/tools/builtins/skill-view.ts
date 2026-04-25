@@ -59,8 +59,10 @@ export const skillViewTool: ToolDefinition = {
         }
       }
 
+      const skillDir = path.dirname(match.skill.filePath)
       const content = readFileSync(match.skill.filePath, 'utf-8')
-      return { content }
+      const header = `[Skill directory: ${skillDir}]\n[All relative paths in this skill (e.g. scripts/, editing.md) are relative to the above directory. Use absolute paths when reading or executing them.]\n\n`
+      return { content: header + content }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       return { content: `Failed to read skill: ${msg}`, isError: true }

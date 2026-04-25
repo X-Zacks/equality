@@ -1,4 +1,5 @@
 import os from 'node:os'
+import path from 'node:path'
 import type { Skill } from '../skills/types.js'
 import { buildSkillsPromptBlock } from '../skills/prompt.js'
 import { getManagedSkillsDir } from '../skills/loader.js'
@@ -94,8 +95,12 @@ export function buildSystemPrompt(options?: SystemPromptOptions): string {
     const activeList = options.activeSkills
     if (activeList.length === 1) {
       const sk = activeList[0]
+      const skillDir = path.dirname(sk.filePath)
       prompt += `\n
 ## 🎯 用户指定 Skill：${sk.name}
+
+Skill 目录：${skillDir}
+（Skill 中引用的相对路径如 \`scripts/xxx\`、\`editing.md\` 等，都相对于此目录。读取或执行时请使用绝对路径，例如 \`${skillDir}/scripts/xxx\`）
 
 用户通过 @ 明确指定了本次使用此 Skill，请**严格按照以下 Skill 的步骤执行**，不要跳过：
 
@@ -116,7 +121,8 @@ ${sk.body}
 
 `
       activeList.forEach((sk, i) => {
-        prompt += `### Skill ${i + 1}：${sk.name}\n\n${sk.body}\n\n---\n\n`
+        const skillDir = path.dirname(sk.filePath)
+        prompt += `### Skill ${i + 1}：${sk.name}\n\nSkill 目录：${skillDir}\n（引用的相对路径如 \`scripts/xxx\`、其他 .md 文件等，都相对于此目录）\n\n${sk.body}\n\n---\n\n`
       })
     }
   }
