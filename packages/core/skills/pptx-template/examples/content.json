@@ -1,0 +1,93 @@
+{
+  "title": "基于开源实践开发 Claude Cowork 自研方案",
+  "subtitle": "技术决策报告",
+  "slides": [
+    {
+      "type": "cover",
+      "title": "基于开源实践开发 Claude Cowork 自研方案",
+      "subtitle": "技术决策报告"
+    },
+    {
+      "type": "content",
+      "title": "Executive Summary",
+      "bullets": [
+        "自研是唯一出路 - 开源Cowork产品不成熟，Anthropic官方产品定位模糊",
+        "Eigent 是最优基础 - 架构清晰、可扩展、安全性最佳，适合fork后二次开发",
+        "Vibe Coding 是核心竞争力 - 70%工具生成+30%模型调优，实现高效开发",
+        "分阶段推进 - MVP聚焦文档处理 -> Beta扩展技能 -> 企业推广形成平台"
+      ]
+    },
+    {
+      "type": "content",
+      "title": "背景与目标：为何需要自研",
+      "bullets": [
+        "官方定位模糊 - Anthropic将Cowork定位为non-technical tasks，缺乏企业级API接口",
+        "Remote MCP安全隐患 - 企业核心系统（ERP/PLM/知识库）需要安全可控的connector",
+        "Microsoft强势切入 - Copilot Studio已构建完整Agent平台，生态优势明显",
+        "目标 - 构建自主可控的企业级Agent平台，形成差异化竞争优势"
+      ]
+    },
+    {
+      "type": "table",
+      "title": "开源竞品分析：Eigent 是最优选择",
+      "headers": ["方案", "核心优势", "主要问题"],
+      "rows": [
+        ["Eigent", "架构清晰、安全性强、可扩展", "尚在早期"],
+        ["OpenWork", "已有企业产品雏形", "runtime路径不明确"],
+        ["Open Cowork", "办公协同体验好", "非开源、不适合深度定制"],
+        ["OpenClaw", "安全性描述吸引人", "实际是安全边界而非agent"]
+      ]
+    },
+    {
+      "type": "content",
+      "title": "技术架构：Eigent + 内部fork",
+      "bullets": [
+        "选择Eigent为技术基座 - 模块化架构、多模型路由、安全性设计成熟",
+        "内部fork为Lenovo-Cowork分支 - 自主可控、技术栈稳定、定制开发",
+        "模型策略 - 主力GPT-5，备选Claude/Gemini/私有大模型，避免单一依赖",
+        "安全优先 - SSO统一认证、权限细粒度控制、数据隔离、DLP实时监控"
+      ]
+    },
+    {
+      "type": "timeline",
+      "title": "实施路线图：三阶段推进",
+      "phases": [
+        {
+          "title": "MVP阶段",
+          "date": "2026年5-7月",
+          "items": ["Fork Eigent技术栈", "SSO/权限/审计", "文档处理基础技能"],
+          "goal": "核心功能可用"
+        },
+        {
+          "title": "Beta阶段",
+          "date": "2026年7-9月",
+          "items": ["多模型路由接入", "知识库/MCP connector", "协同技能扩展"],
+          "goal": "200人试点"
+        },
+        {
+          "title": "企业推广",
+          "date": "2026年9-11月",
+          "items": ["M365/Copilot集成", "运维/SLA/培训", "全员推广"],
+          "goal": "全员推广"
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "title": "风险与应对策略",
+      "headers": ["风险类别", "具体风险", "应对策略"],
+      "rows": [
+        ["技术风险", "模型能力不足/厂商锁定", "多模型路由、内部微调能力"],
+        ["安全风险", "数据泄露/权限滥用", "SSO+DLP+细粒度权限+审计日志"],
+        ["成本风险", "API调用成本不可控", "Vibe Coding减少调用、梯度计费"],
+        ["合规风险", "监管政策变化", "本地部署选项、数据边界可控"],
+        ["组织风险", "用户接受度低", "分阶段试点、充分培训"]
+      ]
+    },
+    {
+      "type": "section",
+      "title": "结论与下一步行动",
+      "subtitle": ""
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+Copyright (c) 2026
+
+This skill and its associated code are proprietary materials.
+All rights reserved.
+
+The workflow and scripts provided are for internal use only.
