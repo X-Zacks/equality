@@ -34,3 +34,6 @@ OpenClaw_*.md
 
 # example/ 是独立 git 仓库（OpenClaw），不作为子模块提交
 example/
+
+# TDP-ppt-generate 是独立 git 仓库，不提交到 equality
+TDP-ppt-generate/
