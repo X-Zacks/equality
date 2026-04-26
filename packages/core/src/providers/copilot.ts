@@ -340,8 +340,8 @@ export class CopilotProvider implements LLMProvider {
 
     // 其他模型 → Chat Completions API
     const tokenParam = needsMaxCompletionTokens(model)
-      ? { max_completion_tokens: 16000 }
-      : { max_tokens: 16000 }
+      ? { max_completion_tokens: 120000 }
+      : { max_tokens: 120000 }
 
     const createStreamParams: OpenAI.ChatCompletionCreateParamsStreaming = {
       model,
@@ -535,8 +535,8 @@ export class CopilotProvider implements LLMProvider {
 
     // 其他模型 → Chat Completions API
     const tokenParam = needsMaxCompletionTokens(model)
-      ? { max_completion_tokens: 16000 }
-      : { max_tokens: 16000 }
+      ? { max_completion_tokens: 120000 }
+      : { max_tokens: 120000 }
 
     const createParams: OpenAI.ChatCompletionCreateParamsNonStreaming = {
       model,
